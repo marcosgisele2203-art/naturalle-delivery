@@ -1,267 +1,239 @@
+// App do cliente: delivery/retirada em "/" e pedido na mesa em "/m/<código da mesa>".
 (function () {
-  const M = window.MENU;
-  const brl = M.brl;
-  const curto = (v) => brl(v).replace(',00', '');
+  const { esc, brl, linhas } = window.Montador;
   const $ = (s) => document.querySelector(s);
-  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const MAIS = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
-  const X = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
-  const SACOLA = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 7h12l-1 13H7z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>';
-
-  function diaDaSemana() {
-    const nome = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Campo_Grande', weekday: 'short' }).format(new Date());
-    return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(nome);
-  }
-
+  const tokenMesa = (location.pathname.match(/^\/m\/([\w-]+)$/) || [])[1] || null;
+  const chave = (k) => 'nm-' + (tokenMesa ? 'mesa-' + tokenMesa + '-' : '') + k;
   const guardado = (k, padrao) => { try { return JSON.parse(localStorage.getItem(k)) ?? padrao; } catch { return padrao; } };
   const guardar = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* sem armazenamento */ } };
+  const SACOLA = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 7h12l-1 13H7z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>';
+  const ETAPAS = {
+    novo: 'Recebido, aguardando confirmação', preparo: 'Em preparo', pronto: 'Pronto',
+    saiu: 'Saiu para entrega', entregue: 'Entregue', cancelado: 'Cancelado',
+  };
 
   const st = {
-    aba: 'acai',
-    copo: 2, acaiAds: [],
-    macOp: 0, queijo: 'Cheddar', macAds: [],
-    sabores: {},
-    carrinho: guardado('nm-carrinho', []),
+    loja: null, cardapio: null, dia: 0, mesa: null,
+    carrinho: guardado(chave('carrinho'), []),
     cliente: guardado('nm-cliente', { nome: '', telefone: '', endereco: '' }),
-    pagamento: 'pix', troco: '', obs: '',
+    tipo: 'entrega', pagamento: 'pix', troco: '', obs: '',
     enviando: false, erro: '', enviado: null,
+    meus: guardado(chave('pedidos'), []), // [{ codigo, id }]
+    acompanhamento: {},
   };
-  const dia = diaDaSemana();
+  let montador;
 
-  const ABAS = [['acai', 'Monte seu açaí'], ['mac', 'Mac de 10'], ['combos', 'Combos do dia'], ['bebidas', 'Bebidas e mais']];
-
-  function calcAtual() {
-    if (st.aba === 'acai') return { tipo: 'acai', copo: st.copo, adicionais: st.acaiAds };
-    if (st.aba === 'mac') return { tipo: 'mac', opcao: st.macOp, queijo: st.queijo, adicionais: st.macAds };
-    return null;
+  async function api(url, corpo) {
+    const r = await fetch(url, corpo ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) } : {});
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.erro || 'Não foi possível concluir. Tente de novo.');
+    return d;
   }
 
-  function adicionar(escolha) {
-    const calc = M.calcular(escolha, dia);
-    st.carrinho.push({ escolha, ...calc, k: Date.now() + Math.random() });
+  const total = () => window.Calc.somar(st.carrinho) + (taxa());
+  const taxa = () => (!tokenMesa && st.tipo === 'entrega' ? Number(st.loja.taxa_entrega) || 0 : 0);
+
+  function adicionar(escolha, calc) {
+    st.carrinho.push({ escolha, ...calc });
     st.enviado = null;
-    guardar('nm-carrinho', st.carrinho);
+    guardar(chave('carrinho'), st.carrinho);
+    renderBarra();
+    avisar('Adicionado ao carrinho');
   }
 
-  const total = () => st.carrinho.reduce((s, i) => s + i.preco, 0);
-
-  // ---------- render ----------
-  function renderAbas() {
-    $('#abas').innerHTML = ABAS.map(([id, nome]) =>
-      `<button class="aba" role="tab" aria-selected="${st.aba === id}" data-acao="aba" data-v="${id}">${nome}</button>`).join('');
+  // ---------------- render
+  function renderTopo() {
+    const l = st.loja;
+    const [a, ...b] = l.nome.split(' ');
+    $('#nome-loja').innerHTML = esc(a) + (b.length ? ' <span>' + esc(b.join(' ')) + '</span>' : '');
+    $('#frase').textContent = l.frase || '';
+    document.title = l.nome + (tokenMesa ? ' · ' + st.mesa.nome : ' · Peça online');
+    const selos = [];
+    if (tokenMesa) selos.push(`<span class="selo amarelo">${esc(st.mesa.nome)}</span>`, '<span class="selo">Peça daqui mesmo, sem esperar</span>');
+    else {
+      if (l.horario) selos.push(`<span class="selo amarelo">${esc(l.horario)}</span>`);
+      selos.push('<span class="selo">Pix · Cartão · Dinheiro</span>');
+      if (l.delivery && Number(l.taxa_entrega)) selos.push(`<span class="selo">Entrega ${brl(l.taxa_entrega)}</span>`);
+    }
+    $('#selos').innerHTML = selos.join('');
+    if (tokenMesa) $('#balao').textContent = 'Oi! Escolha aí que a gente leva até a sua mesa!';
+    const aviso = $('#aviso-topo');
+    if (!tokenMesa && !l.aberta) { aviso.hidden = false; aviso.textContent = 'Estamos fechados para pedidos pelo site agora. Você pode olhar o cardápio à vontade.'; }
+    $('#rodape').innerHTML = l.whatsapp ? `<p>${esc(l.nome)} · Fale com a gente no WhatsApp <a href="https://wa.me/${esc(l.whatsapp)}">${formatarFone(l.whatsapp)}</a></p>` : '';
   }
 
-  function renderAcai() {
-    const copos = M.copos.map((c, i) =>
-      `<button class="caixa" aria-pressed="${st.copo === i}" data-acao="copo" data-v="${i}"><b>${c.nome}</b><span>${curto(c.preco)}</span></button>`).join('');
-    const grupos = M.adicionais.map((g) => `
-      <div class="grupo"><h3>${g.grupo}</h3><div class="chips">
-        ${g.itens.map(([n, p]) => {
-          const k = g.grupo + ':' + n;
-          return `<button class="chip" aria-pressed="${st.acaiAds.includes(k)}" data-acao="acai-ad" data-v="${esc(k)}">${esc(n)} <small>${p ? '+' + curto(p) : 'grátis'}</small></button>`;
-        }).join('')}
-      </div></div>`).join('');
-    return `<h2 class="passo">1º passo · Escolha seu copo</h2><div class="copos">${copos}</div>
-      <h2 class="passo">2º passo · Adicionais</h2>${grupos}`;
+  function formatarFone(t) {
+    const d = String(t).replace(/^55/, '');
+    return d.length >= 10 ? `(${d.slice(0, 2)}) ${d.slice(2, -4)}-${d.slice(-4)}` : t;
   }
 
-  function renderMac() {
-    const m = M.mac;
-    const ops = m.opcoes.map(([n, p], i) =>
-      `<button class="caixa" aria-pressed="${st.macOp === i}" data-acao="mac-op" data-v="${i}"><b>${n}</b><span>R$ ${p}</span></button>`).join('');
-    const qs = m.queijos.map((q) => `<button class="chip" aria-pressed="${st.queijo === q}" data-acao="queijo" data-v="${q}">${q}</button>`).join('');
-    const ads = m.adicionais.map(([n, p]) =>
-      `<button class="chip" aria-pressed="${st.macAds.includes(n)}" data-acao="mac-ad" data-v="${esc(n)}">${esc(n)} <small>+R$ ${p}</small></button>`).join('');
-    return `<section class="mac"><h2>Mac de 10</h2><p>${m.descricao}</p>
-        <div class="opcoes">${ops}</div>
-        <span class="rotulo">Queijo</span><div class="chips">${qs}</div>
-        <span class="rotulo">Adicionais</span><div class="chips">${ads}</div></section>
-      ${listaProdutos('lanches')}`;
-  }
-
-  function listaProdutos(cat) {
-    return M.produtos.filter((p) => p.cat === cat).map((p) => {
-      const sabor = p.sabores ? `<label class="sr"><select data-acao="sabor" data-v="${p.id}" aria-label="Sabor de ${esc(p.nome)}">
-          <option value="">Escolha o sabor</option>${p.sabores.map((s) => `<option${st.sabores[p.id] === s ? ' selected' : ''}>${esc(s)}</option>`).join('')}
-        </select></label>` : '';
-      const semPreco = p.preco == null;
-      return `<article class="produto"><div class="produto-info">
-          <h3>${esc(p.nome)}</h3>${p.desc && !p.sabores ? `<span class="desc">${esc(p.desc)}</span>` : ''}
-          ${p.sabores ? `<span class="desc">${esc(p.desc)}</span>` : ''}
-          <span class="preco">${semPreco ? 'Consulte no WhatsApp' : brl(p.preco)}</span>${sabor}
-        </div>
-        <button class="mais" data-acao="produto" data-v="${p.id}" aria-label="Adicionar ${esc(p.nome)}"${semPreco ? ' disabled' : ''}>${MAIS}</button></article>`;
-    }).join('');
-  }
-
-  function renderCombos() {
-    return `<p class="nota">Preço promocional só no dia do combo.</p>` + M.combos.map((c) => {
-      const hoje = c.weekday === dia;
-      const tams = M.tamanhosCombo.map((t, i) => `
-        <button class="tamanho" data-acao="combo" data-dia="${c.dia}" data-v="${i}" aria-label="Adicionar combo ${c.dia} ${t}">
-          <small>${t}</small>${hoje ? `<s>${curto(c.normal[i])}</s>` : ''}<b>${curto(hoje ? c.promo[i] : c.normal[i])}</b>
-        </button>`).join('');
-      return `<article class="combo" style="background:${c.cor}"><div class="combo-topo"><h3>${c.dia}</h3>${hoje ? '<span class="hoje">Hoje</span>' : ''}</div>
-        <p>${c.desc}</p><div class="tamanhos">${tams}</div></article>`;
-    }).join('');
-  }
-
-  function renderConteudo() {
-    const html = { acai: renderAcai, mac: renderMac, combos: renderCombos, bebidas: () => listaProdutos('bebidas') }[st.aba]();
-    $('#conteudo').innerHTML = html;
+  function renderAcompanhar() {
+    const ativos = st.meus.map((m) => st.acompanhamento[m.codigo]).filter(Boolean)
+      .filter((p) => tokenMesa || !['entregue', 'cancelado'].includes(p.status) || Date.now() - new Date(p.criado_em) < 3 * 3600_000);
+    $('#acompanhar').innerHTML = ativos.length ? `<section class="acompanhar" aria-live="polite">
+      <h2>${tokenMesa ? 'Pedidos desta mesa' : 'Seus pedidos'}</h2>
+      ${ativos.map((p) => `<div class="acomp-linha"><b>#${p.id}</b><span class="etapa etapa-${p.status}">${ETAPAS[p.status] || p.status}</span><span>${brl(p.total)}</span></div>`).join('')}
+    </section>` : '';
   }
 
   function renderBarra() {
-    const n = st.carrinho.length;
-    const atual = calcAtual();
-    let html = '';
-    if (atual) {
-      const preco = M.calcular(atual, dia).preco;
-      html = `<button class="botao rosa flex" data-acao="montar"><span>Adicionar</span><span>${brl(preco)}</span></button>
-        <button class="botao escuro" data-acao="abrir" aria-label="Abrir carrinho, ${n} itens">${SACOLA}<span class="contador">${n}</span></button>`;
-    } else if (n) {
-      html = `<button class="botao escuro flex" data-acao="abrir"><span>Ver carrinho <span class="contador">${n}</span></span><span>${brl(total())}</span></button>`;
-    }
-    $('#barra').innerHTML = html;
+    const n = st.carrinho.reduce((s, i) => s + i.qtd, 0);
+    $('#barra').innerHTML = n ? `<button class="botao escuro flex" data-acao="abrir">${SACOLA}<span class="flex" style="text-align:left">Ver carrinho <span class="contador">${n}</span></span><span>${brl(window.Calc.somar(st.carrinho))}</span></button>` : '';
   }
 
   function renderCarrinho() {
-    const c = st.cliente;
+    const c = st.cliente, l = st.loja;
     if (st.enviado) {
-      $('#carrinho-corpo').innerHTML = `<div class="sucesso"><strong>Pedido #${esc(st.enviado.id)} enviado!</strong>
-        <span>${st.enviado.pix ? 'A chave Pix chegou no seu WhatsApp. Responda lá com a foto do comprovante.' : 'A confirmação chegou no seu WhatsApp.'}
-        Vamos avisando cada etapa pelo número (67) 9715-5502.</span></div>
-        <button class="botao verde" data-acao="fechar">Fazer outro pedido</button>`;
+      const p = st.enviado;
+      $('#carrinho-corpo').innerHTML = `<div class="sucesso"><strong>Pedido #${esc(p.id)} enviado!</strong>
+        <span>${tokenMesa
+          ? (p.status === 'preparo' ? 'Já foi para a cozinha. A gente leva na sua mesa.' : 'O garçom vai confirmar e mandar para a cozinha.') + ' Acompanhe aqui na página.'
+          : (p.pix ? 'A chave Pix chegou no seu WhatsApp. Responda lá com a foto do comprovante. ' : 'A confirmação chegou no seu WhatsApp. ') + 'Você também acompanha aqui na página.'}</span></div>
+        <button class="botao verde" data-acao="fechar">${tokenMesa ? 'Pedir mais alguma coisa' : 'Voltar ao cardápio'}</button>`;
       return;
     }
-    const itens = st.carrinho.length
-      ? st.carrinho.map((i) => `<div class="linha-item"><div><b>${esc(i.nome)}</b><small>${esc(i.detalhe)}</small></div>
-          <b>${brl(i.preco)}</b><button class="icone" data-acao="remover" data-v="${i.k}" aria-label="Remover ${esc(i.nome)}">${X}</button></div>`).join('')
-      : '<p class="vazio">Seu carrinho está vazio.</p>';
-    const pags = [['pix', 'Pix'], ['cartao', 'Cartão'], ['dinheiro', 'Dinheiro']].map(([v, n]) =>
-      `<button class="chip" aria-pressed="${st.pagamento === v}" data-acao="pagamento" data-v="${v}">${n}</button>`).join('');
-    const ajuda = { pix: 'A chave Pix chega no seu WhatsApp. Responda com o comprovante.', cartao: 'O entregador leva a maquininha.', dinheiro: '' }[st.pagamento];
-    $('#carrinho-corpo').innerHTML = `
-      <div>${itens}</div>
-      <form id="form-pedido" novalidate style="display:flex;flex-direction:column;gap:12px">
+    const itens = st.carrinho.length ? linhas(st.carrinho, true) : '<p class="vazio">Seu carrinho está vazio.</p>';
+    let campos;
+    if (tokenMesa) {
+      campos = `<label class="campo">Seu nome (opcional)<input name="nome" autocomplete="given-name" value="${esc(c.nome)}" placeholder="Para o garçom saber de quem é"></label>
+        <label class="campo">Observações (opcional)<textarea name="obs">${esc(st.obs)}</textarea></label>`;
+    } else {
+      const tipos = [l.delivery && ['entrega', 'Entrega'], l.retirada && ['retirada', 'Retirar no balcão']].filter(Boolean);
+      if (!tipos.some(([v]) => v === st.tipo) && tipos[0]) st.tipo = tipos[0][0];
+      const pags = [['pix', 'Pix'], ['cartao', 'Cartão'], ['dinheiro', 'Dinheiro']].map(([v, n]) =>
+        `<button type="button" class="chip" aria-pressed="${st.pagamento === v}" data-acao="pagamento" data-v="${v}">${n}</button>`).join('');
+      const ajuda = { pix: 'A chave Pix chega no seu WhatsApp. Responda com o comprovante.', cartao: st.tipo === 'entrega' ? 'O entregador leva a maquininha.' : 'Pague no cartão na retirada.', dinheiro: '' }[st.pagamento];
+      campos = `${tipos.length > 1 ? `<div class="campo"><span>Como você quer receber?</span><div class="pagamentos" style="grid-template-columns:repeat(2,minmax(0,1fr))">${tipos.map(([v, n]) =>
+          `<button type="button" class="chip" aria-pressed="${st.tipo === v}" data-acao="tipo" data-v="${v}">${n}</button>`).join('')}</div></div>` : ''}
         <label class="campo">Seu nome<input name="nome" autocomplete="name" required value="${esc(c.nome)}"></label>
         <label class="campo">WhatsApp com DDD<input name="telefone" type="tel" inputmode="tel" autocomplete="tel" placeholder="(67) 99999-9999" required value="${esc(c.telefone)}"></label>
-        <label class="campo">Endereço de entrega<input name="endereco" autocomplete="street-address" placeholder="Rua, número, bairro, referência" required value="${esc(c.endereco)}"></label>
-        <label class="campo">Observações (opcional)<textarea name="obs" placeholder="Ex.: sem cebola, adicionais da Marmita Trufada...">${esc(st.obs)}</textarea></label>
+        ${st.tipo === 'entrega' ? `<label class="campo">Endereço de entrega<input name="endereco" autocomplete="street-address" placeholder="Rua, número, bairro, referência" required value="${esc(c.endereco)}"></label>` : ''}
+        <label class="campo">Observações (opcional)<textarea name="obs">${esc(st.obs)}</textarea></label>
         <div class="campo"><span>Forma de pagamento</span><div class="pagamentos">${pags}</div>
           ${ajuda ? `<small style="font-weight:400;color:var(--cinza)">${ajuda}</small>` : ''}</div>
         ${st.pagamento === 'dinheiro' ? `<label class="campo">Troco para quanto? (opcional)<input name="troco" inputmode="decimal" placeholder="Ex.: 50,00" value="${esc(st.troco)}"></label>` : ''}
+        ${taxa() ? `<div class="linha-total"><span>Taxa de entrega</span><span>${brl(taxa())}</span></div>` : ''}`;
+    }
+    const fechado = !tokenMesa && !l.aberta;
+    $('#carrinho-corpo').innerHTML = `<div>${itens}</div>
+      <form id="form-pedido" novalidate class="form-pedido">${campos}
         <div class="total"><span>Total</span><span>${brl(total())}</span></div>
+        ${fechado ? '<p class="erro">A loja está fechada para pedidos pelo site agora.</p>' : ''}
         ${st.erro ? `<p class="erro" role="alert">${esc(st.erro)}</p>` : ''}
-        <button class="botao verde" type="submit"${st.enviando || !st.carrinho.length ? ' disabled' : ''}>${st.enviando ? 'Enviando…' : 'Enviar pedido'}</button>
+        <button class="botao verde" type="submit"${st.enviando || !st.carrinho.length || fechado ? ' disabled' : ''}>${st.enviando ? 'Enviando…' : tokenMesa ? 'Enviar pedido para a mesa' : 'Enviar pedido'}</button>
       </form>`;
   }
 
-  function render() { renderAbas(); renderConteudo(); renderBarra(); if (!$('#carrinho').hidden) renderCarrinho(); }
-
-  // ---------- eventos ----------
-  const alterna = (lista, v) => (lista.includes(v) ? lista.filter((x) => x !== v) : [...lista, v]);
+  // ---------------- carrinho / formulário
+  function abrir() { $('#carrinho').hidden = false; st.erro = ''; document.body.classList.add('mt-travado'); renderCarrinho(); }
+  function fechar() { lerForm(); $('#carrinho').hidden = true; st.enviado = null; document.body.classList.remove('mt-travado'); renderBarra(); }
 
   function lerForm() {
     const f = $('#form-pedido');
     if (!f) return;
     const d = new FormData(f);
-    st.cliente = { nome: d.get('nome') || '', telefone: d.get('telefone') || '', endereco: d.get('endereco') || '' };
+    st.cliente = { ...st.cliente, nome: d.get('nome') ?? st.cliente.nome };
+    if (d.has('telefone')) st.cliente.telefone = d.get('telefone');
+    if (d.has('endereco')) st.cliente.endereco = d.get('endereco');
     st.obs = d.get('obs') || '';
     if (d.has('troco')) st.troco = d.get('troco') || '';
     guardar('nm-cliente', st.cliente);
   }
 
   document.addEventListener('click', (e) => {
-    const b = e.target.closest('[data-acao]');
-    if (!b || b.tagName === 'SELECT') return;
-    const v = b.dataset.v;
+    const b = e.target.closest('[data-acao], [data-remover]');
+    if (!b || b.closest('.mt-fundo')) return;
+    if (b.dataset.remover != null) {
+      lerForm();
+      st.carrinho.splice(Number(b.dataset.remover), 1);
+      guardar(chave('carrinho'), st.carrinho);
+      renderCarrinho(); renderBarra();
+      return;
+    }
     switch (b.dataset.acao) {
-      case 'aba': st.aba = v; break;
-      case 'copo': st.copo = +v; break;
-      case 'acai-ad': st.acaiAds = alterna(st.acaiAds, v); break;
-      case 'mac-op': st.macOp = +v; break;
-      case 'queijo': st.queijo = v; break;
-      case 'mac-ad': st.macAds = alterna(st.macAds, v); break;
-      case 'montar':
-        adicionar(calcAtual());
-        if (st.aba === 'acai') st.acaiAds = []; else st.macAds = [];
-        avisar('Adicionado ao carrinho');
-        break;
-      case 'combo': adicionar({ tipo: 'combo', dia: b.dataset.dia, tamanho: +v }); avisar('Combo adicionado'); break;
-      case 'produto': {
-        const p = M.produtos.find((x) => x.id === v);
-        if (p.sabores && !st.sabores[v]) { avisar('Escolha o sabor primeiro'); return; }
-        adicionar({ tipo: 'produto', id: v, sabor: st.sabores[v] });
-        avisar('Adicionado ao carrinho');
-        break;
-      }
-      case 'abrir': $('#carrinho').hidden = false; st.erro = ''; document.body.style.overflow = 'hidden'; break;
-      case 'fechar': lerForm(); $('#carrinho').hidden = true; st.enviado = null; document.body.style.overflow = ''; break;
-      case 'remover': lerForm(); st.carrinho = st.carrinho.filter((i) => String(i.k) !== v); guardar('nm-carrinho', st.carrinho); break;
-      case 'pagamento': lerForm(); st.pagamento = v; break;
+      case 'abrir': abrir(); break;
+      case 'fechar': fechar(); break;
+      case 'pagamento': lerForm(); st.pagamento = b.dataset.v; renderCarrinho(); break;
+      case 'tipo': lerForm(); st.tipo = b.dataset.v; renderCarrinho(); break;
       default: return;
     }
     e.preventDefault();
-    render();
   });
-
-  document.addEventListener('change', (e) => {
-    if (e.target.dataset.acao === 'sabor') st.sabores[e.target.dataset.v] = e.target.value;
-  });
-
-  $('#carrinho').addEventListener('click', (e) => { if (e.target.id === 'carrinho') { lerForm(); $('#carrinho').hidden = true; document.body.style.overflow = ''; render(); } });
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#carrinho').hidden) { lerForm(); $('#carrinho').hidden = true; document.body.style.overflow = ''; render(); } });
+  $('#carrinho').addEventListener('click', (e) => { if (e.target.id === 'carrinho') fechar(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#carrinho').hidden && !document.querySelector('.mt-fundo')) fechar(); });
 
   document.addEventListener('submit', async (e) => {
     if (e.target.id !== 'form-pedido') return;
     e.preventDefault();
     lerForm();
     const c = st.cliente;
-    const tel = c.telefone.replace(/\D/g, '');
-    if (!c.nome.trim()) st.erro = 'Informe seu nome.';
-    else if (tel.length < 10 || tel.length > 13) st.erro = 'Informe seu WhatsApp com DDD.';
-    else if (!c.endereco.trim()) st.erro = 'Informe o endereço de entrega.';
-    else st.erro = '';
+    st.erro = '';
+    if (!tokenMesa) {
+      const tel = String(c.telefone || '').replace(/\D/g, '');
+      if (!String(c.nome).trim()) st.erro = 'Informe seu nome.';
+      else if (tel.length < 10 || tel.length > 13) st.erro = 'Informe seu WhatsApp com DDD.';
+      else if (st.tipo === 'entrega' && !String(c.endereco).trim()) st.erro = 'Informe o endereço de entrega.';
+    }
     if (st.erro) return renderCarrinho();
-
     st.enviando = true; renderCarrinho();
     try {
-      const r = await fetch('/api/pedido', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          cliente: { nome: c.nome, telefone: tel }, endereco: c.endereco, observacoes: st.obs,
-          pagamento: st.pagamento, troco_para: st.pagamento === 'dinheiro' ? st.troco : null,
-          itens: st.carrinho.map((i) => i.escolha),
-        }),
-      });
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(d.erro || 'Não foi possível enviar. Tente de novo.');
-      st.enviado = { id: d.pedido_id || '', pix: st.pagamento === 'pix' };
+      const itens = st.carrinho.map((i) => i.escolha);
+      const d = tokenMesa
+        ? await api('/api/publico/mesa/' + tokenMesa + '/pedido', { nome: c.nome, observacoes: st.obs, itens })
+        : await api('/api/publico/pedido', {
+          tipo: st.tipo, cliente: { nome: c.nome, telefone: c.telefone }, endereco: c.endereco, observacoes: st.obs,
+          pagamento: st.pagamento, troco_para: st.pagamento === 'dinheiro' ? st.troco : null, itens,
+        });
+      st.enviado = { id: d.pedido_id, pix: st.pagamento === 'pix', status: d.status };
+      st.meus = [{ codigo: d.codigo, id: d.pedido_id }, ...st.meus].slice(0, 10);
+      guardar(chave('pedidos'), st.meus);
       st.carrinho = []; st.obs = ''; st.troco = '';
-      guardar('nm-carrinho', []);
+      guardar(chave('carrinho'), []);
+      acompanhar();
     } catch (err) {
       st.erro = err.message;
     }
     st.enviando = false;
-    render();
+    renderCarrinho(); renderBarra();
   });
 
-  // aviso rápido acessível
+  // ---------------- acompanhamento
+  async function acompanhar() {
+    await Promise.all(st.meus.map(async (m) => {
+      try { st.acompanhamento[m.codigo] = (await api('/api/publico/acompanhar/' + m.codigo)).pedido; } catch { /* sumiu */ }
+    }));
+    renderAcompanhar();
+  }
+
   let timer;
   function avisar(msg) {
     let el = $('#aviso');
     if (!el) {
       el = document.createElement('div');
-      el.id = 'aviso'; el.setAttribute('role', 'status');
-      el.style.cssText = 'position:fixed;left:50%;bottom:92px;transform:translateX(-50%);z-index:20;background:#17201A;color:#fff;padding:10px 16px;border-radius:12px;font-weight:600;font-size:14px;transition:opacity .2s';
+      el.id = 'aviso'; el.className = 'toast'; el.setAttribute('role', 'status');
       document.body.appendChild(el);
     }
     el.textContent = msg; el.style.opacity = '1';
     clearTimeout(timer); timer = setTimeout(() => { el.style.opacity = '0'; }, 1600);
   }
 
-  // recalcula preços de itens salvos (o cardápio pode ter mudado)
-  st.carrinho = st.carrinho.filter((i) => { try { Object.assign(i, M.calcular(i.escolha, dia)); return true; } catch { return false; } });
-  render();
+  // ---------------- início
+  (async () => {
+    try {
+      const d = await api('/api/publico/cardapio');
+      st.loja = d.loja; st.cardapio = d.cardapio; st.dia = d.dia;
+      if (tokenMesa) st.mesa = (await api('/api/publico/mesa/' + tokenMesa)).mesa;
+      if (!st.loja.delivery && st.loja.retirada) st.tipo = 'retirada';
+    } catch (e) {
+      $('#cardapio').innerHTML = `<p class="erro">${esc(e.message)}</p>`;
+      return;
+    }
+    // itens guardados de outro dia podem ter mudado de preço ou acabado
+    st.carrinho = st.carrinho.filter((i) => { try { Object.assign(i, window.Calc.calcular(st.cardapio, i.escolha, st.dia)); return true; } catch { return false; } });
+    renderTopo();
+    montador = window.Montador.criar({ el: $('#cardapio'), cardapio: st.cardapio, dia: st.dia, onAdicionar: adicionar });
+    renderBarra();
+    acompanhar();
+    setInterval(() => { if (st.meus.length && !document.hidden) acompanhar(); }, 15000);
+  })();
 })();

@@ -10,27 +10,28 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/shared/montador.css">
 </head>
 <body>
-<header class="hero">
+<header class="hero" id="hero">
   <img class="hero-foto" src="/img/fachada-noite.jpg" alt="Fachada da Naturalle Mania à noite">
   <div class="hero-manu">
     <img src="/img/manu.png" alt="Manu, mascote da Naturalle Mania" onerror="this.parentElement.classList.add('sem-manu')">
-    <p class="balao">Oi, pessoal! Bateu a fome? Faça seu pedido!</p>
+    <p class="balao" id="balao">Oi, pessoal! Bateu a fome? Faça seu pedido!</p>
   </div>
   <div class="hero-texto">
-    <h1>Naturalle <span>Mania</span></h1>
-    <p>O que tem de melhor você encontra aqui! Açaí, Mac de 10, sucos e mais.</p>
-    <div class="selos">
-      <span class="selo amarelo">Desde 18h30</span>
-      <span class="selo">Pix · Cartão · Dinheiro</span>
-    </div>
+    <h1 id="nome-loja">Naturalle <span>Mania</span></h1>
+    <p id="frase"></p>
+    <div class="selos" id="selos"></div>
   </div>
 </header>
 
-<nav class="abas" aria-label="Categorias" id="abas"></nav>
+<div class="aviso-topo" id="aviso-topo" hidden></div>
 
-<main id="conteudo" class="conteudo"></main>
+<main class="conteudo">
+  <div id="acompanhar"></div>
+  <div id="cardapio"><p class="nota">Carregando cardápio…</p></div>
+</main>
 
 <div class="barra" id="barra"></div>
 
@@ -46,11 +47,10 @@
   </section>
 </div>
 
-<footer class="rodape">
-  <p>Naturalle Mania · Pedidos também pelo WhatsApp <a href="https://wa.me/5567996421751">(67) 99642-1751</a></p>
-</footer>
+<footer class="rodape" id="rodape"></footer>
 
-<script src="/menu.js"></script>
+<script src="/shared/calc.js"></script>
+<script src="/shared/montador.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>

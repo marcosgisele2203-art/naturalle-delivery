@@ -1,0 +1,119 @@
+// Banco: conexão, criação/atualização das tabelas e configurações.
+const { Pool } = require('pg');
+const cardapioInicial = require('./cardapio-inicial');
+
+const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 8 });
+
+const LOJA_PADRAO = {
+  nome: 'Naturalle Mania',
+  frase: 'O que tem de melhor você encontra aqui!',
+  horario: 'Desde 18h30',
+  whatsapp: '5567996421751',
+  aberta: true,            // aceitando pedidos pelo site
+  delivery: true,          // aceita entrega
+  retirada: true,          // aceita retirar no balcão
+  taxa_entrega: 0,
+  mesa_auto_confirmar: false, // pedido da mesa (QR) vai direto pra cozinha
+};
+
+async function migrar() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS config (
+      chave TEXT PRIMARY KEY,
+      valor JSONB NOT NULL,
+      atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
+    CREATE TABLE IF NOT EXISTS usuarios (
+      id          SERIAL PRIMARY KEY,
+      nome        TEXT NOT NULL,
+      login       TEXT NOT NULL UNIQUE,
+      senha_hash  TEXT NOT NULL,
+      permissoes  TEXT[] NOT NULL DEFAULT '{}',
+      ativo       BOOLEAN NOT NULL DEFAULT true,
+      versao      INT NOT NULL DEFAULT 1,
+      criado_em   TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
+    CREATE TABLE IF NOT EXISTS mesas (
+      id        SERIAL PRIMARY KEY,
+      nome      TEXT NOT NULL,
+      token     TEXT NOT NULL UNIQUE,
+      ativa     BOOLEAN NOT NULL DEFAULT true,
+      ordem     INT NOT NULL DEFAULT 0,
+      criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
+    CREATE TABLE IF NOT EXISTS contas (
+      id          SERIAL PRIMARY KEY,
+      mesa_id     INT NOT NULL REFERENCES mesas(id),
+      aberta_em   TIMESTAMPTZ NOT NULL DEFAULT now(),
+      fechada_em  TIMESTAMPTZ,
+      pagamento   TEXT,
+      total       NUMERIC(10, 2),
+      fechada_por INT REFERENCES usuarios(id)
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS contas_uma_aberta ON contas (mesa_id) WHERE fechada_em IS NULL;
+
+    CREATE TABLE IF NOT EXISTS pedidos (
+      id               SERIAL PRIMARY KEY,
+      criado_em        TIMESTAMPTZ NOT NULL DEFAULT now(),
+      atualizado_em    TIMESTAMPTZ NOT NULL DEFAULT now(),
+      cliente_nome     TEXT NOT NULL DEFAULT '',
+      cliente_telefone TEXT NOT NULL DEFAULT '',
+      endereco         TEXT NOT NULL DEFAULT '',
+      observacoes      TEXT NOT NULL DEFAULT '',
+      itens            JSONB NOT NULL,
+      total            NUMERIC(10, 2) NOT NULL,
+      pagamento        TEXT,
+      troco_para       NUMERIC(10, 2),
+      pix_status       TEXT,
+      status           TEXT NOT NULL DEFAULT 'novo'
+    );
+
+    -- colunas novas (seguro rodar várias vezes)
+    ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS origem TEXT NOT NULL DEFAULT 'site';
+    ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS tipo TEXT NOT NULL DEFAULT 'entrega';
+    ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS mesa_id INT REFERENCES mesas(id);
+    ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS conta_id INT REFERENCES contas(id);
+    ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS criado_por INT REFERENCES usuarios(id);
+    ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS subtotal NUMERIC(10, 2);
+    ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS taxa_entrega NUMERIC(10, 2) NOT NULL DEFAULT 0;
+    ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS codigo TEXT;
+    ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS observacoes TEXT NOT NULL DEFAULT '';
+    ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS confirmado_em TIMESTAMPTZ;
+    ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS pronto_em TIMESTAMPTZ;
+    ALTER TABLE pedidos ALTER COLUMN pagamento DROP NOT NULL;
+    ALTER TABLE pedidos ALTER COLUMN cliente_nome SET DEFAULT '';
+    ALTER TABLE pedidos ALTER COLUMN cliente_telefone SET DEFAULT '';
+    ALTER TABLE pedidos DROP CONSTRAINT IF EXISTS pedidos_status_check;
+    ALTER TABLE pedidos DROP CONSTRAINT IF EXISTS pedidos_pagamento_check;
+    ALTER TABLE pedidos DROP CONSTRAINT IF EXISTS pedidos_pix_status_check;
+    ALTER TABLE pedidos ADD CONSTRAINT pedidos_status_check
+      CHECK (status IN ('novo', 'preparo', 'pronto', 'saiu', 'entregue', 'cancelado'));
+    ALTER TABLE pedidos ADD CONSTRAINT pedidos_pagamento_check
+      CHECK (pagamento IS NULL OR pagamento IN ('pix', 'cartao', 'dinheiro'));
+    CREATE UNIQUE INDEX IF NOT EXISTS pedidos_codigo_idx ON pedidos (codigo);
+    CREATE INDEX IF NOT EXISTS pedidos_status_idx ON pedidos (status, criado_em DESC);
+    CREATE INDEX IF NOT EXISTS pedidos_telefone_idx ON pedidos (right(cliente_telefone, 8));
+    CREATE INDEX IF NOT EXISTS pedidos_conta_idx ON pedidos (conta_id);
+  `);
+  await pool.query(
+    `INSERT INTO config (chave, valor) VALUES ('cardapio', $1), ('loja', $2) ON CONFLICT (chave) DO NOTHING`,
+    [JSON.stringify(cardapioInicial), JSON.stringify(LOJA_PADRAO)]);
+}
+
+async function lerConfig(chave) {
+  const { rows } = await pool.query('SELECT valor FROM config WHERE chave = $1', [chave]);
+  const v = rows[0] ? rows[0].valor : null;
+  return chave === 'loja' ? { ...LOJA_PADRAO, ...(v || {}) } : v;
+}
+
+async function salvarConfig(chave, valor) {
+  await pool.query(
+    `INSERT INTO config (chave, valor, atualizado_em) VALUES ($1, $2, now())
+     ON CONFLICT (chave) DO UPDATE SET valor = EXCLUDED.valor, atualizado_em = now()`,
+    [chave, JSON.stringify(valor)]);
+}
+
+module.exports = { pool, migrar, lerConfig, salvarConfig, LOJA_PADRAO };

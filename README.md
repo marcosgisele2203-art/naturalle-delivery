@@ -1,99 +1,119 @@
-# Naturalle Mania · Delivery
+# Naturalle Mania · Sistema de pedidos
 
-Sistema de pedidos online da Naturalle Mania:
+Sistema completo da Naturalle Mania: pedido pelo site, pedido na mesa por QR code, garçom, cozinha, caixa e
+administração. As mensagens de WhatsApp saem pelo n8n + Evolution API (número **+55 67 9715-5502**).
 
-- **App do cliente** (`/`): monta o açaí, o Mac de 10, combos do dia e bebidas, e envia o pedido.
-- **Painel do restaurante** (`/painel`): pedidos em colunas (Novos → Em preparo → Saiu → Entregues), com som de novo pedido, confirmação de Pix e botão de WhatsApp do cliente.
-- **n8n + Evolution API**: salva o pedido, avisa a cozinha e manda cada etapa para o cliente no WhatsApp
-  (número conectado na Evolution: **+55 67 9715-5502**).
+## O que tem
+
+| Endereço | Quem usa | Para quê |
+|---|---|---|
+| `/` | Cliente | Pede para **entrega** ou **retirada**, paga com Pix, cartão ou dinheiro e acompanha o pedido |
+| `/m/<código>` | Cliente na mesa | Abre pelo **QR code da mesa**. Pede sem chamar o garçom; vai para a conta da mesa |
+| `/equipe` | Equipe | Login de cada funcionário. Cada um só vê as seções liberadas para ele |
+
+Seções da área da equipe:
+
+| Seção | Permissão | O que faz |
+|---|---|---|
+| **Pedidos** | Pedidos e delivery | Quadro com todos os pedidos: confirmar os do site, saiu para entrega, entregue, confirmar Pix, cancelar |
+| **Cozinha** | Cozinha | Tela (pode ficar numa TV/tablet) com os pedidos **já confirmados**, tempo de espera em cores e botão **Pronto**. Som de novo pedido |
+| **Mesas (garçom)** | Garçom | Mapa das mesas (livre, ocupada, pedido para confirmar, pronto para servir), lançar pedido na mesa pelo celular, confirmar pedidos do QR, marcar **Servido** |
+| **Novo pedido** | Caixa / balcão | Pedido manual de balcão ou telefone: retirada, entrega ou mesa. Vai direto para a cozinha |
+| **Caixa** | Caixa / balcão | Contas abertas das mesas, **fechar conta** (Pix, cartão, dinheiro) e resumo do dia por forma de pagamento |
+| **Administração** | Administrador | Cardápio, mesas e QR codes, equipe e permissões, dados da loja |
+
+### Caminho de um pedido
 
 ```
-Cliente ──► site (/api/pedido) ──► n8n /webhook/pedido ──► Postgres
-               │  confere preços pelo cardápio            └─► WhatsApp cozinha + cliente
-Painel ───► site (/api/status) ──► n8n /webhook/status ──► WhatsApp cliente
-Cliente manda foto do comprovante ─► Evolution ─► n8n /webhook/evolution ─► marca Pix + avisa cozinha
+Site ───────────► Aguardando confirmação ─(Pedidos confirma)─┐
+QR da mesa ─────► Aguardando confirmação ─(Garçom confirma)──┤
+Garçom / balcão ─────────────────────────────────────────────┼─► Cozinha ─(Pronto)─► Pronto
+                                                             │
+Pronto ─► entrega: "Saiu para entrega" ─► Entregue
+       ─► retirada: "Cliente retirou"
+       ─► mesa: "Servido" (ou ao fechar a conta)
 ```
 
-## Pastas
+Em Administração › Loja dá para fazer o pedido do QR ir **direto para a cozinha**, sem o garçom confirmar.
 
-| Caminho | O quê |
-|---|---|
-| `site/` | Servidor Node do app e do painel (tem `Dockerfile`) |
-| `site/public/menu.js` | **Cardápio e preços.** É aqui que se muda preço ou se cria item |
-| `site/public/img/` | Fotos da fachada. Coloque a Manu como `manu.png` (fundo transparente) |
-| `db/schema.sql` | Tabela `pedidos` |
-| `n8n/*.json` | Os 3 fluxos para importar no n8n |
+A cada etapa, o cliente que deixou WhatsApp recebe uma mensagem (pedidos de mesa não recebem).
 
 ## Instalação na Easypanel
 
 Tudo no mesmo projeto da Easypanel.
 
 ### 1. Postgres
-Crie um serviço **Postgres** (template). Anote o *Internal connection URL*
-(algo como `postgres://postgres:SENHA@naturalle_postgres:5432/naturalle`).
-Abra o console do Postgres e rode o conteúdo de `db/schema.sql`.
+Crie um serviço **Postgres** (template) e anote o *Internal connection URL*
+(ex.: `postgres://postgres:SENHA@naturalle_postgres:5432/naturalle`).
+Não precisa criar tabelas: o site cria e atualiza tudo sozinho quando liga.
 
-### 2. Evolution API
-Crie a **Evolution API** (template) com um domínio. No gerenciador dela:
-- crie a instância `naturalle` e leia o QR Code com o celular do **67 9715-5502**;
-- em *Webhook* da instância: URL `https://SEU-N8N/webhook/evolution`, evento `MESSAGES_UPSERT`, ligado.
+### 2. Site
+**+ Service → App**, fonte **GitHub**: `marcosgisele2203-art/naturalle-delivery`, branch `main`,
+*Build path* `/site`, build por **Dockerfile**. Em *Environment*:
 
-### 3. n8n
-Crie o **n8n** (template) com um domínio.
-1. *Credentials → New → Postgres*: host, porta, banco, usuário e senha do passo 1 (host = nome interno do serviço).
-2. *Workflows → Import from file*: importe os 3 arquivos de `n8n/`.
-3. Em **cada** fluxo, abra o nó **Config** e preencha:
+```
+DATABASE_URL=postgres://postgres:SENHA@naturalle_postgres:5432/naturalle
+N8N_URL=https://SEU-N8N/webhook
+N8N_TOKEN=uma-senha-forte-qualquer
+```
+
+Em *Domains*, aponte o domínio para a porta **3000** e faça o deploy.
+
+### 3. Primeiro acesso
+Abra `https://seudominio/equipe`. Na primeira vez ele pede para **criar o administrador**. Depois, em Administração:
+1. **Loja**: confira nome, horário, WhatsApp, taxa de entrega e o **endereço do site** (vai nos QR codes).
+2. **Mesas e QR code**: crie as mesas (ex.: da 1 até a 10) e clique em **Imprimir QR codes**.
+3. **Equipe**: cadastre cada funcionário com login, senha e as seções dele.
+4. **Cardápio**: ajuste preços, marque o que acabou (Disponível), crie produtos e adicionais.
+
+### 4. Evolution API (WhatsApp)
+Crie a **Evolution API** (template) com domínio. Crie a instância `naturalle` e leia o QR com o celular do
+**67 9715-5502**. Em *Webhook* da instância: `https://SEU-N8N/webhook/evolution`, evento `MESSAGES_UPSERT`.
+
+### 5. n8n
+1. *Credentials → New → Postgres* com os dados do passo 1 (só o fluxo 3 usa).
+2. Importe os 3 arquivos de `n8n/`. Em **cada** um, abra o nó **Config** e preencha:
 
 | Campo | Valor |
 |---|---|
-| `evolution_url` | endereço da sua Evolution, ex.: `https://evolution.seudominio.com` |
+| `evolution_url` | endereço da Evolution, ex.: `https://evolution.seudominio.com` |
 | `evolution_instance` | `naturalle` |
-| `evolution_apikey` | a API key global da Evolution |
-| `numero_cozinha` | quem recebe os avisos de pedido (já vem `5567996421751`) |
-| `pix_chave` / `pix_nome` | a chave Pix da loja e o nome do recebedor |
-| `painel_token` | uma senha forte, **igual** à `PAINEL_TOKEN` do site |
-| `app_token` | outra senha forte, **igual** à `APP_TOKEN` do site |
+| `evolution_apikey` | API key da Evolution |
+| `numero_loja` | quem recebe aviso de pedido do site e de comprovante Pix (vem `5567996421751`) |
+| `pix_chave` / `pix_nome` | chave Pix e nome do recebedor |
+| `token` | **o mesmo** valor do `N8N_TOKEN` do site |
 
-4. Nos nós Postgres, escolha a credencial criada. **Save** e **Activate** nos 3.
+3. No fluxo 3, escolha a credencial Postgres. **Save** e **Activate** nos 3.
 
-### 4. Site (app + painel)
-Suba a pasta `site/` para um repositório no GitHub (pode ser privado).
-Na Easypanel: **+ Service → App**, fonte **GitHub**, aponte para o repositório
-(se a pasta `site` não for a raiz do repo, coloque `/site` em *Build path*). Build: **Dockerfile**.
+Os fluxos:
+- `01-pedido-recebido`: confirma o pedido ao cliente (com a chave Pix, se for Pix) e avisa a loja dos pedidos do site.
+- `02-status-pedido`: confirmado, pronto para retirar, saiu, entregue, cancelado.
+- `03-comprovante-pix`: cliente manda a foto do comprovante → pedido marcado "comprovante recebido" → loja avisada.
 
-Em *Environment*:
-
-```
-N8N_URL=https://SEU-N8N/webhook
-APP_TOKEN=a-mesma-do-app_token
-PAINEL_TOKEN=a-mesma-do-painel_token
-DATABASE_URL=postgres://postgres:SENHA@naturalle_postgres:5432/naturalle
-```
-
-Em *Domains*, aponte seu domínio para a porta **3000**. Pronto:
-- `https://seudominio.com` → app do cliente
-- `https://seudominio.com/painel` → painel (entra com a `PAINEL_TOKEN`)
+Se o n8n cair, os pedidos continuam funcionando normalmente; só as mensagens de WhatsApp param.
 
 ## Dia a dia
 
-- **Mudar preço ou item**: edite `site/public/menu.js` e faça deploy de novo. As porções de batata estão com
-  `preco: null` (aparecem como "Consulte no WhatsApp"); coloque o valor para liberar.
-- **Painel**: clique em "Ativar som de novo pedido" ao abrir (o navegador só deixa tocar depois de um clique).
-  A tela se atualiza sozinha a cada 8 segundos.
-- **Pix**: o pedido mostra "aguardando comprovante" → "comprovante recebido, conferir" quando o cliente manda a foto.
-  Confira no banco/app do banco e clique em **Confirmar Pix**.
-- **Combos**: o preço promocional só vale no dia (fuso de Campo Grande). Em outros dias, o combo sai pelo preço normal.
+- **Acabou um item**: Administração › Cardápio › desmarque *Disponível*. Some na hora do app.
+- **Combos do dia**: cada combo tem o dia marcado; nos outros dias aparece "Só terça" e não pode ser pedido.
+- **Cozinha**: deixe a tela aberta num tablet/TV, clique em *Ligar som* e *Tela cheia*. "Desfazer" volta um pedido
+  marcado como pronto por engano.
+- **Som**: cada aparelho precisa clicar uma vez em *Ligar som* (o navegador exige).
+- **QR code fotografado**: se alguém estiver pedindo de fora com foto do QR, use *Trocar QR* na mesa e imprima de novo.
+- **Senha esquecida**: o administrador define uma nova em Administração › Equipe.
 
 ## Segurança
 
-- O site **recalcula todos os preços** pelo `menu.js`; o preço que vem do navegador é ignorado.
-- O n8n só aceita pedidos com o `app_token` e mudanças de status com o `painel_token`.
-- O site limita 8 pedidos a cada 10 minutos por IP.
+- O servidor recalcula todos os preços pelo cardápio do banco; o preço que vem do navegador é ignorado.
+- Senhas guardadas com scrypt; sessão em cookie assinado (`HttpOnly`). Trocar a senha ou desativar o
+  funcionário derruba as sessões abertas dele.
+- Cada ação confere a permissão no servidor (ex.: a cozinha não cancela pedido, o garçom não lança entrega).
+- Limite de pedidos e de tentativas de login por IP.
 
 ## Rodar no computador (opcional)
 
 ```
 cd site
 npm install
-N8N_URL=http://localhost:5678/webhook APP_TOKEN=x PAINEL_TOKEN=y DATABASE_URL=postgres://... npm start
+DATABASE_URL=postgres://... npm start
 ```
