@@ -7,6 +7,22 @@
   const guardado = (k, padrao) => { try { return JSON.parse(localStorage.getItem(k)) ?? padrao; } catch { return padrao; } };
   const guardar = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* sem armazenamento */ } };
   const SACOLA = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 7h12l-1 13H7z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>';
+  const MANU = (nome) => '/img/manu/' + nome + '.webp';
+  // Manu de cada etapa do pedido: [imagem, título, texto]
+  function manuDaEtapa(p) {
+    const mesa = p.tipo === 'mesa';
+    switch (p.status) {
+      case 'novo': return ['celular', 'Pedido recebido!', mesa ? 'O garçom já vai confirmar.' : 'Já já a gente confirma por aqui e no WhatsApp.'];
+      case 'preparo': return ['joinha', 'Pedido confirmado!', 'Já está sendo preparado com carinho.'];
+      case 'pronto':
+        if (mesa) return ['bandeja', 'Prontinho!', 'Já está indo para a sua mesa.'];
+        if (p.tipo === 'retirada') return ['sacola-duas', 'Pronto para retirar!', 'Pode vir buscar no balcão.'];
+        return ['joinha', 'Quase saindo!', 'Seu pedido está pronto e já vai sair para entrega.'];
+      case 'saiu': return ['sacola', 'Saiu para entrega!', 'Já já chega aí.'];
+      case 'entregue': return ['coracao', mesa ? 'Bom apetite!' : 'Entregue!', 'Obrigado por pedir na Naturalle Mania!'];
+      default: return ['acenando', 'Pedido cancelado', 'Qualquer dúvida, fale com a gente no WhatsApp.'];
+    }
+  }
   const ETAPAS = {
     novo: 'Recebido, aguardando confirmação', preparo: 'Em preparo', pronto: 'Pronto',
     saiu: 'Saiu para entrega', entregue: 'Entregue', cancelado: 'Cancelado',
@@ -56,7 +72,11 @@
       if (l.delivery && Number(l.taxa_entrega)) selos.push(`<span class="selo">Entrega ${brl(l.taxa_entrega)}</span>`);
     }
     $('#selos').innerHTML = selos.join('');
-    if (tokenMesa) $('#balao').textContent = 'Oi! Escolha aí que a gente leva até a sua mesa!';
+    if (tokenMesa) {
+      $('#balao').textContent = 'Oi! Escolha aí que a gente leva até a sua mesa!';
+      $('#manu-topo').src = MANU('bandeja');
+      $('#manu-topo').alt = 'Manu levando uma bandeja com hambúrguer, batata e refrigerante';
+    }
     const aviso = $('#aviso-topo');
     if (!tokenMesa && !l.aberta) { aviso.hidden = false; aviso.textContent = 'Estamos fechados para pedidos pelo site agora. Você pode olhar o cardápio à vontade.'; }
     $('#rodape').innerHTML = l.whatsapp ? `<p>${esc(l.nome)} · Fale com a gente no WhatsApp <a href="https://wa.me/${esc(l.whatsapp)}">${formatarFone(l.whatsapp)}</a></p>` : '';
@@ -70,10 +90,36 @@
   function renderAcompanhar() {
     const ativos = st.meus.map((m) => st.acompanhamento[m.codigo]).filter(Boolean)
       .filter((p) => tokenMesa || !['entregue', 'cancelado'].includes(p.status) || Date.now() - new Date(p.criado_em) < 3 * 3600_000);
-    $('#acompanhar').innerHTML = ativos.length ? `<section class="acompanhar" aria-live="polite">
-      <h2>${tokenMesa ? 'Pedidos desta mesa' : 'Seus pedidos'}</h2>
-      ${ativos.map((p) => `<div class="acomp-linha"><b>#${p.id}</b><span class="etapa etapa-${p.status}">${ETAPAS[p.status] || p.status}</span><span>${brl(p.total)}</span></div>`).join('')}
-    </section>` : '';
+    if (!ativos.length) { $('#acompanhar').innerHTML = ''; return; }
+    const [img, titulo, texto] = manuDaEtapa(ativos[0]);
+    $('#acompanhar').innerHTML = `<section class="acompanhar" aria-live="polite">
+      <div class="manu-card"><img src="${MANU(img)}" alt="" width="104" height="130">
+        <div><span class="nota">Pedido #${ativos[0].id}</span><h2>${titulo}</h2><p>${texto}</p></div></div>
+      ${ativos.length > 1 ? `<h3>${tokenMesa ? 'Pedidos desta mesa' : 'Seus pedidos'}</h3>` : ''}
+      ${ativos.length > 1 ? ativos.map((p) => `<div class="acomp-linha"><b>#${p.id}</b><span class="etapa etapa-${p.status}">${ETAPAS[p.status] || p.status}</span><span>${brl(p.total)}</span></div>`).join('') : ''}
+    </section>`;
+  }
+
+  function renderDestaques() {
+    const hoje = st.cardapio.produtos.filter((p) => Array.isArray(p.dias) && p.dias.includes(st.dia) && p.disponivel !== false);
+    let quadro;
+    if (!tokenMesa && !st.loja.aberta) {
+      quadro = `<span class="giz-titulo">Fechados agora</span><span class="giz-texto">${esc(st.loja.horario || 'Volte mais tarde!')}</span>`;
+    } else if (hoje.length) {
+      const p = hoje[0];
+      quadro = `<span class="giz-pequeno">Hoje é dia de</span><span class="giz-titulo">${esc(p.nome)}</span>
+        <span class="giz-texto">${esc(p.descricao || '')}</span><span class="giz-preco">a partir de ${brl(window.Calc.precoMinimo(p))}</span>
+        <button class="giz-botao" data-acao="destaque" data-v="${esc(p.id)}">Quero!</button>`;
+    } else {
+      quadro = `<span class="giz-titulo">${esc(st.loja.recado || 'Bateu a fome?')}</span><span class="giz-texto">${st.loja.recado ? '' : 'Açaí do seu jeito, Mac de 10 e muito mais!'}</span>`;
+    }
+    $('#destaques').innerHTML = `
+      <section class="quadro-manu" aria-label="Destaque do dia">
+        <img src="${MANU('quadro')}" alt="Manu ao lado do quadro-negro" width="900" height="1125">
+        <div class="giz">${quadro}</div>
+      </section>
+      <div class="manu-card manu-aponta"><img src="${MANU('apontando')}" alt="" width="104" height="130">
+        <div><h2>Escolha aqui embaixo!</h2><p>Toque no item para montar do seu jeito.</p></div></div>`;
   }
 
   function renderBarra() {
@@ -85,7 +131,8 @@
     const c = st.cliente, l = st.loja;
     if (st.enviado) {
       const p = st.enviado;
-      $('#carrinho-corpo').innerHTML = `<div class="sucesso"><strong>Pedido #${esc(p.id)} enviado!</strong>
+      const [img] = manuDaEtapa({ status: p.status || 'novo', tipo: tokenMesa ? 'mesa' : st.tipo });
+      $('#carrinho-corpo').innerHTML = `<div class="sucesso"><img src="${MANU(img)}" alt="" width="104" height="130"><strong>Pedido #${esc(p.id)} enviado!</strong>
         <span>${tokenMesa
           ? (p.status === 'preparo' ? 'Já foi para a cozinha. A gente leva na sua mesa.' : 'O garçom vai confirmar e mandar para a cozinha.') + ' Acompanhe aqui na página.'
           : (p.pix ? 'A chave Pix chegou no seu WhatsApp. Responda lá com a foto do comprovante. ' : 'A confirmação chegou no seu WhatsApp. ') + 'Você também acompanha aqui na página.'}</span></div>
@@ -115,7 +162,9 @@
         ${taxa() ? `<div class="linha-total"><span>Taxa de entrega</span><span>${brl(taxa())}</span></div>` : ''}`;
     }
     const fechado = !tokenMesa && !l.aberta;
-    $('#carrinho-corpo').innerHTML = `<div>${itens}</div>
+    $('#carrinho-corpo').innerHTML = `${st.carrinho.length ? `<div class="manu-card"><img src="${MANU('celular')}" alt="" width="84" height="105">
+        <div><h2>Quase lá!</h2><p>Confira os itens e envie seu pedido.</p></div></div>` : ''}
+      <div>${itens}</div>
       <form id="form-pedido" novalidate class="form-pedido">${campos}
         <div class="total"><span>Total</span><span>${brl(total())}</span></div>
         ${fechado ? '<p class="erro">A loja está fechada para pedidos pelo site agora.</p>' : ''}
@@ -155,6 +204,11 @@
       case 'fechar': fechar(); break;
       case 'pagamento': lerForm(); st.pagamento = b.dataset.v; renderCarrinho(); break;
       case 'tipo': lerForm(); st.tipo = b.dataset.v; renderCarrinho(); break;
+      case 'destaque': {
+        const p = st.cardapio.produtos.find((x) => x.id === b.dataset.v);
+        if (p) window.Montador.abrirProduto(p, st.dia, adicionar);
+        break;
+      }
       default: return;
     }
     e.preventDefault();
@@ -225,13 +279,19 @@
       if (tokenMesa) st.mesa = (await api('/api/publico/mesa/' + tokenMesa)).mesa;
       if (!st.loja.delivery && st.loja.retirada) st.tipo = 'retirada';
     } catch (e) {
-      $('#cardapio').innerHTML = `<p class="erro">${esc(e.message)}</p>`;
+      $('#cardapio').innerHTML = `<div class="manu-card"><img src="${MANU('acenando')}" alt="" width="104" height="130">
+        <div><h2>Ops!</h2><p>${esc(e.message)}</p></div></div>`;
       return;
     }
     // itens guardados de outro dia podem ter mudado de preço ou acabado
     st.carrinho = st.carrinho.filter((i) => { try { Object.assign(i, window.Calc.calcular(st.cardapio, i.escolha, st.dia)); return true; } catch { return false; } });
     renderTopo();
-    montador = window.Montador.criar({ el: $('#cardapio'), cardapio: st.cardapio, dia: st.dia, onAdicionar: adicionar });
+    renderDestaques();
+    montador = window.Montador.criar({
+      el: $('#cardapio'), cardapio: st.cardapio, dia: st.dia, onAdicionar: adicionar,
+      banners: { acai: `<div class="manu-card manu-acai"><img src="${MANU('acai')}" alt="" width="104" height="130">
+        <div><h2>Açaí cremoso</h2><p>Monte o seu com frutas, cremes, chocolates e caldas.</p></div></div>` },
+    });
     renderBarra();
     acompanhar();
     setInterval(() => { if (st.meus.length && !document.hidden) acompanhar(); }, 15000);

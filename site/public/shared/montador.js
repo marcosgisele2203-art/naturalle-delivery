@@ -134,6 +134,7 @@
         ${opts.busca ? `<label class="mt-busca"><span class="sr">Buscar no cardápio</span><input type="search" placeholder="Buscar no cardápio" value="${esc(st.busca)}"></label>` : ''}
         <nav class="mt-abas" aria-label="Categorias">${cats.map((c) =>
           `<button type="button" class="mt-aba" aria-pressed="${!st.busca && st.cat === c.id}" data-cat="${esc(c.id)}">${esc(c.nome)}</button>`).join('')}</nav>
+        ${!st.busca && opts.banners && opts.banners[st.cat] ? opts.banners[st.cat] : ''}
         <div class="mt-lista">${lista}</div>`;
     }
 

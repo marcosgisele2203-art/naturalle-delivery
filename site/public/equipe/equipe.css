@@ -15,6 +15,7 @@ h1, h2, h3 { margin: 0; }
 /* login */
 .tela-login { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px; background: var(--verde-escuro); }
 .caixa-login { width: 100%; max-width: 380px; background: #fff; border-radius: 20px; padding: 28px; display: flex; flex-direction: column; gap: 14px; }
+.manu-login { width: 120px; height: 150px; object-fit: cover; border-radius: 16px; align-self: center; }
 .caixa-login h1 { font-family: var(--display); font-weight: 800; font-size: 30px; }
 .caixa-login h1 span { color: var(--rosa); }
 .caixa-login p { margin: 0; color: var(--cinza); }

@@ -239,6 +239,7 @@ App.views.admin = {
           <label class="campo">Horário (aparece no app)<input name="horario" value="${esc(l.horario || '')}"></label>
           <label class="campo">WhatsApp da loja<input name="whatsapp" value="${esc(l.whatsapp || '')}" inputmode="tel"></label>
           <label class="campo">Taxa de entrega (R$)<input name="taxa_entrega" type="number" step="0.5" min="0" value="${l.taxa_entrega || 0}"></label>
+          <label class="campo">Recado no quadro da Manu<input name="recado" maxlength="140" value="${esc(l.recado || '')}" placeholder="Ex.: Hoje tem açaí em dobro!"><small>Aparece nos dias sem combo.</small></label>
           <label class="campo">Endereço do site<input name="url_publica" value="${esc(l.url_publica || '')}" placeholder="https://pedidos.naturallemania.com.br"><small>Usado nos QR codes. Vazio = o endereço atual.</small></label>
         </div>
         ${ch('aberta', 'Aceitando pedidos pelo site agora')}
@@ -305,7 +306,7 @@ App.views.admin = {
         else if (f.dataset.form === 'uma') await acaoMesa({ nome: f.nome.value });
         else if (f.dataset.form === 'loja') {
           const fd = new FormData(f);
-          const loja = Object.fromEntries(['nome', 'frase', 'horario', 'whatsapp', 'taxa_entrega', 'url_publica'].map((k) => [k, fd.get(k)]));
+          const loja = Object.fromEntries(['nome', 'frase', 'horario', 'whatsapp', 'taxa_entrega', 'url_publica', 'recado'].map((k) => [k, fd.get(k)]));
           for (const k of ['aberta', 'delivery', 'retirada', 'mesa_auto_confirmar']) loja[k] = f[k].checked;
           d.loja = (await App.api('/api/admin/loja', { loja }, 'PUT')).loja;
           App.toast('Loja salva'); render();

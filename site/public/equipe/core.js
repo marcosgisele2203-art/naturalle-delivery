@@ -143,6 +143,7 @@
   function telaLogin(primeiro) {
     pararTudo();
     $('#raiz').innerHTML = `<div class="tela-login"><form class="caixa-login" id="form-login">
+      <img class="manu-login" src="/img/manu/acenando.webp" alt="Manu acenando" width="120" height="150">
       <h1>Naturalle <span>Mania</span></h1>
       <p>${primeiro ? 'Primeiro acesso: crie o usuário administrador.' : 'Área da equipe'}</p>
       ${primeiro ? '<label class="campo">Seu nome<input name="nome" required autocomplete="name"></label>' : ''}

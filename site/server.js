@@ -232,11 +232,12 @@ function validarLoja(b, atual) {
     taxa_entrega: taxa,
     mesa_auto_confirmar: bool(b.mesa_auto_confirmar, atual.mesa_auto_confirmar),
     url_publica: texto(b.url_publica, 200).replace(/\/+$/, ''),
+    recado: texto(b.recado, 140),
   };
 }
 
 const lojaPublica = (l) => ({ nome: l.nome, frase: l.frase, horario: l.horario, whatsapp: l.whatsapp, aberta: l.aberta,
-  delivery: l.delivery, retirada: l.retirada, taxa_entrega: l.taxa_entrega });
+  delivery: l.delivery, retirada: l.retirada, taxa_entrega: l.taxa_entrega, recado: l.recado || '' });
 
 function urlBase(req, loja) {
   if (loja.url_publica) return loja.url_publica;

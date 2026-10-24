@@ -95,6 +95,9 @@ Se o n8n cair, os pedidos continuam funcionando normalmente; só as mensagens de
 ## Dia a dia
 
 - **Porção de batata**: R$ 25 (cheddar ou catupiry, com bacon ou calabresa).
+- **Quadro da Manu** (topo do app): no dia de um combo, mostra o combo com o botão "Quero!". Nos outros dias mostra o
+  recado de Administração › Loja › *Recado no quadro da Manu*. Com a loja fechada, mostra "Fechados agora".
+- **Imagens da Manu**: ficam em `site/public/img/manu/`. Para trocar uma, salve outra imagem com o mesmo nome.
 - **Acabou um item**: Administração › Cardápio › desmarque *Disponível*. Some na hora do app.
 - **Combos do dia**: cada combo tem o dia marcado; nos outros dias aparece "Só terça" e não pode ser pedido.
 - **Cozinha**: deixe a tela aberta num tablet/TV, clique em *Ligar som* e *Tela cheia*. "Desfazer" volta um pedido
