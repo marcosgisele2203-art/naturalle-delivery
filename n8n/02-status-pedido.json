@@ -1,0 +1,247 @@
+{
+  "name": "Naturalle · 2 Status do pedido",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "status",
+        "options": {
+          "allowedOrigins": "*"
+        },
+        "responseMode": "responseNode"
+      },
+      "id": "df2f5c69-777b-4c25-b386-096498a6e38b",
+      "name": "Webhook status",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        300
+      ],
+      "webhookId": "95ccfe02-f31d-46e1-84e6-852f3d66ddc9"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "976732c5-f3e8-41fd-8922-358d32353f07",
+              "name": "evolution_url",
+              "value": "https://SEU-EVOLUTION.easypanel.host",
+              "type": "string"
+            },
+            {
+              "id": "54fa9dd1-10c2-4a0a-a744-16f57012e32c",
+              "name": "evolution_instance",
+              "value": "naturalle",
+              "type": "string"
+            },
+            {
+              "id": "01c4b3fb-8f43-4116-a6ac-0d4b0a5a4943",
+              "name": "evolution_apikey",
+              "value": "COLE_AQUI_A_APIKEY_DA_EVOLUTION",
+              "type": "string"
+            },
+            {
+              "id": "aa688fcc-4eed-4be1-8070-8cdd2872dbd5",
+              "name": "numero_cozinha",
+              "value": "5567996421751",
+              "type": "string"
+            },
+            {
+              "id": "59163a59-a34e-47be-a966-1ad0461e766b",
+              "name": "pix_chave",
+              "value": "COLE_AQUI_A_CHAVE_PIX",
+              "type": "string"
+            },
+            {
+              "id": "94f9f153-8b22-4e6d-b1a0-dd298fdab61b",
+              "name": "pix_nome",
+              "value": "Naturalle Mania",
+              "type": "string"
+            },
+            {
+              "id": "27a54bf7-075c-4671-a4c3-523cbd7c85ee",
+              "name": "painel_token",
+              "value": "TROQUE_ESTE_TOKEN",
+              "type": "string"
+            },
+            {
+              "id": "60729df8-4ec8-4a55-9c62-eb64a4444423",
+              "name": "app_token",
+              "value": "TROQUE_ESTE_TOKEN_DO_APP",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "71bff8a8-5a97-4cba-aef5-be69a89de8a3",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const b = $input.first().json.body || {};\nconst cfg = $('Config').first().json;\nif (b.token !== cfg.painel_token) throw new Error('Token do painel inválido');\nconst validos = ['preparo', 'saiu', 'entregue', 'cancelado'];\nif (!validos.includes(b.status)) throw new Error('Status inválido');\nconst id = parseInt(b.pedido_id, 10);\nif (!id) throw new Error('pedido_id inválido');\nreturn [{ json: { id, status: b.status } }];\n"
+      },
+      "id": "8257000f-bfc8-4502-8e7b-78265544d2c0",
+      "name": "Validar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE pedidos SET status = $1, atualizado_em = now() WHERE id = $2::int\nRETURNING id, status, cliente_nome, cliente_telefone;",
+        "options": {
+          "queryReplacement": "={{ [ $json.status, $json.id ] }}"
+        }
+      },
+      "id": "f2ad8c76-1b9e-433b-91c5-a745bcf44b2d",
+      "name": "Atualizar status",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const p = $input.first().json;\nif (!p.id) throw new Error('Pedido não encontrado');\nconst textos = {\n  preparo: `Seu pedido *#${p.id}* já está sendo preparado!`,\n  saiu: `Seu pedido *#${p.id}* saiu para entrega! Já já chega aí.`,\n  entregue: `Pedido *#${p.id}* entregue. Obrigado, ${p.cliente_nome}! Bom apetite e volte sempre à Naturalle Mania.`,\n  cancelado: `Seu pedido *#${p.id}* foi cancelado. Qualquer dúvida, é só responder aqui.`,\n};\nreturn [{ json: { id: p.id, status: p.status, telefone: p.cliente_telefone, texto: textos[p.status] } }];\n"
+      },
+      "id": "a0348c6d-d4d5-4568-955c-410904905045",
+      "name": "Mensagem do status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').item.json.evolution_url }}/message/sendText/{{ $('Config').item.json.evolution_instance }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $('Config').item.json.evolution_apikey }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ number: $('Mensagem do status').item.json.telefone, text: $('Mensagem do status').item.json.texto }) }}",
+        "options": {}
+      },
+      "id": "9c00a54d-252a-4156-a219-f45f33080cfc",
+      "name": "Avisar cliente",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, pedido_id: $('Mensagem do status').item.json.id, status: $('Mensagem do status').item.json.status }) }}",
+        "options": {}
+      },
+      "id": "d077ae10-6b7f-4732-a92a-8266aa467ce8",
+      "name": "Responder painel",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1320,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook status": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Validar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar": {
+      "main": [
+        [
+          {
+            "node": "Atualizar status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Atualizar status": {
+      "main": [
+        [
+          {
+            "node": "Mensagem do status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mensagem do status": {
+      "main": [
+        [
+          {
+            "node": "Avisar cliente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Avisar cliente": {
+      "main": [
+        [
+          {
+            "node": "Responder painel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

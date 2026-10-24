@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Painel · Naturalle Mania</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/painel/painel.css">
+</head>
+<body>
+<div class="tela-login" id="login" hidden>
+  <form id="form-login" class="login">
+    <h1>Naturalle <span>Mania</span></h1>
+    <p>Painel de pedidos</p>
+    <label class="campo">Senha do painel<input type="password" name="senha" autocomplete="current-password" required></label>
+    <p class="erro" id="erro-login" role="alert" hidden></p>
+    <button class="btn principal" type="submit">Entrar</button>
+  </form>
+</div>
+
+<div class="app" id="app" hidden>
+  <nav class="lateral" aria-label="Menu principal">
+    <span class="marca">Naturalle Mania</span>
+    <a href="/painel/" class="ativo" aria-current="page">Pedidos</a>
+    <a href="/" target="_blank" rel="noopener">Ver app do cliente</a>
+    <button class="sair" id="sair">Sair</button>
+  </nav>
+  <main class="principal-area">
+    <div class="topo">
+      <div>
+        <h1>Pedidos de hoje</h1>
+        <p id="resumo">Carregando…</p>
+      </div>
+      <div class="controles">
+        <button class="btn" id="som" aria-pressed="false">Ativar som de novo pedido</button>
+        <span class="status-con" id="conexao">Conectando…</span>
+      </div>
+    </div>
+    <p class="erro" id="erro-geral" role="alert" hidden></p>
+    <div class="quadro" id="quadro"></div>
+  </main>
+</div>
+<script src="/menu.js"></script>
+<script src="/painel/painel.js"></script>
+</body>
+</html>

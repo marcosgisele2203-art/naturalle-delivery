@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Naturalle Mania · Peça online</title>
+<meta name="description" content="Açaí, Mac de 10, sucos e mais. Peça pelo site e acompanhe pelo WhatsApp.">
+<meta name="theme-color" content="#12301B">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="hero">
+  <img class="hero-foto" src="/img/fachada-noite.jpg" alt="Fachada da Naturalle Mania à noite">
+  <div class="hero-manu">
+    <img src="/img/manu.png" alt="Manu, mascote da Naturalle Mania" onerror="this.parentElement.classList.add('sem-manu')">
+    <p class="balao">Oi, pessoal! Bateu a fome? Faça seu pedido!</p>
+  </div>
+  <div class="hero-texto">
+    <h1>Naturalle <span>Mania</span></h1>
+    <p>O que tem de melhor você encontra aqui! Açaí, Mac de 10, sucos e mais.</p>
+    <div class="selos">
+      <span class="selo amarelo">Desde 18h30</span>
+      <span class="selo">Pix · Cartão · Dinheiro</span>
+    </div>
+  </div>
+</header>
+
+<nav class="abas" aria-label="Categorias" id="abas"></nav>
+
+<main id="conteudo" class="conteudo"></main>
+
+<div class="barra" id="barra"></div>
+
+<div class="fundo" id="carrinho" hidden>
+  <section class="folha" role="dialog" aria-modal="true" aria-labelledby="titulo-carrinho">
+    <div class="folha-topo">
+      <h2 id="titulo-carrinho">Seu pedido</h2>
+      <button class="icone" data-acao="fechar" aria-label="Fechar">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div id="carrinho-corpo"></div>
+  </section>
+</div>
+
+<footer class="rodape">
+  <p>Naturalle Mania · Pedidos também pelo WhatsApp <a href="https://wa.me/5567996421751">(67) 99642-1751</a></p>
+</footer>
+
+<script src="/menu.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>

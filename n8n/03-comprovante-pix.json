@@ -1,0 +1,258 @@
+{
+  "name": "Naturalle · 3 Comprovante Pix",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "evolution",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "63421e10-d77d-49d3-a62d-fffc35b1b237",
+      "name": "Webhook Evolution",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        300
+      ],
+      "webhookId": "48664a12-7894-419e-b8e9-e35084f21865"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "432b76c1-20b3-4783-a471-cd0d026681b9",
+              "name": "evolution_url",
+              "value": "https://SEU-EVOLUTION.easypanel.host",
+              "type": "string"
+            },
+            {
+              "id": "81646f21-7055-476f-bf32-ee3e95ca1195",
+              "name": "evolution_instance",
+              "value": "naturalle",
+              "type": "string"
+            },
+            {
+              "id": "dd4efa57-a986-4aa1-869c-c6f9a2b4aee7",
+              "name": "evolution_apikey",
+              "value": "COLE_AQUI_A_APIKEY_DA_EVOLUTION",
+              "type": "string"
+            },
+            {
+              "id": "dd0815e7-c992-44fe-a166-e83c5e70ebc2",
+              "name": "numero_cozinha",
+              "value": "5567996421751",
+              "type": "string"
+            },
+            {
+              "id": "c8a6c2f7-b93c-4251-bb7c-3447450286a6",
+              "name": "pix_chave",
+              "value": "COLE_AQUI_A_CHAVE_PIX",
+              "type": "string"
+            },
+            {
+              "id": "5649c9c6-3f8a-44a9-9413-e3f66b1e08c5",
+              "name": "pix_nome",
+              "value": "Naturalle Mania",
+              "type": "string"
+            },
+            {
+              "id": "37f071d9-d390-42ed-98c8-d5640fde762b",
+              "name": "painel_token",
+              "value": "TROQUE_ESTE_TOKEN",
+              "type": "string"
+            },
+            {
+              "id": "ad18321a-70de-46c6-acfc-d3725e20a6ab",
+              "name": "app_token",
+              "value": "TROQUE_ESTE_TOKEN_DO_APP",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "5bfb517c-9f2c-49b8-a71e-5c760060bc8f",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const b = $input.first().json.body || {};\nconst d = b.data || {};\nconst key = d.key || {};\nconst jid = key.remoteJid || '';\nif (b.event !== 'messages.upsert' || key.fromMe || !jid.endsWith('@s.whatsapp.net')) return [];\nconst tipo = d.messageType || Object.keys(d.message || {})[0] || '';\nif (!['imageMessage', 'documentMessage'].includes(tipo)) return [];\nconst telefone = jid.split('@')[0];\n// Compara pelos 8 últimos dígitos: o WhatsApp pode tirar o 9 extra do celular.\nreturn [{ json: { telefone, final8: telefone.slice(-8) } }];\n"
+      },
+      "id": "4449395f-fc8b-4651-9cf1-86f547d2e3ab",
+      "name": "Filtrar comprovante",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE pedidos SET pix_status = 'comprovante_recebido', atualizado_em = now()\nWHERE id = (\n  SELECT id FROM pedidos\n  WHERE right(cliente_telefone, 8) = $1 AND pagamento = 'pix' AND pix_status = 'aguardando'\n  ORDER BY criado_em DESC LIMIT 1\n)\nRETURNING id, cliente_nome, cliente_telefone, total;",
+        "options": {
+          "queryReplacement": "={{ [ $json.final8 ] }}"
+        }
+      },
+      "id": "800837f2-07da-40b8-b785-99e4d1a218d3",
+      "name": "Marcar comprovante",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const brl = (v) => 'R$ ' + Number(v).toFixed(2).replace('.', ',');\nconst p = $input.first().json;\nif (!p.id) return []; // nenhum pedido Pix aguardando para esse número\nreturn [{ json: {\n  telefone: p.cliente_telefone,\n  cozinha: `*Comprovante Pix recebido* do pedido #${p.id} (${p.cliente_nome}, ${brl(p.total)}). Confira no WhatsApp ${p.cliente_telefone} antes de liberar.`,\n  cliente: `Recebemos seu comprovante do pedido *#${p.id}*! Assim que conferirmos, seu pedido vai para o preparo.`,\n} }];\n"
+      },
+      "id": "44656265-6834-403a-a48f-1c719f10ae91",
+      "name": "Montar avisos",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').item.json.evolution_url }}/message/sendText/{{ $('Config').item.json.evolution_instance }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $('Config').item.json.evolution_apikey }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ number: $('Config').item.json.numero_cozinha, text: $('Montar avisos').item.json.cozinha }) }}",
+        "options": {}
+      },
+      "id": "b8c24d3b-3b87-4848-8222-e3212b60d795",
+      "name": "Avisar cozinha",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').item.json.evolution_url }}/message/sendText/{{ $('Config').item.json.evolution_instance }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $('Config').item.json.evolution_apikey }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ number: $('Montar avisos').item.json.telefone, text: $('Montar avisos').item.json.cliente }) }}",
+        "options": {}
+      },
+      "id": "094584be-44b9-432f-ae41-3f03ed24a7f1",
+      "name": "Responder cliente",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Evolution": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Filtrar comprovante",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtrar comprovante": {
+      "main": [
+        [
+          {
+            "node": "Marcar comprovante",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar comprovante": {
+      "main": [
+        [
+          {
+            "node": "Montar avisos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar avisos": {
+      "main": [
+        [
+          {
+            "node": "Avisar cozinha",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Avisar cozinha": {
+      "main": [
+        [
+          {
+            "node": "Responder cliente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}
