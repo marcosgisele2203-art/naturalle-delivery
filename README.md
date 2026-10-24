@@ -94,6 +94,7 @@ Se o n8n cair, os pedidos continuam funcionando normalmente; só as mensagens de
 
 ## Dia a dia
 
+- **Porção de batata**: R$ 25 (cheddar ou catupiry, com bacon ou calabresa).
 - **Acabou um item**: Administração › Cardápio › desmarque *Disponível*. Some na hora do app.
 - **Combos do dia**: cada combo tem o dia marcado; nos outros dias aparece "Só terça" e não pode ser pedido.
 - **Cozinha**: deixe a tela aberta num tablet/TV, clique em *Ligar som* e *Tela cheia*. "Desfazer" volta um pedido
