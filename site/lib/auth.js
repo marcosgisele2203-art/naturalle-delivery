@@ -56,7 +56,7 @@ async function usuarioDaRequisicao(req) {
   if (ass.length !== esperado.length || !crypto.timingSafeEqual(Buffer.from(ass), Buffer.from(esperado))) return null;
   if (Number(exp) < Date.now()) return null;
   const { rows } = await pool.query(
-    'SELECT id, nome, login, permissoes, ativo, versao FROM usuarios WHERE id = $1', [Number(id)]);
+    'SELECT id, nome, login, telefone, email, permissoes, ativo, versao FROM usuarios WHERE id = $1', [Number(id)]);
   const u = rows[0];
   // versao muda quando a senha é trocada ou o usuário é desativado: derruba sessões antigas
   if (!u || !u.ativo || String(u.versao) !== versao) return null;

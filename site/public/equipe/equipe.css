@@ -290,3 +290,6 @@ h1, h2, h3 { margin: 0; }
 
 .selo-cliente { align-self: flex-start; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; background: var(--coluna); color: var(--tinta-2); }
 .selo-cliente.novo { background: #FFF3C4; color: #7A2E0B; }
+
+.link-esqueci { border: 0; background: none; padding: 6px 0; min-height: 36px; color: var(--rosa); font-weight: 600; text-decoration: underline; cursor: pointer; align-self: center; }
+.caixa-login .voltar-paineis.link-esqueci { align-self: flex-start; text-decoration: none; color: var(--verde); }

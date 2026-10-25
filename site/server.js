@@ -71,6 +71,12 @@ function telefoneBR(v) {
   return t;
 }
 
+function lerEmail(v) {
+  const e = texto(v, 120).toLowerCase();
+  if (e && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) throw new Erro(400, 'E-mail inválido.');
+  return e;
+}
+
 const ipDe = (req) => (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
 
 // Limite simples por IP para pedidos públicos e tentativas de login.
@@ -271,8 +277,22 @@ function validarLoja(entrada, atual) {
     mesa_auto_confirmar: bool(b.mesa_auto_confirmar, atual.mesa_auto_confirmar),
     url_publica: texto(b.url_publica, 200).replace(/\/+$/, ''),
     recado: texto(b.recado, 140),
+    // cadastro da loja
+    razao_social: texto(b.razao_social, 120),
+    cnpj: texto(b.cnpj, 20),
+    responsavel: texto(b.responsavel, 80),
+    endereco: texto(b.endereco, 120),
+    bairro: texto(b.bairro, 60),
+    cidade: texto(b.cidade, 60),
+    uf: texto(b.uf, 2).toUpperCase(),
+    cep: texto(b.cep, 10),
+    telefone: soDigitos(b.telefone).slice(0, 13),
+    email: lerEmail(b.email),
+    instagram: texto(b.instagram, 40).replace(/^@+/, ''),
+    referencia: texto(b.referencia, 120),
   };
 }
+const enderecoLoja = (l) => [l.endereco, l.bairro, [l.cidade, l.uf].filter(Boolean).join('/'), l.cep ? 'CEP ' + l.cep : ''].filter(Boolean).join(', ');
 
 // quadro da Manu: promoções e novidades que o admin coloca, com foto opcional
 function validarQuadro(lista) {
@@ -292,7 +312,8 @@ function validarQuadro(lista) {
 const quadroDeHoje = (lista, dia) => (lista || []).filter((a) => a.ativo && (!a.dias.length || a.dias.includes(dia)))
   .map(({ id, tipo, titulo, texto: t, preco, foto, produto }) => ({ id, tipo, titulo, texto: t, preco, foto, produto }));
 
-const lojaPublica = (l, e = estadoLoja(l)) => ({ manu: manu.ativa(), nome: l.nome, frase: l.frase, horario: e.texto, whatsapp: l.whatsapp, aberta: e.aberta,
+const lojaPublica = (l, e = estadoLoja(l)) => ({ manu: manu.ativa(), endereco_completo: enderecoLoja(l), referencia: l.referencia || '',
+  instagram: l.instagram || '', telefone: l.telefone || '', email: l.email || '', razao_social: l.razao_social || '', cnpj: l.cnpj || '', nome: l.nome, frase: l.frase, horario: e.texto, whatsapp: l.whatsapp, aberta: e.aberta,
   delivery: l.delivery, retirada: l.retirada, taxa_entrega: l.taxa_entrega, taxa_cartao: Number(l.taxa_cartao) || 0, recado: l.recado || '' });
 
 function urlBase(req, loja) {
@@ -422,9 +443,9 @@ rota('POST', '/api/equipe/primeiro-admin', null, async ({ req, b, res }) => {
   if (String(b.senha || '').length < 8) throw new Erro(400, 'A senha precisa ter pelo menos 8 caracteres.');
   // só funciona enquanto não existe nenhum usuário
   const { rows } = await pool.query(
-    `INSERT INTO usuarios (nome, login, senha_hash, permissoes)
-     SELECT $1, $2, $3, '{admin}' WHERE NOT EXISTS (SELECT 1 FROM usuarios) RETURNING id, versao`,
-    [nome, login, auth.hashSenha(b.senha)]);
+    `INSERT INTO usuarios (nome, login, senha_hash, permissoes, telefone, email)
+     SELECT $1, $2, $3, '{admin}', $4, $5 WHERE NOT EXISTS (SELECT 1 FROM usuarios) RETURNING id, versao`,
+    [nome, login, auth.hashSenha(b.senha), telefoneBR(b.telefone), lerEmail(b.email)]);
   if (!rows[0]) throw new Erro(403, 'O administrador já foi criado. Faça login.');
   res.setHeader('Set-Cookie', auth.criarCookie(rows[0], req));
   return { ok: true };
@@ -441,6 +462,70 @@ rota('POST', '/api/equipe/entrar', null, async ({ req, b, res }) => {
 });
 
 rota('POST', '/api/equipe/sair', null, async ({ res }) => { res.setHeader('Set-Cookie', auth.cookieSair); return { ok: true }; });
+
+// meu cadastro: cada pessoa atualiza o próprio nome, WhatsApp e e-mail (o WhatsApp serve para recuperar a senha)
+rota('POST', '/api/equipe/meu-cadastro', [], async ({ u, b }) => {
+  const nome = texto(b.nome, 80);
+  if (!nome) throw new Erro(400, 'Informe o nome.');
+  await pool.query('UPDATE usuarios SET nome = $2, telefone = $3, email = $4 WHERE id = $1', [u.id, nome, telefoneBR(b.telefone), lerEmail(b.email)]);
+  return { ok: true };
+});
+
+// ---- esqueci a senha: código de 6 números pelo WhatsApp (direto pela Evolution)
+const EVO = { url: (process.env.EVOLUTION_URL || '').replace(/\/+$/, ''), instancia: process.env.EVOLUTION_INSTANCE || '', chave: process.env.EVOLUTION_APIKEY || '' };
+const hashCodigo = (id, c) => crypto.createHash('sha256').update(id + ':' + c + ':' + (process.env.SESSION_SECRET || N8N_TOKEN || 'nm')).digest('hex');
+async function enviarWhatsApp(numero, textoMsg) {
+  const r = await fetch(`${EVO.url}/message/sendText/${encodeURIComponent(EVO.instancia)}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', apikey: EVO.chave },
+    body: JSON.stringify({ number: numero, text: textoMsg }), signal: AbortSignal.timeout(20_000),
+  });
+  if (!r.ok) throw new Error('Evolution respondeu ' + r.status);
+}
+async function usuarioPorLoginOuFone(v) {
+  const s = texto(v, 40).toLowerCase(), dig = soDigitos(s);
+  const { rows } = await pool.query(
+    `SELECT id, nome, telefone FROM usuarios WHERE ativo AND (login = $1 OR ($2 <> '' AND length($2) >= 8 AND right(telefone, 8) = right($2, 8)))
+     ORDER BY id LIMIT 1`, [s, dig]);
+  return rows[0] || null;
+}
+rota('POST', '/api/equipe/recuperar/enviar', null, async ({ req, b }) => {
+  limitar('recuperar:' + ipDe(req), 5, 15 * 60_000);
+  if (!EVO.url || !EVO.instancia || !EVO.chave) throw new Erro(503, 'A recuperação pelo WhatsApp ainda não foi ligada. Peça a um administrador para trocar sua senha em Administração › Funcionários.');
+  const u = await usuarioPorLoginOuFone(b.login);
+  const resposta = { ok: true, mensagem: 'Se esse login tiver um WhatsApp cadastrado, enviamos um código de 6 números para ele. Ele vale por 10 minutos.' };
+  if (!u || String(u.telefone).length < 10) return resposta;
+  limitar('recuperar-u:' + u.id, 3, 15 * 60_000);
+  const codigo = String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
+  await pool.query(`INSERT INTO senha_codigos (usuario_id, codigo_hash, expira_em) VALUES ($1, $2, now() + interval '10 minutes')
+                    ON CONFLICT (usuario_id) DO UPDATE SET codigo_hash = EXCLUDED.codigo_hash, expira_em = EXCLUDED.expira_em, tentativas = 0`,
+  [u.id, hashCodigo(u.id, codigo)]);
+  try {
+    await enviarWhatsApp(u.telefone, `Naturalle Mania · seu código para criar uma nova senha é *${codigo}*.\nEle vale por 10 minutos. Se não foi você, ignore esta mensagem.`);
+  } catch (e) {
+    console.error('recuperar senha', e.message);
+    throw new Erro(502, 'Não foi possível enviar o WhatsApp agora. Tente de novo em alguns minutos.');
+  }
+  return resposta;
+});
+rota('POST', '/api/equipe/recuperar/confirmar', null, async ({ req, b, res }) => {
+  limitar('recuperar-c:' + ipDe(req), 10, 15 * 60_000);
+  const u = await usuarioPorLoginOuFone(b.login);
+  const codigo = soDigitos(b.codigo);
+  if (String(b.nova || '').length < 8) throw new Erro(400, 'A nova senha precisa ter pelo menos 8 caracteres.');
+  const invalido = new Erro(400, 'Código errado ou vencido. Peça um novo código.');
+  if (!u) throw invalido;
+  const { rows } = await pool.query('SELECT codigo_hash, expira_em, tentativas FROM senha_codigos WHERE usuario_id = $1', [u.id]);
+  const c = rows[0];
+  if (!c || new Date(c.expira_em) < new Date() || c.tentativas >= 5) throw invalido;
+  if (c.codigo_hash !== hashCodigo(u.id, codigo)) {
+    await pool.query('UPDATE senha_codigos SET tentativas = tentativas + 1 WHERE usuario_id = $1', [u.id]);
+    throw invalido;
+  }
+  const { rows: nu } = await pool.query('UPDATE usuarios SET senha_hash = $2, versao = versao + 1 WHERE id = $1 RETURNING id, versao', [u.id, auth.hashSenha(b.nova)]);
+  await pool.query('DELETE FROM senha_codigos WHERE usuario_id = $1', [u.id]);
+  res.setHeader('Set-Cookie', auth.criarCookie(nu[0], req));
+  return { ok: true };
+});
 
 rota('POST', '/api/equipe/minha-senha', [], async ({ u, b }) => {
   const { rows } = await pool.query('SELECT senha_hash FROM usuarios WHERE id = $1', [u.id]);
@@ -659,7 +744,7 @@ rota('GET', '/api/equipe/relatorio', ['caixa'], async ({ q }) => {
 rota('GET', '/api/admin/tudo', ['admin'], async () => {
   const [cardapio, loja, quadro, usuarios, mesas] = await Promise.all([
     lerConfig('cardapio'), lerConfig('loja'), lerConfig('quadro'),
-    pool.query('SELECT id, nome, login, telefone, permissoes, ativo, criado_em FROM usuarios ORDER BY ativo DESC, nome').then((r) => r.rows),
+    pool.query('SELECT id, nome, login, telefone, email, permissoes, ativo, criado_em FROM usuarios ORDER BY ativo DESC, nome').then((r) => r.rows),
     pool.query('SELECT id, nome, token, ativa, ordem FROM mesas ORDER BY ativa DESC, ordem, id').then((r) => r.rows),
   ]);
   return { cardapio, loja, agora: estadoLoja(loja), quadro: quadro || [], usuarios, mesas, permissoes: auth.PERMISSOES };

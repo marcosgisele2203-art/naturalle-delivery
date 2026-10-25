@@ -21,7 +21,12 @@
 
   function cabecalho(p, titulo) {
     const onde = p.tipo === 'mesa' ? (p.mesa_nome || 'MESA').toUpperCase() : ROTULO[p.tipo] || p.tipo;
-    return `<div class="c">${esc((App.loja && App.loja.nome) || 'Naturalle Mania')}</div>
+    const l = App.loja || {};
+    // no cupom do cliente vão os dados da loja; na comanda da cozinha, não
+    const dados = /CUPOM/.test(titulo) ? [l.razao_social, l.cnpj ? (String(l.cnpj).replace(/\D/g, '').length > 11 ? 'CNPJ ' : 'CPF ') + l.cnpj : '',
+      l.endereco_completo, [l.telefone ? 'Tel ' + App.fone(l.telefone) : '', l.whatsapp ? 'WhatsApp ' + App.fone(l.whatsapp) : ''].filter(Boolean).join(' · '),
+      l.instagram ? '@' + l.instagram : ''].filter(Boolean).map((t) => `<div class="c peq">${esc(t)}</div>`).join('') : '';
+    return `<div class="c">${esc(l.nome || 'Naturalle Mania')}</div>${dados}
       <div class="c peq">${titulo}</div><hr>
       <div class="g">PEDIDO #${p.id}</div><div class="g">${esc(onde)}</div>
       <div class="peq">${dataHora(p.criado_em)}${p.criado_por_nome ? ' · ' + esc(p.criado_por_nome) : ''}</div>

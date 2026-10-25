@@ -99,6 +99,13 @@ async function migrar() {
     ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS pago_em TIMESTAMPTZ;
     ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS pago_confirmado_por INT REFERENCES usuarios(id);
     ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS telefone TEXT NOT NULL DEFAULT '';
+    ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS email TEXT NOT NULL DEFAULT '';
+    CREATE TABLE IF NOT EXISTS senha_codigos (
+      usuario_id  INT PRIMARY KEY REFERENCES usuarios(id) ON DELETE CASCADE,
+      codigo_hash TEXT NOT NULL,
+      expira_em   TIMESTAMPTZ NOT NULL,
+      tentativas  INT NOT NULL DEFAULT 0
+    );
     ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS codigo TEXT;
     ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS observacoes TEXT NOT NULL DEFAULT '';
     ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS confirmado_em TIMESTAMPTZ;

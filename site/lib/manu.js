@@ -117,7 +117,9 @@ function criar(s) {
     const dia = s.diaDaSemana(), agora = s.estadoLoja(loja);
     const l = [`Hoje é ${DIAS[dia]}. Loja ${agora.aberta ? 'ABERTA' : 'FECHADA'} para pedidos (${agora.texto || loja.horario || ''}).`,
       `Entrega: ${loja.delivery ? brl(loja.taxa_entrega || 0) : 'não fazemos hoje'}. Retirada no balcão: ${loja.retirada ? 'sim' : 'não'}.`,
-      `Cartão tem acréscimo de ${brl(loja.taxa_cartao || 0)} (maquininha). Pix: a chave vai por mensagem automática depois do pedido.`, ''];
+      `Cartão tem acréscimo de ${brl(loja.taxa_cartao || 0)} (maquininha). Pix: a chave vai por mensagem automática depois do pedido.`,
+      ...(loja.endereco ? [`Endereço da loja (para retirada): ${[loja.endereco, loja.bairro, [loja.cidade, loja.uf].filter(Boolean).join('/')].filter(Boolean).join(', ')}${loja.referencia ? ' (' + loja.referencia + ')' : ''}.`] : []),
+      ...(loja.instagram ? [`Instagram: @${loja.instagram}.`] : []), ''];
     for (const c of menu.categorias) {
       const ps = menu.produtos.filter((p) => p.categoria === c.id && p.disponivel !== false && s.Calc.disponivelHoje(p, dia));
       if (!ps.length) continue;

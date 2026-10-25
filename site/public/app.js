@@ -77,7 +77,9 @@
     $('#selos').innerHTML = selos.join('');
     const aviso = $('#aviso-topo');
     if (!tokenMesa && !l.aberta) { aviso.hidden = false; aviso.textContent = 'Estamos fechados para pedidos pelo site agora' + (l.horario && l.horario !== 'Fechado agora' ? ' (' + l.horario.toLowerCase() + ')' : '') + '. Você pode olhar o cardápio à vontade.'; }
-    $('#rodape').innerHTML = (l.whatsapp ? `<p>${esc(l.nome)} · Fale com a gente no WhatsApp <a href="https://wa.me/${esc(l.whatsapp)}">${formatarFone(l.whatsapp)}</a></p>` : '')
+    $('#rodape').innerHTML = (l.endereco_completo ? `<p>📍 ${esc(l.endereco_completo)}${l.referencia ? ' (' + esc(l.referencia) + ')' : ''}</p>` : '')
+      + (l.instagram ? `<p>Instagram <a href="https://instagram.com/${esc(l.instagram)}" target="_blank" rel="noopener">@${esc(l.instagram)}</a></p>` : '')
+      + (l.whatsapp ? `<p>${esc(l.nome)} · Fale com a gente no WhatsApp <a href="https://wa.me/${esc(l.whatsapp)}">${formatarFone(l.whatsapp)}</a></p>` : '')
       + (tokenMesa ? '' : '<p><a class="link-equipe" href="/equipe/">Painel administrativo</a></p>');
   }
 

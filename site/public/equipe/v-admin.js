@@ -427,6 +427,23 @@ App.views.admin = {
           <label class="campo">Recado no quadro da Manu<input name="recado" maxlength="140" value="${esc(l.recado || '')}" placeholder="Ex.: Hoje tem açaí em dobro!"><small>Aparece quando não tem combo do dia nem aviso na aba Quadro da Manu.</small></label>
           <label class="campo">Endereço do site<input name="url_publica" value="${esc(l.url_publica || '')}" placeholder="https://pedidos.naturallemania.com.br"><small>Usado nos QR codes. Vazio = o endereço atual.</small></label>
         </div>
+        <h2 style="margin-top:8px">Cadastro da loja</h2>
+        <p class="nota">Aparece no rodapé do cardápio, no cupom impresso e a Manu usa para informar o endereço de retirada.</p>
+        <div class="grade-form">
+          <label class="campo">Razão social<input name="razao_social" value="${esc(l.razao_social || '')}" placeholder="Nome registrado da empresa"></label>
+          <label class="campo">CNPJ ou CPF<input name="cnpj" value="${esc(l.cnpj || '')}" inputmode="numeric" placeholder="00.000.000/0001-00"></label>
+          <label class="campo">Responsável<input name="responsavel" value="${esc(l.responsavel || '')}"></label>
+          <label class="campo">Telefone fixo (opcional)<input name="telefone" value="${esc(l.telefone || '')}" inputmode="tel"></label>
+          <label class="campo">E-mail<input name="email" type="email" value="${esc(l.email || '')}"></label>
+          <label class="campo">Instagram<input name="instagram" value="${esc(l.instagram ? '@' + l.instagram : '')}" placeholder="@naturallemania"></label>
+          <label class="campo">Endereço (rua e número)<input name="endereco" value="${esc(l.endereco || '')}" placeholder="Rua Exemplo, 123"></label>
+          <label class="campo">Bairro<input name="bairro" value="${esc(l.bairro || '')}"></label>
+          <label class="campo">Cidade<input name="cidade" value="${esc(l.cidade || 'Campo Grande')}"></label>
+          <label class="campo">UF<input name="uf" maxlength="2" value="${esc(l.uf || 'MS')}"></label>
+          <label class="campo">CEP<input name="cep" inputmode="numeric" value="${esc(l.cep || '')}"></label>
+          <label class="campo">Ponto de referência<input name="referencia" value="${esc(l.referencia || '')}" placeholder="Ex.: em frente à praça"></label>
+        </div>
+        <h2 style="margin-top:8px">Funcionamento</h2>
         ${ch('delivery', 'Fazemos entrega')}
         ${ch('retirada', 'Cliente pode retirar no balcão')}
         ${ch('mesa_auto_confirmar', 'Pedido feito pelo QR da mesa vai direto para a cozinha (sem o garçom confirmar)')}
@@ -567,7 +584,8 @@ App.views.admin = {
         else if (f.dataset.form === 'uma') await acaoMesa({ nome: f.nome.value });
         else if (f.dataset.form === 'loja') {
           const fd = new FormData(f);
-          const loja = Object.fromEntries(['nome', 'frase', 'whatsapp', 'url_publica', 'recado'].map((k) => [k, fd.get(k)]));
+          const loja = Object.fromEntries(['nome', 'frase', 'whatsapp', 'url_publica', 'recado', 'razao_social', 'cnpj', 'responsavel', 'telefone', 'email',
+            'instagram', 'endereco', 'bairro', 'cidade', 'uf', 'cep', 'referencia'].map((k) => [k, fd.get(k)]));
           for (const k of ['delivery', 'retirada', 'mesa_auto_confirmar']) loja[k] = f[k].checked;
           Object.assign(d, await App.api('/api/admin/loja', { loja }, 'PUT'));
           App.toast('Loja salva'); render();

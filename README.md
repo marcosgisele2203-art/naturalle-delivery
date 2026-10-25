@@ -58,6 +58,9 @@ DATABASE_URL=postgres://postgres:SENHA@naturalle_postgres:5432/naturalle
 N8N_URL=https://SEU-N8N/webhook
 N8N_TOKEN=uma-senha-forte-qualquer
 GEMINI_API_KEY=chave-do-google-ai-studio   (opcional: liga a Manu IA)
+EVOLUTION_URL=https://sua-evolution          (opcional: recuperar senha pelo WhatsApp)
+EVOLUTION_INSTANCE=nome-da-instancia
+EVOLUTION_APIKEY=apikey-da-evolution
 ```
 
 Em *Domains*, aponte o domínio para a porta **3000** e faça o deploy.
@@ -130,7 +133,10 @@ Se o n8n cair, os pedidos continuam funcionando normalmente; só as mensagens de
 - **Som**: cada aparelho precisa clicar uma vez em *Ligar som* (o navegador exige).
 - **QR code fotografado**: se alguém estiver pedindo de fora com foto do QR, use *Trocar QR* na mesa e imprima de novo.
 - **Tablet da cozinha / celular do entregador**: salve como favorito `seudominio/equipe#/cozinha` (ou `#/entregas`) para abrir direto no painel.
-- **Senha esquecida**: o administrador define uma nova em Administração › Equipe.
+- **Esqueci a senha**: na tela de login, *Esqueci minha senha* manda um código pelo WhatsApp cadastrado em *Meu cadastro*
+  (precisa das 3 variáveis `EVOLUTION_*`). Outra saída: um administrador troca em Funcionários, ou pelo Console do Easypanel
+  `node redefinir-senha.js LOGIN NOVASENHA`.
+- **Senha esquecida (antigo)**: o administrador define uma nova em Administração › Equipe.
 
 ## Impressora térmica
 

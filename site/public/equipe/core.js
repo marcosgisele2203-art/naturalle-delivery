@@ -213,12 +213,16 @@
         <div><h1>${painel ? esc(painel.nome) : 'Naturalle <span>Mania</span>'}</h1>
         <p>${primeiro ? 'Primeiro acesso: crie o usuário administrador.' : 'Entre com o seu login e a sua senha.'}</p></div></div>
       ${aviso ? `<p class="aviso-login" role="alert">${aviso}</p>` : ''}
-      ${primeiro ? '<label class="campo">Seu nome<input name="nome" required autocomplete="name"></label>' : ''}
+      ${primeiro ? `<label class="campo">Seu nome<input name="nome" required autocomplete="name"></label>
+        <label class="campo">Seu WhatsApp com DDD<input name="telefone" type="tel" inputmode="tel" required placeholder="(67) 99999-9999"><small>Serve para recuperar a senha se você esquecer.</small></label>
+        <label class="campo">E-mail (opcional)<input name="email" type="email" autocomplete="email"></label>` : ''}
       <label class="campo">Login<input name="login" required autocomplete="username" autocapitalize="none"></label>
       <label class="campo">Senha<input type="password" name="senha" required autocomplete="${primeiro ? 'new-password' : 'current-password'}"${primeiro ? ' minlength="8"' : ''}>${primeiro ? '<small>Pelo menos 8 caracteres.</small>' : ''}</label>
       <p class="erro" id="erro-login" role="alert" hidden></p>
       <button class="btn principal grande" type="submit">${primeiro ? 'Criar administrador' : 'Entrar'}</button>
+      ${primeiro ? '' : '<button type="button" class="link-esqueci" id="esqueci">Esqueci minha senha</button>'}
     </form></div>`;
+    const esq = $('#esqueci'); if (esq) esq.addEventListener('click', () => telaRecuperar(painel, $('#form-login [name=login]').value));
     $('#form-login').addEventListener('submit', async (e) => {
       e.preventDefault();
       const d = Object.fromEntries(new FormData(e.target));
@@ -231,6 +235,46 @@
       }
     });
     const i = $('#form-login input'); if (i) i.focus();
+  }
+
+  // ---------------- esqueci a senha: código pelo WhatsApp
+  function telaRecuperar(painel, loginDigitado) {
+    let etapa = 1, login = loginDigitado || '', aviso = '';
+    const desenhar = () => {
+      $('#raiz').innerHTML = `<div class="entrada entrada-login"><form class="caixa-login" id="form-rec">
+        <button type="button" class="voltar-paineis link-esqueci" id="rec-voltar">← Voltar para o login</button>
+        <div class="login-cabeca"><img class="manu-login" src="/img/manu/acenando.webp" alt="" width="120" height="150">
+          <div><h1>Nova senha</h1><p>${etapa === 1 ? 'Vamos mandar um código para o WhatsApp cadastrado.' : 'Digite o código que chegou no WhatsApp e a nova senha.'}</p></div></div>
+        ${aviso ? `<p class="aviso-login" role="status">${esc(aviso)}</p>` : ''}
+        <label class="campo">Login ou WhatsApp<input name="login" required autocapitalize="none" value="${esc(login)}"${etapa === 2 ? ' readonly' : ''}></label>
+        ${etapa === 2 ? `<label class="campo">Código de 6 números<input name="codigo" required inputmode="numeric" maxlength="6" autocomplete="one-time-code"></label>
+          <label class="campo">Nova senha<input type="password" name="nova" required minlength="8" autocomplete="new-password"><small>Pelo menos 8 caracteres.</small></label>` : ''}
+        <p class="erro" id="erro-rec" role="alert" hidden></p>
+        <button class="btn principal grande" type="submit">${etapa === 1 ? 'Enviar código pelo WhatsApp' : 'Salvar nova senha e entrar'}</button>
+        ${etapa === 2 ? '<button type="button" class="link-esqueci" id="rec-reenviar">Não chegou? Enviar outro código</button>' : ''}
+        <p class="nota">Sem WhatsApp cadastrado? Peça a um administrador para trocar a sua senha em Administração › Funcionários.</p>
+      </form></div>`;
+      $('#rec-voltar').addEventListener('click', () => telaLogin(painel));
+      const re = $('#rec-reenviar'); if (re) re.addEventListener('click', () => { etapa = 1; aviso = ''; desenhar(); });
+      $('#form-rec').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const f = e.target, btn = f.querySelector('[type=submit]');
+        btn.disabled = true;
+        try {
+          if (etapa === 1) {
+            login = f.login.value.trim();
+            aviso = (await App.api('/api/equipe/recuperar/enviar', { login })).mensagem;
+            etapa = 2; desenhar(); $('#form-rec [name=codigo]').focus();
+          } else {
+            await App.api('/api/equipe/recuperar/confirmar', { login, codigo: f.codigo.value, nova: f.nova.value });
+            gravarPainel(painel && painel.id);
+            App.toast('Senha nova salva. Bem-vindo de volta!');
+            await App.iniciar();
+          }
+        } catch (err) { const p = $('#erro-rec'); p.textContent = err.message; p.hidden = false; btn.disabled = false; }
+      });
+    };
+    desenhar();
   }
 
   // ---------------- layout e navegação
@@ -270,6 +314,7 @@
         ${permitidos().map(([id, nome]) => `<a href="#/${id}" data-view="${id}">${nome}<span class="contagem" hidden></span></a>`).join('')}
         <div class="quem"><span>${esc(App.usuario.nome)}</span>
           <button id="impressora" type="button">Impressora</button>
+          <button id="meu-cadastro" type="button">Meu cadastro</button>
           <button id="minha-senha" type="button">Trocar senha</button>
           <button id="sair" type="button">Sair</button></div>
       </nav>
@@ -277,7 +322,33 @@
     </div>`;
     $('#sair').addEventListener('click', async () => { await sairDaConta(); location.hash = '#/'; });
     $('#minha-senha').addEventListener('click', trocarSenha);
+    $('#meu-cadastro').addEventListener('click', meuCadastro);
+    // sem WhatsApp cadastrado não dá para recuperar a senha sozinho: lembra uma vez por sessão
+    if (!App.usuario.telefone && !sessionStorage.getItem('nm-lembrou-fone')) {
+      try { sessionStorage.setItem('nm-lembrou-fone', '1'); } catch { /* */ }
+      setTimeout(() => App.toast('Cadastre seu WhatsApp em "Meu cadastro" para poder recuperar a senha se esquecer.'), 800);
+    }
     $('#impressora').addEventListener('click', () => App.configurarImpressora());
+  }
+
+  function meuCadastro() {
+    const u = App.usuario;
+    const j = App.janela('Meu cadastro', `<form class="grade-form" id="f-cad" style="grid-template-columns:1fr">
+      <label class="campo">Nome<input name="nome" required value="${esc(u.nome)}" autocomplete="name"></label>
+      <label class="campo">Login<input value="${esc(u.login)}" disabled><small>O login só o administrador muda, em Funcionários.</small></label>
+      <label class="campo">WhatsApp com DDD<input name="telefone" type="tel" inputmode="tel" value="${esc(App.fone(u.telefone || ''))}" placeholder="(67) 99999-9999"><small>Para receber o código se esquecer a senha.</small></label>
+      <label class="campo">E-mail<input name="email" type="email" value="${esc(u.email || '')}" autocomplete="email"></label>
+      <p class="erro" hidden></p><button class="btn verde grande">Salvar</button></form>`);
+    $('#f-cad', j).addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const d = Object.fromEntries(new FormData(e.target));
+      try {
+        await App.api('/api/equipe/meu-cadastro', d);
+        Object.assign(App.usuario, { nome: d.nome, telefone: d.telefone.replace(/\D/g, ''), email: d.email });
+        j.fechar(); App.toast('Cadastro salvo');
+        const q = document.querySelector('.lateral .quem span'); if (q) q.textContent = d.nome;
+      } catch (err) { const p = $('.erro', j); p.textContent = err.message; p.hidden = false; }
+    });
   }
 
   function trocarSenha() {
