@@ -32,7 +32,7 @@
     loja: null, cardapio: null, dia: 0, mesa: null,
     carrinho: guardado(chave('carrinho'), []),
     cliente: guardado('nm-cliente', { nome: '', telefone: '', endereco: '' }),
-    tipo: 'entrega', pagamento: 'pix', troco: '', obs: '',
+    tipo: 'entrega', pagamento: 'pix', troco: '', precisaTroco: '', obs: '',
     enviando: false, erro: '', enviado: null,
     meus: guardado(chave('pedidos'), []), // [{ codigo, id }]
     quadro: [],
@@ -153,9 +153,9 @@
   const valorDigitado = (v) => Number(String(v || '').replace(/[^\d,.]/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.'));
   function textoTroco() {
     const pago = valorDigitado(st.troco), t = total();
-    if (!st.troco || !pago) return 'Deixe em branco se for pagar o valor certo.';
+    if (!st.troco || !pago) return `Total do pedido: ${brl(t)}.`;
     if (pago < t) return `Falta ${brl(t - pago)}: o valor é menor que o total (${brl(t)}).`;
-    if (pago === t) return 'Valor certo, sem troco.';
+    if (pago === t) return 'Esse é o valor certo do pedido: então não precisa de troco.';
     return `Seu troco: <b>${brl(pago - t)}</b>. O entregador já leva.`;
   }
 
@@ -189,8 +189,11 @@
         <label class="campo">Observações (opcional)<textarea name="obs">${esc(st.obs)}</textarea></label>
         <div class="campo"><span>Forma de pagamento</span><div class="pagamentos">${pags}</div>
           ${ajuda ? `<small style="font-weight:400;color:var(--cinza)">${ajuda}</small>` : ''}</div>
-        ${st.pagamento === 'dinheiro' ? `<label class="campo">Vai pagar com quanto?<input name="troco" inputmode="decimal" placeholder="Ex.: 50,00" value="${esc(st.troco)}">
-          <small class="troco-calc" data-troco>${textoTroco()}</small></label>` : ''}
+        ${st.pagamento === 'dinheiro' ? `<div class="campo"><span>${st.tipo === 'entrega' ? 'O entregador precisa levar troco?' : 'Vai precisar de troco?'}</span>
+          <div class="pagamentos" style="grid-template-columns:repeat(2,minmax(0,1fr))">${[['sim', 'Sim, preciso de troco'], ['nao', 'Não, tenho o valor certo']].map(([v, n]) =>
+            `<button type="button" class="chip" aria-pressed="${st.precisaTroco === v}" data-acao="troco" data-v="${v}">${n}</button>`).join('')}</div></div>
+          ${st.precisaTroco === 'sim' ? `<label class="campo">Vai pagar com quanto?<input name="troco" inputmode="decimal" placeholder="Ex.: 50,00" value="${esc(st.troco)}">
+            <small class="troco-calc" data-troco>${textoTroco()}</small></label>` : ''}` : ''}
         ${taxa() ? `<div class="linha-total"><span>Taxa de entrega</span><span>${brl(taxa())}</span></div>` : ''}
         ${acrescimoCartao() ? `<div class="linha-total"><span>Acréscimo da maquininha</span><span>${brl(acrescimoCartao())}</span></div>` : ''}`;
     }
@@ -237,6 +240,12 @@
       case 'fechar': fechar(); break;
       case 'pagamento': lerForm(); st.pagamento = b.dataset.v; renderCarrinho(); break;
       case 'tipo': lerForm(); st.tipo = b.dataset.v; renderCarrinho(); break;
+      case 'troco': {
+        lerForm(); st.precisaTroco = b.dataset.v; if (st.precisaTroco === 'nao') st.troco = ''; st.erro = '';
+        renderCarrinho();
+        const campo = $('[name=troco]'); if (campo) campo.focus();
+        break;
+      }
       case 'slide': clearInterval(timerQuadro); mostrarSlide(Number(b.dataset.v)); break;
       case 'ampliar': {
         const z = document.createElement('div');
@@ -275,7 +284,8 @@
       if (!String(c.nome).trim()) st.erro = 'Informe seu nome.';
       else if (tel.length < 10 || tel.length > 13) st.erro = 'Informe seu WhatsApp com DDD.';
       else if (st.tipo === 'entrega' && !String(c.endereco).trim()) st.erro = 'Informe o endereço de entrega.';
-      else if (st.pagamento === 'dinheiro' && st.troco && !(valorDigitado(st.troco) >= total())) st.erro = 'O valor em dinheiro precisa ser igual ou maior que o total (' + brl(total()) + ').';
+      else if (st.pagamento === 'dinheiro' && !st.precisaTroco) st.erro = st.tipo === 'entrega' ? 'Diga se o entregador precisa levar troco.' : 'Diga se vai precisar de troco.';
+      else if (st.pagamento === 'dinheiro' && st.precisaTroco === 'sim' && !(valorDigitado(st.troco) > total())) st.erro = 'Diga com quanto vai pagar: precisa ser mais que o total (' + brl(total()) + ').';
     }
     if (st.erro) return renderCarrinho();
     st.enviando = true; renderCarrinho();
@@ -285,12 +295,12 @@
         ? await api('/api/publico/mesa/' + tokenMesa + '/pedido', { nome: c.nome, observacoes: st.obs, itens })
         : await api('/api/publico/pedido', {
           tipo: st.tipo, cliente: { nome: c.nome, telefone: c.telefone }, endereco: c.endereco, observacoes: st.obs,
-          pagamento: st.pagamento, troco_para: st.pagamento === 'dinheiro' && st.troco ? valorDigitado(st.troco) : null, itens,
+          pagamento: st.pagamento, troco_para: st.pagamento === 'dinheiro' && st.precisaTroco === 'sim' ? valorDigitado(st.troco) : null, itens,
         });
       st.enviado = { id: d.pedido_id, pix: st.pagamento === 'pix', status: d.status };
       st.meus = [{ codigo: d.codigo, id: d.pedido_id }, ...st.meus].slice(0, 10);
       guardar(chave('pedidos'), st.meus);
-      st.carrinho = []; st.obs = ''; st.troco = '';
+      st.carrinho = []; st.obs = ''; st.troco = ''; st.precisaTroco = '';
       guardar(chave('carrinho'), []);
       acompanhar();
     } catch (err) {
