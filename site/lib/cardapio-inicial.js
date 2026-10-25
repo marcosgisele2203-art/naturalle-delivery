@@ -10,7 +10,7 @@ const diversos = [['Leite condensado', 5], ['Granola', 4], ['Negresco', 5], ['Pa
 const chocolates = [['Bis', 5], ['Sonho de Valsa', 5], ['Ouro Branco', 5], ['Confete', 5], ['Ovomaltine', 6], ['Kit Kat', 6], ['Prestígio', 6], ['Nutella', 8], ['Kinder Bueno', 8], ['Brigadeiro', 6], ['Beijinho', 6], ['Gotas de chocolate', 5]];
 const caldas = [['Chocolate', 4], ['Morango', 4], ['Açaí', 4], ['Caramelo', 4], ['Mel', 5]];
 const combo = (dia, weekday, desc, promo, normal) => ({
-  id: 'combo-' + slug(dia), categoria: 'combos', nome: 'Combo de ' + dia, descricao: desc, preco: 0, dias: [weekday],
+  id: 'combo-' + slug(dia), categoria: 'acai', nome: 'Combo de ' + dia, descricao: desc, preco: 0, dias: [weekday],
   grupos: [grupo('Tamanho', 'unica', true, ['300 ml', '400 ml', '500 ml', '700 ml'].map((t, i) => [t, promo[i], normal[i]]))],
 });
 
@@ -18,7 +18,6 @@ module.exports = {
   categorias: [
     { id: 'mac', nome: 'Mac de 10' },
     { id: 'acai', nome: 'Açaí' },
-    { id: 'combos', nome: 'Combos do dia' },
     { id: 'bebidas', nome: 'Bebidas' },
   ],
   produtos: [

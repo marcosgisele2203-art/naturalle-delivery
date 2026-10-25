@@ -116,6 +116,7 @@ async function migrar() {
     `INSERT INTO config (chave, valor) VALUES ('cardapio', $1), ('loja', $2) ON CONFLICT (chave) DO NOTHING`,
     [JSON.stringify(cardapioInicial), JSON.stringify(LOJA_PADRAO)]);
   await ajustesDoCardapio();
+  await combosNoAcai();
 }
 
 // mudanças pedidas pela loja no cardápio já salvo; cada uma roda só uma vez
@@ -130,6 +131,17 @@ async function ajustesDoCardapio() {
     await salvarConfig('cardapio', m);
   }
   await salvarConfig('ajuste_sem_shakes_sobremesas', true);
+}
+
+async function combosNoAcai() {
+  if (await lerConfig('ajuste_combos_no_acai')) return;
+  const m = await lerConfig('cardapio');
+  if (m && m.categorias.some((c) => c.id === 'acai')) {
+    for (const p of m.produtos) if (p.categoria === 'combos') p.categoria = 'acai';
+    m.categorias = m.categorias.filter((c) => c.id !== 'combos');
+    await salvarConfig('cardapio', m);
+  }
+  await salvarConfig('ajuste_combos_no_acai', true);
 }
 
 async function lerConfig(chave) {
