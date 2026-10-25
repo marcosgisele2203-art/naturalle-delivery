@@ -106,6 +106,13 @@ Se o n8n cair, os pedidos continuam funcionando normalmente; só as mensagens de
 - **QR code fotografado**: se alguém estiver pedindo de fora com foto do QR, use *Trocar QR* na mesa e imprima de novo.
 - **Senha esquecida**: o administrador define uma nova em Administração › Equipe.
 
+## Impressora térmica
+
+Cada computador configura a impressora ligada nele: na área da equipe, botão **Impressora** no menu da esquerda
+(papel 58 ou 80 mm, comanda da cozinha e/ou cupom do cliente, impressão automática, vias, letra, mensagem do cupom).
+Em cada pedido há o botão **Imprimir**. O passo a passo completo (impressora padrão, margens e `--kiosk-printing`
+para imprimir sem a janela de confirmação) está em **Administração › Impressora**.
+
 ## Segurança
 
 - O servidor recalcula todos os preços pelo cardápio do banco; o preço que vem do navegador é ignorado.

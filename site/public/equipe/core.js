@@ -95,9 +95,10 @@
       <div>${itens}</div>
       ${p.observacoes ? `<div class="obs"><b>Obs.:</b> ${esc(p.observacoes)}</div>` : ''}
       <div class="tags">${pag}${Number(p.taxa_entrega) ? `<span class="tag">Entrega ${brl(p.taxa_entrega)}</span>` : ''}${Number(p.acrescimo_cartao) ? `<span class="tag">Maquininha ${brl(p.acrescimo_cartao)}</span>` : ''}<span class="tag forte">${brl(p.total)}</span></div>
-      ${acoes.length ? `<div class="acoes">${acoes.map((a) => a.href
+      ${`<div class="acoes">${acoes.map((a) => a.href
         ? `<a class="btn" href="${esc(a.href)}" target="_blank" rel="noopener">${a.rotulo}</a>`
-        : `<button class="btn ${a.classe || ''}" data-acao="${a.acao}" data-id="${p.id}"${a.valor ? ` data-valor="${a.valor}"` : ''}>${a.rotulo}</button>`).join('')}</div>` : ''}
+        : `<button class="btn ${a.classe || ''}" data-acao="${a.acao}" data-id="${p.id}"${a.valor ? ` data-valor="${a.valor}"` : ''}>${a.rotulo}</button>`).join('')}
+        <button class="btn fraco" data-imprimir="${p.id}">Imprimir</button></div>`}
     </article>`;
   };
 
@@ -194,6 +195,7 @@
         <span class="marca">Naturalle Mania</span>
         ${permitidos().map(([id, nome]) => `<a href="#/${id}" data-view="${id}">${nome}<span class="contagem" hidden></span></a>`).join('')}
         <div class="quem"><span>${esc(App.usuario.nome)}</span>
+          <button id="impressora" type="button">Impressora</button>
           <button id="minha-senha" type="button">Trocar senha</button>
           <button id="sair" type="button">Sair</button></div>
       </nav>
@@ -201,6 +203,7 @@
     </div>`;
     $('#sair').addEventListener('click', async () => { await App.api('/api/equipe/sair', {}); App.usuario = null; telaLogin(); });
     $('#minha-senha').addEventListener('click', trocarSenha);
+    $('#impressora').addEventListener('click', () => App.configurarImpressora());
   }
 
   function trocarSenha() {

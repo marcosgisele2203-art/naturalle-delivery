@@ -30,6 +30,7 @@ App.views.cozinha = {
             <ul>${(p.itens || []).map((i) => `<li><b>${i.qtd}× ${esc(i.nome)}</b>${i.detalhe ? `<small>${esc(i.detalhe)}</small>` : ''}${i.obs ? `<small class="obs-item">Obs.: ${esc(i.obs)}</small>` : ''}</li>`).join('')}</ul>
             ${p.observacoes ? `<p class="obs-geral">${esc(p.observacoes)}</p>` : ''}
             <button class="btn verde" data-pronto="${p.id}">Pronto</button>
+            <button class="btn fraco" data-imprimir="${p.id}" style="margin-top:-8px;min-height:40px;font-size:14px">Imprimir comanda</button>
           </article>`;
         }).join('') || '<p class="nota" style="color:#C9CBD1;font-size:18px">Nenhum pedido na fila. Os pedidos confirmados aparecem aqui sozinhos.</p>'}</div>
       </div>`;

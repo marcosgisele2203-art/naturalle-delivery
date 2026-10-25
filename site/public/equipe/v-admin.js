@@ -2,7 +2,7 @@
 App.views.admin = {
   montar(el, params) {
     const { esc, brl } = App;
-    const ABAS = [['cardapio', 'Cardápio'], ['mesas', 'Mesas e QR code'], ['equipe', 'Equipe'], ['loja', 'Loja']];
+    const ABAS = [['cardapio', 'Cardápio'], ['mesas', 'Mesas e QR code'], ['equipe', 'Equipe'], ['loja', 'Loja'], ['impressora', 'Impressora']];
     let aba = ABAS.some(([a]) => a === params[0]) ? params[0] : 'cardapio';
     let d = null; // { cardapio, loja, usuarios, mesas, permissoes }
     const copia = (o) => JSON.parse(JSON.stringify(o));
@@ -279,9 +279,24 @@ App.views.admin = {
       </form>`;
     }
 
+    // ---------------- impressora
+    function abaImpressora() {
+      return `<section class="cartao"><div class="topo"><div><h2>Impressora térmica</h2>
+          <p>Cada computador ou tablet configura a impressora que está ligada nele.</p></div>
+          <button class="btn verde" data-config-impressora>Configurar a impressora deste aparelho</button></div>
+        <ol class="passos">
+          <li><b>Instale a impressora no computador</b> (Epson, Elgin, Bematech, Knup…) com o programa do fabricante e deixe ela como <b>impressora padrão</b>.</li>
+          <li>Entre na área da equipe nesse computador e clique em <b>Impressora</b> (no menu da esquerda). Escolha o papel (58 ou 80 mm), o que imprimir e se imprime sozinho.</li>
+          <li>Clique em <b>Imprimir teste</b>. Na primeira vez, na janela de impressão, escolha a térmica, margens <b>Nenhuma</b> e desmarque <b>Cabeçalhos e rodapés</b>.</li>
+          <li><b>Para imprimir sem aparecer a janela</b> (recomendado na cozinha): no Windows, clique com o botão direito no atalho do Google Chrome › Propriedades › no campo <b>Destino</b>, acrescente no final, depois das aspas, um espaço e <code>--kiosk-printing</code>. Feche todo o Chrome e abra por esse atalho.</li>
+        </ol>
+        <p class="nota">Dica: no computador da cozinha, ligue "Quando o pedido for para a cozinha". No caixa, se quiser o cupom do cliente, ligue "Cupom do cliente" e imprima pelo botão <b>Imprimir</b> de cada pedido.</p>
+      </section>`;
+    }
+
     // ---------------- geral
     function render() {
-      const corpo = { cardapio: abaCardapio, mesas: abaMesas, equipe: abaEquipe, loja: abaLoja }[aba]();
+      const corpo = { cardapio: abaCardapio, mesas: abaMesas, equipe: abaEquipe, loja: abaLoja, impressora: abaImpressora }[aba]();
       const scroll = window.scrollY;
       el.innerHTML = `<div class="topo"><div><h1>Administração</h1></div>
         <nav class="abas-admin" aria-label="Partes da administração">${ABAS.map(([a, n]) => `<a class="chip aba-adm" href="#/admin/${a}" aria-pressed="${aba === a}"${aba === a ? ' aria-current="page"' : ''}>${n}</a>`).join('')}</nav></div>
@@ -292,7 +307,8 @@ App.views.admin = {
     el.addEventListener('click', async (e) => {
       const b = e.target.closest('button');
       if (!b || b.closest('.janela')) return;
-      if (b.hasAttribute('data-nova-cat')) editarCategoria(null);
+      if (b.hasAttribute('data-config-impressora')) App.configurarImpressora();
+      else if (b.hasAttribute('data-nova-cat')) editarCategoria(null);
       else if (b.dataset.catEdita != null) editarCategoria(Number(b.dataset.catEdita));
       else if (b.dataset.catSobe != null) {
         const m = copia(d.cardapio); const i = Number(b.dataset.catSobe);
