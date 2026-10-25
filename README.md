@@ -61,6 +61,9 @@ N8N_TOKEN=uma-senha-forte-qualquer
 
 Em *Domains*, aponte o domínio para a porta **3000** e faça o deploy.
 
+**Endereço só da equipe (opcional):** crie também um domínio `painel.seudominio` (registro A no DNS e outro domínio no
+mesmo App, mesma porta). Nele, a página inicial já abre o painel da equipe; o domínio principal continua sendo o cardápio.
+
 ### 3. Primeiro acesso
 Abra `https://seudominio/equipe`. Na primeira vez ele pede para **criar o administrador**. Depois, em Administração:
 1. **Horário e taxas**: marque *Abrir e fechar sozinho pelo horário* e preencha o horário de cada dia; confira a taxa de entrega e o acréscimo do cartão.

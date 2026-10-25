@@ -721,6 +721,9 @@ const MIME = {
 
 function servirArquivo(req, res, pathname) {
   let rel = pathname;
+  // endereço da equipe (ex.: painel.seudominio): a página inicial já é o painel, não o cardápio
+  const host = String(req.headers['x-forwarded-host'] || req.headers.host || '').split(',')[0].trim().toLowerCase();
+  if (rel === '/' && /^(painel|equipe|admin)\./.test(host)) { res.writeHead(302, { Location: '/equipe/' }); return res.end(); }
   if (rel === '/equipe') { res.writeHead(301, { Location: '/equipe/' }); return res.end(); }
   if (rel === '/painel' || rel.startsWith('/painel/')) { res.writeHead(301, { Location: '/equipe/' }); return res.end(); }
   if (/^\/m\/[\w-]+$/.test(rel)) rel = '/index.html';
