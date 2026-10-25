@@ -212,7 +212,7 @@ App.views.admin = {
             <button class="btn fraco" data-aviso-sobe="${i}" aria-label="Mostrar antes"${i ? '' : ' disabled'}>↑</button></div>
         </article>`).join('') || '<p class="nota">Nenhum aviso ainda. Sem avisos, o quadro mostra o combo do dia ou o recado da aba Loja.</p>'}
         </div>
-        <p class="nota">Os combos do dia entram no quadro sozinhos, no dia deles. Foto deitada (mais larga que alta) fica melhor no quadro; o cliente toca na foto para ver grande.</p></section>`;
+        <p class="nota">Com foto, o cartaz ocupa o quadro-negro inteiro e o cliente toca nele para pedir o produto escolhido (sem produto, o toque mostra a foto grande). Sem foto, o quadro mostra o título, o texto e o preço escritos a giz. Cartaz em pé fica melhor. Os combos do dia entram sozinhos, no dia deles.</p></section>`;
     }
 
     function editarAviso(i) {
@@ -236,8 +236,8 @@ App.views.admin = {
             <div class="acoes">${a.foto ? `<img src="${esc(a.foto)}" alt="Foto atual" style="width:128px;height:96px;object-fit:cover;border-radius:10px">` : '<span class="nota">Sem foto</span>'}
               <label class="btn" style="cursor:pointer">${a.foto ? 'Trocar foto' : 'Enviar foto'}<input type="file" accept="image/*" data-foto hidden></label>
               ${a.foto ? '<button type="button" class="btn fraco" data-tira-foto>Remover foto</button>' : ''}</div>
-            <small>Pode ser a arte da promoção. Ela é reduzida antes de enviar.</small></div>
-          <label class="campo">Botão "Quero!" abre o produto (opcional)<select name="produto"><option value="">Sem botão</option>
+            <small>Pode ser o cartaz da promoção (em pé fica melhor): ele ocupa o quadro inteiro. Ela é reduzida antes de enviar.</small></div>
+          <label class="campo">Ao tocar, abre o produto (opcional)<select name="produto"><option value="">Sem botão</option>
             ${d.cardapio.produtos.map((p) => `<option value="${esc(p.id)}"${a.produto === p.id ? ' selected' : ''}>${esc(p.nome)}</option>`).join('')}</select></label>
           <div class="campo"><span>Dias em que aparece (nenhum marcado = todos os dias)</span><div class="dias">${DIAS.map((n, k) =>
             `<label><input type="checkbox" name="dia" value="${k}"${a.dias.includes(k) ? ' checked' : ''}> ${n}</label>`).join('')}</div></div>

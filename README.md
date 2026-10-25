@@ -98,7 +98,8 @@ Se o n8n cair, os pedidos continuam funcionando normalmente; só as mensagens de
 - **Porção de batata**: R$ 25 (cheddar ou catupiry, com bacon ou calabresa).
 - **Quadro da Manu** (topo do app): é o painel de **promoções e novidades**. Em Administração › *Quadro da Manu*, clique em
   *+ Novo aviso*: escolha Promoção ou Novidade, título, texto, preço, **foto da promoção**, o produto que o botão "Quero!" abre
-  e os dias. Com mais de um aviso, eles passam sozinhos; o cliente toca na foto para ver grande. O combo do dia entra sozinho.
+  e os dias. Com foto, o cartaz ocupa o quadro-negro inteiro e o cliente toca nele para pedir. Com mais de um aviso,
+  eles passam sozinhos. O combo do dia entra sozinho.
   Sem avisos, aparece o recado de Administração › Loja. Com a loja fechada, mostra "Fechados agora".
 - **Imagens da Manu**: ficam em `site/public/img/manu/`. Para trocar uma, salve outra imagem com o mesmo nome.
 - **Acabou um item**: Administração › Cardápio › desmarque *Disponível*. Some na hora do app.

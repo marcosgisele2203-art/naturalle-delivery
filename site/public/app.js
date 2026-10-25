@@ -104,17 +104,22 @@
     clearInterval(timerQuadro);
     const disponivel = (id) => st.cardapio.produtos.find((p) => p.id === id && p.disponivel !== false && window.Calc.disponivelHoje(p, st.dia));
     const botao = (id) => (disponivel(id) ? `<button class="giz-botao" data-acao="destaque" data-v="${esc(id)}">Quero!</button>` : '');
-    const foto = (src, alt) => (src ? `<button type="button" class="giz-foto" data-acao="ampliar" data-v="${esc(src)}" aria-label="Ver a foto de ${esc(alt)}"><img src="${esc(src)}" alt=""></button>` : '');
+    // aviso com foto: a foto ocupa o quadro inteiro e um toque já abre o produto para pedir
+    const cartaz = (src, titulo, produto) => {
+      const pede = produto && disponivel(produto);
+      return `<button type="button" class="giz-cartaz" data-acao="${pede ? 'destaque' : 'ampliar'}" data-v="${esc(pede ? produto : src)}"
+        aria-label="${esc(titulo)}${pede ? ': toque para pedir' : ': ver a foto'}"><img src="${esc(src)}" alt="">${pede ? '<span>Toque para pedir</span>' : ''}</button>`;
+    };
     const slides = [];
     if (!tokenMesa && !st.loja.aberta) {
       slides.push(`<span class="giz-titulo">Fechados agora</span><span class="giz-texto">${esc(st.loja.horario || 'Volte mais tarde!')}</span>`);
     } else {
       for (const p of st.cardapio.produtos.filter((x) => Array.isArray(x.dias) && x.dias.includes(st.dia) && x.disponivel !== false)) {
-        slides.push(`<span class="giz-pequeno">Hoje é dia de</span>${foto(p.foto, p.nome)}<span class="giz-titulo">${esc(p.nome)}</span>
+        slides.push(p.foto ? cartaz(p.foto, p.nome, p.id) : `<span class="giz-pequeno">Hoje é dia de</span><span class="giz-titulo">${esc(p.nome)}</span>
           <span class="giz-texto">${esc(p.descricao || '')}</span><span class="giz-preco">a partir de ${brl(window.Calc.precoMinimo(p))}</span>${botao(p.id)}`);
       }
       for (const a of st.quadro) {
-        slides.push(`<span class="giz-pequeno">${a.tipo === 'novidade' ? 'Novidade!' : 'Promoção!'}</span>${foto(a.foto, a.titulo)}
+        slides.push(a.foto ? cartaz(a.foto, a.titulo, a.produto) : `<span class="giz-pequeno">${a.tipo === 'novidade' ? 'Novidade!' : 'Promoção!'}</span>
           <span class="giz-titulo">${esc(a.titulo)}</span>${a.texto ? `<span class="giz-texto">${esc(a.texto)}</span>` : ''}
           ${a.preco ? `<span class="giz-preco">${esc(a.preco)}</span>` : ''}${a.produto ? botao(a.produto) : ''}`);
       }
@@ -125,23 +130,11 @@
       }
     }
     // o quadro da Manu é a primeira imagem do app
-    $('#giz').innerHTML = slides.map((h, i) => `<div class="giz-slide${h.includes('giz-foto') ? ' com-foto' : ''}"${i ? ' hidden' : ''}>${h}</div>`).join('')
+    $('#giz').innerHTML = slides.map((h, i) => `<div class="giz-slide${h.includes('giz-cartaz') ? ' com-cartaz' : ''}"${i ? ' hidden' : ''}>${h}</div>`).join('')
       + (slides.length > 1 ? `<div class="giz-pontos">${slides.map((_, i) => `<button type="button" data-acao="slide" data-v="${i}" aria-label="Aviso ${i + 1}"${i ? '' : ' aria-current="true"'}></button>`).join('')}</div>` : '');
-    // arte em pé (cartaz da promoção) aparece inteira, sem repetir o texto que já está nela
-    document.querySelectorAll('#giz .giz-foto img').forEach((img) => {
-      if (img.complete) ajustarArte(img); else img.addEventListener('load', () => ajustarArte(img));
-    });
     if (slides.length > 1) timerQuadro = setInterval(() => { if (!document.hidden) mostrarSlide(slideAtual + 1); }, 6000);
     slideAtual = 0;
   }
-  function ajustarArte(img) {
-    if (!img.naturalWidth || img.naturalHeight < img.naturalWidth * 1.1) return;
-    const giz = $('#giz'), foto = img.closest('.giz-foto');
-    img.closest('.giz-slide').classList.add('arte');
-    foto.style.aspectRatio = img.naturalWidth + ' / ' + img.naturalHeight;
-    foto.style.width = Math.min(giz.clientWidth * 0.8, giz.clientHeight * 0.6 * img.naturalWidth / img.naturalHeight) + 'px';
-  }
-  window.addEventListener('resize', () => document.querySelectorAll('#giz .arte .giz-foto img').forEach(ajustarArte));
   let slideAtual = 0;
   function mostrarSlide(n) {
     const lista = document.querySelectorAll('#giz .giz-slide');
