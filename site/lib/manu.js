@@ -232,8 +232,21 @@ function criar(s) {
       signal: AbortSignal.timeout(60_000),
     });
     const d = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error('Gemini ' + r.status + ': ' + ((d.error && d.error.message) || ''));
+    if (!r.ok) {
+      const e = new Error('Gemini ' + r.status + ': ' + ((d.error && d.error.message) || ''));
+      e.status = r.status; throw e;
+    }
     return d;
+  }
+  // limite por minuto do Google (429) ou Gemini sobrecarregado (500/503): espera e tenta de novo
+  async function geminiComRetry(contents) {
+    for (let tentativa = 0; ; tentativa++) {
+      try { return await gemini(contents); } catch (e) {
+        if (tentativa >= 2 || ![429, 500, 503].includes(e.status)) throw e;
+        console.error('manu: ' + e.message.slice(0, 120) + ' (tentando de novo)');
+        await new Promise((ok) => setTimeout(ok, (tentativa + 1) * 6000));
+      }
+    }
   }
 
   // entrada = { canal: 'whatsapp'|'site', chave, telefone?, nome?, texto?, midia?: { tipo: 'imagem'|'audio', mime, base64 } }
@@ -250,7 +263,7 @@ function criar(s) {
     const contents = [...conv.mensagens, { role: 'user', parts: partes }];
     let resposta = '';
     for (let volta = 0; volta < MAX_VOLTAS; volta++) {
-      const d = await gemini(contents);
+      const d = await geminiComRetry(contents);
       const conteudo = d.candidates && d.candidates[0] && d.candidates[0].content;
       if (!conteudo || !conteudo.parts) break;
       contents.push(conteudo); // devolve igual (inclusive as assinaturas de raciocínio)
