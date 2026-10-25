@@ -17,10 +17,15 @@ const LOJA_PADRAO = {
   mesa_auto_confirmar: false, // pedido da mesa (QR) vai direto pra cozinha
 };
 
+const QUADRO_MAC = [
+  { id: 'q-mac-1', tipo: 'promocao', titulo: 'Mac de 10 · 1 hambúrguer', texto: '', preco: 'R$ 10', foto: '/img/quadro/mac-1.webp', produto: 'mac-de-10-1', dias: [], ativo: true },
+  { id: 'q-mac-2', tipo: 'promocao', titulo: 'Mac de 10 · 2 hambúrgueres', texto: '', preco: 'R$ 16', foto: '/img/quadro/mac-2.webp', produto: 'mac-de-10-2', dias: [], ativo: true },
+  { id: 'q-mac-3', tipo: 'promocao', titulo: 'Mac de 10 · 3 hambúrgueres', texto: '', preco: 'R$ 22', foto: '/img/quadro/mac-3.webp', produto: 'mac-de-10-3', dias: [], ativo: true },
+];
 const QUADRO_INICIAL = [
   { id: 'q-marmita', tipo: 'novidade', titulo: 'Marmita Trufada', texto: 'Açaí + 5 adicionais à sua escolha.', preco: 'R$ 40,00', foto: '/img/quadro/marmita-trufada.webp', produto: 'marmita-trufada', dias: [], ativo: true },
   { id: 'q-batata', tipo: 'novidade', titulo: 'Porção de batata no Mac de 10', texto: 'Cheddar ou catupiry, com bacon ou calabresa (média 300 g).', preco: 'R$ 25,00', foto: '/img/quadro/batata.webp', produto: 'porcao-batata', dias: [], ativo: true },
-  { id: 'q-mac', tipo: 'promocao', titulo: 'Manu apresenta: Mac de 10!', texto: 'Com 1, 2 ou 3 hambúrgueres.', preco: 'a partir de R$ 10', foto: '/img/quadro/mac-de-10.webp', produto: 'mac-de-10-1', dias: [], ativo: true },
+  ...QUADRO_MAC,
 ];
 
 async function migrar() {
@@ -125,6 +130,7 @@ async function migrar() {
   await pool.query(`INSERT INTO config (chave, valor) VALUES ('quadro', $1) ON CONFLICT (chave) DO NOTHING`, [JSON.stringify(QUADRO_INICIAL)]);
   await ajustesDoCardapio();
   await combosNoAcai();
+  await trocarCartazMac();
 }
 
 // mudanças pedidas pela loja no cardápio já salvo; cada uma roda só uma vez
@@ -139,6 +145,15 @@ async function ajustesDoCardapio() {
     await salvarConfig('cardapio', m);
   }
   await salvarConfig('ajuste_sem_shakes_sobremesas', true);
+}
+
+// o cartaz único do Mac de 10 vira os 3 cartazes (1, 2 e 3 hambúrgueres), no mesmo lugar
+async function trocarCartazMac() {
+  if (await lerConfig('ajuste_quadro_mac_123')) return;
+  const q = await lerConfig('quadro');
+  const i = Array.isArray(q) ? q.findIndex((a) => a.id === 'q-mac') : -1;
+  if (i >= 0) { q.splice(i, 1, ...QUADRO_MAC); await salvarConfig('quadro', q); }
+  await salvarConfig('ajuste_quadro_mac_123', true);
 }
 
 async function combosNoAcai() {
