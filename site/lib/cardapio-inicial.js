@@ -36,7 +36,7 @@ module.exports = {
       ],
     })),
     {
-      id: 'marmita-trufada', categoria: 'acai', nome: 'Marmita Trufada', descricao: 'Açaí + 5 adicionais à sua escolha.', preco: 40,
+      id: 'marmita-trufada', categoria: 'acai', nome: 'Marmita Trufada', descricao: 'Açaí + 5 adicionais à sua escolha.', preco: 40, foto: '/img/lanches/marmita-trufada.webp',
       grupos: [grupo('Seus 5 adicionais', 'multipla', true,
         [...new Map([...frutas, ...cremes, ...diversos, ...chocolates].map(([n]) => [slug(n), [n, 0]])).values()], { max: 5 })],
     },
