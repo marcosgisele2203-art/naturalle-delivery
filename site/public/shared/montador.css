@@ -2,12 +2,16 @@
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .mt-busca input { width: 100%; min-height: 46px; border: 1px solid var(--linha); border-radius: 12px; padding: 0 14px; font-size: 16px; background: #fff; }
 .mt-abas { display: flex; gap: 6px; overflow-x: auto; padding: 10px 0; scrollbar-width: none; }
+@media (min-width: 600px) { .mt-abas { flex-wrap: wrap; overflow: visible; } }
 .mt-aba { flex: none; min-height: 44px; padding: 0 16px; border-radius: 22px; border: 1px solid var(--linha); background: #fff; font-size: 14px; font-weight: 600; }
 .mt-aba[aria-pressed="true"] { background: var(--verde); border-color: var(--verde); color: #fff; }
 .mt-lista { display: flex; flex-direction: column; gap: 10px; }
 .mt-produto-btn { width: 100%; text-align: left; border: 0; background: #fff; border-radius: 14px; padding: 14px; display: flex; align-items: center; gap: 12px; }
 .mt-produto-btn:disabled { cursor: not-allowed; }
 .mt-produto.indisponivel .mt-produto-btn { opacity: 0.6; }
+.mt-foto { width: 92px; height: 92px; flex: none; object-fit: cover; border-radius: 12px; background: var(--fundo); }
+.mt-foto-grande { width: 100%; max-height: 240px; object-fit: cover; border-radius: 22px 22px 0 0; flex: none; background: var(--fundo); }
+@media (min-width: 700px) { .mt-foto-grande { border-radius: 22px 22px 0 0; } }
 .mt-produto-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .mt-produto-info b { font-size: 15px; }
 .mt-produto-info small { font-size: 13px; color: var(--cinza); line-height: 1.35; }

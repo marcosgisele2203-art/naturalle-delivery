@@ -44,6 +44,7 @@ a:hover { color: var(--rosa-escuro); }
 /* Conteúdo */
 .conteudo { max-width: 640px; margin: 0 auto; padding: 8px 16px 120px; display: flex; flex-direction: column; gap: 14px; }
 #cardapio .mt-abas { position: sticky; top: 0; z-index: 5; background: var(--fundo); margin: 0 -16px; padding: 10px 16px; }
+@media (min-width: 600px) { #cardapio .mt-abas { margin: 0; padding: 10px 0; } }
 .nota { margin: 0; font-size: 13px; color: var(--cinza); }
 .aviso-topo { max-width: 640px; margin: 0 auto; padding: 12px 16px; background: #FFF3C4; color: #5C4300; font-weight: 600; font-size: 14px; }
 .acompanhar { background: #fff; border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }

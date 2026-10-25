@@ -41,14 +41,14 @@ module.exports = {
       grupos: [grupo('Seus 5 adicionais', 'multipla', true,
         [...new Map([...frutas, ...cremes, ...diversos, ...chocolates].map(([n]) => [slug(n), [n, 0]])).values()], { max: 5 })],
     },
-    {
-      id: 'mac-de-10', categoria: 'mac', nome: 'Mac de 10', descricao: 'Hambúrguer, alface, tomate, cheddar ou mussarela e molho da casa.', preco: 0,
+    ...[[1, 'Mac de 10 · 1 hambúrguer', 10], [2, 'Mac de 10 · 2 hambúrgueres', 16], [3, 'Mac de 10 · 3 hambúrgueres', 22]].map(([n, nome, preco]) => ({
+      id: 'mac-de-10-' + n, categoria: 'mac', nome, preco, foto: '/img/lanches/mac-' + n + '.webp',
+      descricao: `Pão, ${n === 1 ? '1 hambúrguer' : n + ' hambúrgueres'}, alface, tomate, queijo cheddar ou mussarela e molho da casa.`,
       grupos: [
-        grupo('Hambúrgueres', 'unica', true, [['1 hambúrguer', 10], ['2 hambúrgueres', 16], ['3 hambúrgueres', 22]]),
         grupo('Queijo', 'unica', true, [['Cheddar', 0], ['Mussarela', 0]]),
         grupo('Adicionais', 'multipla', false, [['Bacon', 6], ['Calabresa', 6], ['Catupiry', 6], ['Molho da casa', 2]]),
       ],
-    },
+    })),
     combo('Terça', 2, 'Açaí, morango, banana, leite condensado e leite Ninho', [26, 28, 32, 39], [30, 32, 36, 43]),
     combo('Quarta', 3, 'Açaí, morango, leite condensado e leite Ninho', [22, 24, 28, 35], [26, 28, 32, 39]),
     combo('Quinta', 4, 'Açaí, Ovomaltine, banana e leite condensado', [21, 23, 27, 34], [25, 27, 31, 38]),

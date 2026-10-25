@@ -97,6 +97,13 @@ async function migrar() {
     CREATE INDEX IF NOT EXISTS pedidos_status_idx ON pedidos (status, criado_em DESC);
     CREATE INDEX IF NOT EXISTS pedidos_telefone_idx ON pedidos (right(cliente_telefone, 8));
     CREATE INDEX IF NOT EXISTS pedidos_conta_idx ON pedidos (conta_id);
+
+    CREATE TABLE IF NOT EXISTS fotos (
+      id        SERIAL PRIMARY KEY,
+      tipo      TEXT NOT NULL,
+      dados     BYTEA NOT NULL,
+      criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
   `);
   await pool.query(
     `INSERT INTO config (chave, valor) VALUES ('cardapio', $1), ('loja', $2) ON CONFLICT (chave) DO NOTHING`,

@@ -117,7 +117,12 @@ App.views.admin = {
             <label class="campo">Categoria<select name="categoria">${m.categorias.map((c) => `<option value="${esc(c.id)}"${c.id === p.categoria ? ' selected' : ''}>${esc(c.nome)}</option>`).join('')}</select></label>
             <label class="campo">Preço base (R$)<input name="preco" type="number" step="0.01" min="0" value="${p.preco ?? 0}"><small>Use 0 quando o preço vem do tamanho escolhido.</small></label>
           </div>
-          <label class="campo">Descrição<input name="descricao" value="${esc(p.descricao || '')}"></label>
+          <label class="campo">Descrição / ingredientes<input name="descricao" value="${esc(p.descricao || '')}"></label>
+          <div class="campo"><span>Foto</span>
+            <div class="acoes">${p.foto ? `<img src="${esc(p.foto)}" alt="Foto atual" style="width:96px;height:96px;object-fit:cover;border-radius:12px" onerror="this.replaceWith('Foto não encontrada')">` : '<span class="nota">Sem foto</span>'}
+              <label class="btn" style="cursor:pointer">${p.foto ? 'Trocar foto' : 'Enviar foto'}<input type="file" accept="image/*" data-foto hidden></label>
+              ${p.foto ? '<button type="button" class="btn fraco" data-tira-foto>Remover foto</button>' : ''}</div>
+            <small>Foto quadrada ou deitada fica melhor. Ela é reduzida antes de enviar.</small></div>
           <label class="check"><input type="checkbox" name="disponivel"${p.disponivel === false ? '' : ' checked'}> Disponível (desmarque quando acabar)</label>
           <div class="campo"><span>Dias em que aparece (nenhum marcado = todos os dias)</span><div class="dias">${DIAS.map((n, i) =>
             `<label><input type="checkbox" name="dia" value="${i}"${(p.dias || []).includes(i) ? ' checked' : ''}> ${n}</label>`).join('')}</div></div>
@@ -129,12 +134,23 @@ App.views.admin = {
         </form>`;
       }
 
-      j.corpo.addEventListener('change', (e) => { if (e.target.matches('[data-g=tipo]')) { lerTela(); desenhar(); } });
+      j.corpo.addEventListener('change', async (e) => {
+        if (e.target.matches('[data-g=tipo]')) { lerTela(); desenhar(); }
+        if (e.target.matches('[data-foto]') && e.target.files[0]) {
+          lerTela();
+          try {
+            App.toast('Enviando foto…');
+            p.foto = (await App.api('/api/admin/fotos', { dados: await reduzirFoto(e.target.files[0]) })).url;
+            desenhar(); App.toast('Foto enviada. Clique em Salvar produto.');
+          } catch (err) { App.toast(err.message, true); }
+        }
+      });
       j.corpo.addEventListener('click', async (e) => {
         const b = e.target.closest('button');
         if (!b) return;
         const ge = b.closest('[data-gi]');
-        if (b.hasAttribute('data-poe-grupo')) { lerTela(); p.grupos = p.grupos || []; p.grupos.push({ nome: '', tipo: 'unica', obrigatorio: true, opcoes: [{ nome: '', preco: 0 }] }); desenhar(); }
+        if (b.hasAttribute('data-tira-foto')) { lerTela(); delete p.foto; desenhar(); }
+        else if (b.hasAttribute('data-poe-grupo')) { lerTela(); p.grupos = p.grupos || []; p.grupos.push({ nome: '', tipo: 'unica', obrigatorio: true, opcoes: [{ nome: '', preco: 0 }] }); desenhar(); }
         else if (b.hasAttribute('data-tira-grupo')) { lerTela(); p.grupos.splice(Number(ge.dataset.gi), 1); desenhar(); }
         else if (b.hasAttribute('data-poe-op')) { lerTela(); p.grupos[Number(ge.dataset.gi)].opcoes.push({ nome: '', preco: 0 }); desenhar(); }
         else if (b.dataset.tiraOp != null) { lerTela(); p.grupos[Number(ge.dataset.gi)].opcoes.splice(Number(b.dataset.tiraOp), 1); desenhar(); }
@@ -156,6 +172,17 @@ App.views.admin = {
         if (await salvarCardapio(m, 'Produto salvo')) { j.fechar(); render(); }
       });
       desenhar();
+    }
+
+    // reduz a foto no navegador (até 900 px) antes de enviar
+    async function reduzirFoto(arquivo) {
+      const img = await createImageBitmap(arquivo);
+      const escala = Math.min(1, 900 / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width * escala); c.height = Math.round(img.height * escala);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      const webp = c.toDataURL('image/webp', 0.82);
+      return webp.startsWith('data:image/webp') ? webp : c.toDataURL('image/jpeg', 0.85);
     }
 
     // ---------------- mesas

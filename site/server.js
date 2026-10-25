@@ -209,8 +209,9 @@ function validarCardapio(m) {
       return { id: gid, nome: gnome, tipo: g.tipo === 'unica' ? 'unica' : 'multipla', obrigatorio: !!g.obrigatorio, ...(max > 0 && g.tipo !== 'unica' ? { max } : {}), opcoes };
     });
     const dias = Array.isArray(p.dias) ? [...new Set(p.dias.map(Number).filter((d) => d >= 0 && d <= 6))].sort() : [];
+    const foto = /^\/(fotos|img)\/[\w./-]+$/.test(p.foto || '') && !String(p.foto).includes('..') ? p.foto : '';
     return {
-      id, categoria: p.categoria, nome, descricao: texto(p.descricao, 300), preco: num(p.preco, nome),
+      id, categoria: p.categoria, nome, descricao: texto(p.descricao, 300), preco: num(p.preco, nome), ...(foto ? { foto } : {}),
       ...(p.disponivel === false ? { disponivel: false } : {}), ...(dias.length ? { dias } : {}), grupos,
     };
   });
@@ -519,6 +520,16 @@ rota('POST', '/api/admin/usuarios', ['admin'], async ({ u, b }) => {
   return { ok: true };
 });
 
+// foto de produto: chega já reduzida pelo navegador (data URL) e fica no banco
+rota('POST', '/api/admin/fotos', ['admin'], async ({ b }) => {
+  const m = /^data:(image\/(?:webp|jpeg|png));base64,([A-Za-z0-9+/=]+)$/.exec(String(b.dados || ''));
+  if (!m) throw new Erro(400, 'Envie uma imagem JPG, PNG ou WEBP.');
+  const dados = Buffer.from(m[2], 'base64');
+  if (dados.length > 1_500_000) throw new Erro(400, 'Imagem grande demais (máximo 1,5 MB).');
+  const { rows } = await pool.query('INSERT INTO fotos (tipo, dados) VALUES ($1, $2) RETURNING id', [m[1], dados]);
+  return { ok: true, url: '/fotos/' + rows[0].id };
+});
+
 rota('POST', '/api/admin/mesas', ['admin'], async ({ b }) => {
   const nome = texto(b.nome, 40);
   if (!nome) throw new Erro(400, 'Informe o nome da mesa.');
@@ -596,6 +607,16 @@ const server = http.createServer(async (req, res) => {
   try { pathname = decodeURIComponent(url.pathname); } catch { res.writeHead(400); return res.end(); }
   if (pathname === '/saude') return json(res, 200, { ok: true });
 
+  const foto = /^\/fotos\/(\d+)$/.exec(pathname);
+  if (foto && req.method === 'GET') {
+    try {
+      const { rows } = await pool.query('SELECT tipo, dados FROM fotos WHERE id = $1', [Number(foto[1])]);
+      if (!rows[0]) { res.writeHead(404); return res.end(); }
+      res.writeHead(200, { 'Content-Type': rows[0].tipo, 'Cache-Control': 'public, max-age=31536000, immutable', 'X-Content-Type-Options': 'nosniff' });
+      return res.end(rows[0].dados);
+    } catch (e) { console.error('foto', e.message); res.writeHead(500); return res.end(); }
+  }
+
   if (!pathname.startsWith('/api/')) {
     if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405); return res.end(); }
     return servirArquivo(req, res, pathname);
@@ -618,7 +639,7 @@ const server = http.createServer(async (req, res) => {
       if (!u) throw new Erro(401, 'Faça login novamente.');
       if (achada.perms.length && !auth.pode(u, ...achada.perms)) throw new Erro(403, 'Seu usuário não tem acesso a esta seção.');
     }
-    const b = req.method === 'GET' ? {} : await lerCorpo(req);
+    const b = req.method === 'GET' ? {} : await lerCorpo(req, pathname === '/api/admin/fotos' ? 2_500_000 : 200_000);
     const out = await achada.fn({ req, res, u, p: params, b, q: url.searchParams });
     if (!res.headersSent) json(res, 200, out);
   } catch (e) {
