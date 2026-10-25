@@ -125,3 +125,4 @@ a:hover { color: var(--rosa-escuro); }
 .giz-preco { font-size: clamp(17px, 4.6vw, 28px); color: #F5C518; }
 .giz-botao { margin-top: 4px; min-height: 44px; padding: 0 20px; border: 2px dashed #F7F3E8; border-radius: 12px; background: transparent; color: #fff; font-family: 'Caveat', cursive; font-size: clamp(18px, 4.6vw, 26px); }
 .giz-botao:hover { background: rgba(255, 255, 255, 0.12); }
+.link-equipe { color: var(--cinza); font-size: 12px; }
