@@ -141,3 +141,5 @@ a:hover { color: var(--rosa-escuro); }
 .giz-pontos button[aria-current]::after { background: #F5C518; border-color: #F5C518; }
 .giz-zoom { position: fixed; inset: 0; z-index: 60; background: rgba(0, 0, 0, .85); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 16px; }
 .giz-zoom img { max-width: 100%; max-height: 80vh; border-radius: 12px; }
+.troco-calc { font-weight: 400; color: var(--cinza); font-size: 13px; }
+.troco-calc b { color: var(--verde); font-size: 15px; }

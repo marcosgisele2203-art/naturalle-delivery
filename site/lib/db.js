@@ -10,6 +10,8 @@ const LOJA_PADRAO = {
   horario: 'Desde 18h30',
   whatsapp: '5567996421751',
   aberta: true,            // aceitando pedidos pelo site
+  horario_automatico: false, // abre e fecha sozinho pelos horários abaixo
+  horarios: require('../public/shared/horario.js').PADRAO,
   delivery: true,          // aceita entrega
   retirada: true,          // aceita retirar no balcão
   taxa_entrega: 6,

@@ -87,7 +87,7 @@
       const s = { aguardando: ['alerta', 'Pix: aguardando comprovante'], comprovante_recebido: ['alerta', 'Pix: comprovante recebido, conferir'], confirmado: ['ok', 'Pix confirmado'] }[p.pix_status] || ['', 'Pix'];
       pag = `<span class="tag ${s[0]}">${s[1]}</span>`;
     } else if (p.pagamento === 'cartao') pag = '<span class="tag">Cartão</span>';
-    else if (p.pagamento === 'dinheiro') pag = `<span class="tag">Dinheiro${p.troco_para ? ' · troco p/ ' + brl(p.troco_para) : ''}</span>`;
+    else if (p.pagamento === 'dinheiro') pag = `<span class="tag">Dinheiro${p.troco_para ? ' · paga com ' + brl(p.troco_para) + ' · troco ' + brl(Number(p.troco_para) - Number(p.total)) : ''}</span>`;
     else if (p.tipo === 'mesa') pag = '<span class="tag">Paga na conta da mesa</span>';
     return `<article class="pedido${extra.destaque ? ' destaque' : ''}" data-id="${p.id}">
       <div class="pedido-topo"><b>#${p.id}</b><span class="origem origem-${p.tipo}">${App.rotuloOrigem(p)}</span><span>${App.tempo(p.criado_em)}</span></div>

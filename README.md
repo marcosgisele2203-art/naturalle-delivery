@@ -62,7 +62,8 @@ Em *Domains*, aponte o domínio para a porta **3000** e faça o deploy.
 
 ### 3. Primeiro acesso
 Abra `https://seudominio/equipe`. Na primeira vez ele pede para **criar o administrador**. Depois, em Administração:
-1. **Loja**: confira nome, horário, WhatsApp, taxa de entrega e o **endereço do site** (vai nos QR codes).
+1. **Horário e taxas**: marque *Abrir e fechar sozinho pelo horário* e preencha o horário de cada dia; confira a taxa de entrega e o acréscimo do cartão.
+   **Loja**: confira nome, WhatsApp e o **endereço do site** (vai nos QR codes).
 2. **Mesas e QR code**: crie as mesas (ex.: da 1 até a 10) e clique em **Imprimir QR codes**.
 3. **Funcionários**: clique em *+ Cadastrar funcionário*, preencha nome, WhatsApp, login e senha e escolha a função (Administrador, Atendente / caixa, Cozinheiro, Garçom, Entregador).
 4. **Cardápio**: ajuste preços, marque o que acabou (Disponível), crie produtos e adicionais.

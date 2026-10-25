@@ -47,7 +47,7 @@
       ${Number(p.acrescimo_cartao) ? linha('Acréscimo cartão', brl(p.acrescimo_cartao)) : ''}
       <div class="g">${linha('TOTAL', brl(p.total))}</div>
       ${linha('Pagamento', pag)}
-      ${p.pagamento === 'dinheiro' && p.troco_para ? linha('Troco para', brl(p.troco_para)) + linha('Troco', brl(Number(p.troco_para) - Number(p.total))) : ''}
+      ${p.pagamento === 'dinheiro' && p.troco_para ? linha('Paga com', brl(p.troco_para)) + linha('Troco', brl(Number(p.troco_para) - Number(p.total))) : ''}
       ${cfg.rodape ? `<hr><div class="c peq">${esc(cfg.rodape)}</div>` : ''}<hr></section>`;
   }
 

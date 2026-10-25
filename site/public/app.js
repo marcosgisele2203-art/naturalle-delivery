@@ -8,19 +8,19 @@
   const guardar = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* sem armazenamento */ } };
   const SACOLA = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 7h12l-1 13H7z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>';
   const MANU = (nome) => '/img/manu/' + nome + '.webp';
-  // Manu de cada etapa do pedido: [imagem, título, texto]
-  function manuDaEtapa(p) {
+  // frase de cada etapa do pedido: [título, texto]
+  function frasesDaEtapa(p) {
     const mesa = p.tipo === 'mesa';
     switch (p.status) {
-      case 'novo': return ['celular', 'Pedido recebido!', mesa ? 'O garçom já vai confirmar.' : 'Já já a gente confirma por aqui e no WhatsApp.'];
-      case 'preparo': return ['joinha', 'Pedido confirmado!', 'Já está sendo preparado com carinho.'];
+      case 'novo': return ['Pedido recebido!', mesa ? 'O garçom já vai confirmar.' : 'Já já a gente confirma por aqui e no WhatsApp.'];
+      case 'preparo': return ['Pedido confirmado!', 'Já está sendo preparado com carinho.'];
       case 'pronto':
-        if (mesa) return ['bandeja', 'Prontinho!', 'Já está indo para a sua mesa.'];
-        if (p.tipo === 'retirada') return ['sacola-duas', 'Pronto para retirar!', 'Pode vir buscar no balcão.'];
-        return ['joinha', 'Quase saindo!', 'Seu pedido está pronto e já vai sair para entrega.'];
-      case 'saiu': return ['sacola', 'Saiu para entrega!', 'Já já chega aí.'];
-      case 'entregue': return ['coracao', mesa ? 'Bom apetite!' : 'Entregue!', 'Obrigado por pedir na Naturalle Mania!'];
-      default: return ['acenando', 'Pedido cancelado', 'Qualquer dúvida, fale com a gente no WhatsApp.'];
+        if (mesa) return ['Prontinho!', 'Já está indo para a sua mesa.'];
+        if (p.tipo === 'retirada') return ['Pronto para retirar!', 'Pode vir buscar no balcão.'];
+        return ['Quase saindo!', 'Seu pedido está pronto e já vai sair para entrega.'];
+      case 'saiu': return ['Saiu para entrega!', 'Já já chega aí.'];
+      case 'entregue': return [mesa ? 'Bom apetite!' : 'Entregue!', 'Obrigado por pedir na Naturalle Mania!'];
+      default: return ['Pedido cancelado', 'Qualquer dúvida, fale com a gente no WhatsApp.'];
     }
   }
   const ETAPAS = {
@@ -76,7 +76,7 @@
     }
     $('#selos').innerHTML = selos.join('');
     const aviso = $('#aviso-topo');
-    if (!tokenMesa && !l.aberta) { aviso.hidden = false; aviso.textContent = 'Estamos fechados para pedidos pelo site agora. Você pode olhar o cardápio à vontade.'; }
+    if (!tokenMesa && !l.aberta) { aviso.hidden = false; aviso.textContent = 'Estamos fechados para pedidos pelo site agora' + (l.horario && l.horario !== 'Fechado agora' ? ' (' + l.horario.toLowerCase() + ')' : '') + '. Você pode olhar o cardápio à vontade.'; }
     $('#rodape').innerHTML = (l.whatsapp ? `<p>${esc(l.nome)} · Fale com a gente no WhatsApp <a href="https://wa.me/${esc(l.whatsapp)}">${formatarFone(l.whatsapp)}</a></p>` : '')
       + (tokenMesa ? '' : '<p><a class="link-equipe" href="/equipe/">Painel administrativo</a></p>');
   }
@@ -90,7 +90,7 @@
     const ativos = st.meus.map((m) => st.acompanhamento[m.codigo]).filter(Boolean)
       .filter((p) => tokenMesa || !['entregue', 'cancelado'].includes(p.status) || Date.now() - new Date(p.criado_em) < 3 * 3600_000);
     if (!ativos.length) { $('#acompanhar').innerHTML = ''; return; }
-    const [, titulo, texto] = manuDaEtapa(ativos[0]);
+    const [titulo, texto] = frasesDaEtapa(ativos[0]);
     $('#acompanhar').innerHTML = `<section class="acompanhar" aria-live="polite">
       <div class="manu-card"><div><span class="nota">Pedido #${ativos[0].id}</span><h2>${titulo}</h2><p>${texto}</p></div></div>
       ${ativos.length > 1 ? `<h3>${tokenMesa ? 'Pedidos desta mesa' : 'Seus pedidos'}</h3>` : ''}
@@ -149,6 +149,16 @@
     $('#barra').innerHTML = n ? `<button class="botao escuro flex" data-acao="abrir">${SACOLA}<span class="flex" style="text-align:left">Ver carrinho <span class="contador">${n}</span></span><span>${brl(window.Calc.somar(st.carrinho))}</span></button>` : '';
   }
 
+  // dinheiro: o cliente diz com quanto vai pagar e o troco aparece na hora
+  const valorDigitado = (v) => Number(String(v || '').replace(/[^\d,.]/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.'));
+  function textoTroco() {
+    const pago = valorDigitado(st.troco), t = total();
+    if (!st.troco || !pago) return 'Deixe em branco se for pagar o valor certo.';
+    if (pago < t) return `Falta ${brl(t - pago)}: o valor é menor que o total (${brl(t)}).`;
+    if (pago === t) return 'Valor certo, sem troco.';
+    return `Seu troco: <b>${brl(pago - t)}</b>. O entregador já leva.`;
+  }
+
   function renderCarrinho() {
     const c = st.cliente, l = st.loja;
     if (st.enviado) {
@@ -179,7 +189,8 @@
         <label class="campo">Observações (opcional)<textarea name="obs">${esc(st.obs)}</textarea></label>
         <div class="campo"><span>Forma de pagamento</span><div class="pagamentos">${pags}</div>
           ${ajuda ? `<small style="font-weight:400;color:var(--cinza)">${ajuda}</small>` : ''}</div>
-        ${st.pagamento === 'dinheiro' ? `<label class="campo">Troco para quanto? (opcional)<input name="troco" inputmode="decimal" placeholder="Ex.: 50,00" value="${esc(st.troco)}"></label>` : ''}
+        ${st.pagamento === 'dinheiro' ? `<label class="campo">Vai pagar com quanto?<input name="troco" inputmode="decimal" placeholder="Ex.: 50,00" value="${esc(st.troco)}">
+          <small class="troco-calc" data-troco>${textoTroco()}</small></label>` : ''}
         ${taxa() ? `<div class="linha-total"><span>Taxa de entrega</span><span>${brl(taxa())}</span></div>` : ''}
         ${acrescimoCartao() ? `<div class="linha-total"><span>Acréscimo da maquininha</span><span>${brl(acrescimoCartao())}</span></div>` : ''}`;
     }
@@ -245,6 +256,12 @@
     e.preventDefault();
   });
   $('#carrinho').addEventListener('click', (e) => { if (e.target.id === 'carrinho') fechar(); });
+  $('#carrinho').addEventListener('input', (e) => {
+    if (e.target.name !== 'troco') return;
+    st.troco = e.target.value;
+    const el = $('[data-troco]'); if (el) el.innerHTML = textoTroco();
+    if (st.erro) { st.erro = ''; const x = $('#form-pedido .erro[role=alert]'); if (x) x.remove(); }
+  });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#carrinho').hidden && !document.querySelector('.mt-fundo')) fechar(); });
 
   document.addEventListener('submit', async (e) => {
@@ -258,6 +275,7 @@
       if (!String(c.nome).trim()) st.erro = 'Informe seu nome.';
       else if (tel.length < 10 || tel.length > 13) st.erro = 'Informe seu WhatsApp com DDD.';
       else if (st.tipo === 'entrega' && !String(c.endereco).trim()) st.erro = 'Informe o endereço de entrega.';
+      else if (st.pagamento === 'dinheiro' && st.troco && !(valorDigitado(st.troco) >= total())) st.erro = 'O valor em dinheiro precisa ser igual ou maior que o total (' + brl(total()) + ').';
     }
     if (st.erro) return renderCarrinho();
     st.enviando = true; renderCarrinho();
@@ -267,7 +285,7 @@
         ? await api('/api/publico/mesa/' + tokenMesa + '/pedido', { nome: c.nome, observacoes: st.obs, itens })
         : await api('/api/publico/pedido', {
           tipo: st.tipo, cliente: { nome: c.nome, telefone: c.telefone }, endereco: c.endereco, observacoes: st.obs,
-          pagamento: st.pagamento, troco_para: st.pagamento === 'dinheiro' ? st.troco : null, itens,
+          pagamento: st.pagamento, troco_para: st.pagamento === 'dinheiro' && st.troco ? valorDigitado(st.troco) : null, itens,
         });
       st.enviado = { id: d.pedido_id, pix: st.pagamento === 'pix', status: d.status };
       st.meus = [{ codigo: d.codigo, id: d.pedido_id }, ...st.meus].slice(0, 10);

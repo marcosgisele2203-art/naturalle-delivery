@@ -11,6 +11,13 @@ App.novoPedido = function (el, opts) {
   const taxa = () => (st.tipo === 'entrega' ? Number(App.loja.taxa_entrega) || 0 : 0);
   const acrescimoCartao = () => (st.tipo !== 'mesa' && st.pagamento === 'cartao' ? Number(App.loja.taxa_cartao) || 0 : 0);
   const total = () => window.Calc.somar(st.itens) + taxa() + acrescimoCartao();
+  const pagoCom = () => Number(String(st.troco || '').replace(/[^\d,.]/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.'));
+  function textoTroco() {
+    const pago = pagoCom(), t = total();
+    if (!st.troco || !pago) return 'Vazio = paga o valor certo.';
+    if (pago < t) return `Menor que o total (${brl(t)}).`;
+    return pago === t ? 'Sem troco.' : `Troco: <b>${brl(pago - t)}</b>`;
+  }
 
   function renderCarrinho() {
     const c = el.querySelector('#novo-carrinho');
@@ -27,7 +34,7 @@ App.novoPedido = function (el, opts) {
       <label class="campo">Observações<input name="obs" value="${esc(st.obs)}" autocomplete="off"></label>
       ${st.tipo !== 'mesa' ? `<div class="campo"><span>Pagamento${st.tipo === 'entrega' ? '' : ' (opcional)'}</span><div class="chips">${[['pix', 'Pix'], ['cartao', 'Cartão'], ['dinheiro', 'Dinheiro']].map(([v, n]) =>
         `<button type="button" class="chip" aria-pressed="${st.pagamento === v}" data-pag="${v}">${n}</button>`).join('')}</div></div>` : ''}
-      ${st.pagamento === 'dinheiro' && st.tipo !== 'mesa' ? `<label class="campo">Troco para<input name="troco" inputmode="decimal" value="${esc(st.troco)}"></label>` : ''}
+      ${st.pagamento === 'dinheiro' && st.tipo !== 'mesa' ? `<label class="campo">Cliente paga com<input name="troco" inputmode="decimal" value="${esc(st.troco)}" placeholder="Ex.: 50,00"><small data-troco>${textoTroco()}</small></label>` : ''}
       ${taxa() ? `<div class="linha-total" style="font-size:14px;font-weight:600"><span>Taxa de entrega</span><span>${brl(taxa())}</span></div>` : ''}
       ${acrescimoCartao() ? `<div class="linha-total" style="font-size:14px;font-weight:600"><span>Acréscimo da maquininha</span><span>${brl(acrescimoCartao())}</span></div>` : ''}
       <div class="linha-total"><span>Total</span><span>${brl(total())}</span></div>
@@ -45,7 +52,11 @@ App.novoPedido = function (el, opts) {
 
   el.innerHTML = `<div class="novo"><div class="cartao"><div id="novo-cardapio"><p class="nota">Carregando cardápio…</p></div></div><div class="novo-carrinho" id="novo-carrinho"></div></div>`;
 
-  el.addEventListener('input', (e) => { if (e.target.closest('#novo-carrinho')) lerCampos(); });
+  el.addEventListener('input', (e) => {
+    if (!e.target.closest('#novo-carrinho')) return;
+    lerCampos();
+    const t = el.querySelector('[data-troco]'); if (t && e.target.name === 'troco') t.innerHTML = textoTroco();
+  });
   el.addEventListener('change', (e) => { if (e.target.name === 'mesa_id') st.mesa_id = e.target.value; });
   el.addEventListener('click', async (e) => {
     const b = e.target.closest('button');
@@ -61,12 +72,13 @@ App.novoPedido = function (el, opts) {
       else if (st.tipo !== 'mesa' && !st.nome.trim()) st.erro = 'Informe o nome do cliente.';
       else if (st.tipo === 'entrega' && !st.endereco.trim()) st.erro = 'Informe o endereço.';
       else if (st.tipo === 'entrega' && !st.pagamento) st.erro = 'Escolha a forma de pagamento.';
+      else if (st.pagamento === 'dinheiro' && st.troco && !(pagoCom() >= total())) st.erro = 'O valor em dinheiro é menor que o total (' + brl(total()) + ').';
       if (!st.erro) {
         st.enviando = true; renderCarrinho();
         try {
           const d = await App.api('/api/equipe/pedido', {
             tipo: st.tipo, mesa_id: st.mesa_id, cliente_nome: st.nome, cliente_telefone: st.telefone, endereco: st.endereco,
-            observacoes: st.obs, pagamento: st.pagamento || null, troco_para: st.troco, itens: st.itens.map((i) => i.escolha),
+            observacoes: st.obs, pagamento: st.pagamento || null, troco_para: st.pagamento === 'dinheiro' && st.troco ? pagoCom() : null, itens: st.itens.map((i) => i.escolha),
           });
           App.toast('Pedido #' + d.pedido.id + ' enviado para a cozinha');
           Object.assign(st, { itens: [], nome: '', telefone: '', endereco: '', obs: '', pagamento: '', troco: '' });

@@ -14,6 +14,7 @@ const crypto = require('crypto');
 const QRCode = require('qrcode');
 const Calc = require('./public/shared/calc.js');
 const Relatorio = require('./public/shared/relatorio.js');
+const Horario = require('./public/shared/horario.js');
 const { pool, migrar, lerConfig, salvarConfig } = require('./lib/db');
 const auth = require('./lib/auth');
 const { slug } = require('./lib/cardapio-inicial');
@@ -32,6 +33,14 @@ function diaDaSemana() {
   const nome = new Intl.DateTimeFormat('en-US', { timeZone: FUSO, weekday: 'short' }).format(new Date());
   return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(nome);
 }
+
+// dia da semana e minutos desde 0h no fuso da loja
+function agoraNaLoja() {
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: FUSO, weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+    .formatToParts(new Date()).map((x) => [x.type, x.value]));
+  return { dia: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(p.weekday), min: Number(p.hour) * 60 + Number(p.minute) };
+}
+const estadoLoja = (loja) => Horario.estado(loja, agoraNaLoja());
 
 function json(res, status, body, headers = {}) {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...headers });
@@ -153,7 +162,9 @@ function lerPagamento(b, total, obrigatorio) {
   let troco = null;
   if (pagamento === 'dinheiro' && b.troco_para) {
     troco = Number(String(b.troco_para).replace(',', '.'));
-    if (!(troco > total)) troco = null;
+    if (!Number.isFinite(troco)) throw new Erro(400, 'Informe com quanto vai pagar em dinheiro.');
+    if (troco < total) throw new Erro(400, 'O valor em dinheiro é menor que o total do pedido.');
+    if (troco === total) troco = null;
   }
   return { pagamento, troco_para: troco };
 }
@@ -222,18 +233,26 @@ function validarCardapio(m) {
   return { categorias, produtos };
 }
 
-function validarLoja(b, atual) {
+function validarLoja(entrada, atual) {
+  // só muda o que veio; o resto continua como estava
+  const b = { ...atual, ...entrada };
   const bool = (v, padrao) => (typeof v === 'boolean' ? v : padrao);
-  const taxa = Math.round(Number(String(b.taxa_entrega ?? atual.taxa_entrega).replace(',', '.')) * 100) / 100;
+  const valor = (v) => Math.round(Number(String(v).replace(',', '.')) * 100) / 100;
+  const taxa = valor(b.taxa_entrega);
   if (!Number.isFinite(taxa) || taxa < 0 || taxa > 1000) throw new Erro(400, 'Taxa de entrega inválida');
-  const cartao = Math.round(Number(String(b.taxa_cartao ?? atual.taxa_cartao).replace(',', '.')) * 100) / 100;
+  const cartao = valor(b.taxa_cartao);
   if (!Number.isFinite(cartao) || cartao < 0 || cartao > 100) throw new Erro(400, 'Acréscimo do cartão inválido');
+  const horarios = Horario.lista((Array.isArray(b.horarios) ? b.horarios : []).map((d) => ({
+    aberto: d && d.aberto !== false, abre: texto(d && d.abre, 5), fecha: texto(d && d.fecha, 5),
+  })));
   return {
     nome: texto(b.nome, 80) || atual.nome,
     frase: texto(b.frase, 160),
     horario: texto(b.horario, 80),
     whatsapp: soDigitos(b.whatsapp).slice(0, 13),
     aberta: bool(b.aberta, atual.aberta),
+    horario_automatico: bool(b.horario_automatico, !!atual.horario_automatico),
+    horarios,
     delivery: bool(b.delivery, atual.delivery),
     retirada: bool(b.retirada, atual.retirada),
     taxa_entrega: taxa,
@@ -262,7 +281,7 @@ function validarQuadro(lista) {
 const quadroDeHoje = (lista, dia) => (lista || []).filter((a) => a.ativo && (!a.dias.length || a.dias.includes(dia)))
   .map(({ id, tipo, titulo, texto: t, preco, foto, produto }) => ({ id, tipo, titulo, texto: t, preco, foto, produto }));
 
-const lojaPublica = (l) => ({ nome: l.nome, frase: l.frase, horario: l.horario, whatsapp: l.whatsapp, aberta: l.aberta,
+const lojaPublica = (l, e = estadoLoja(l)) => ({ nome: l.nome, frase: l.frase, horario: e.texto, whatsapp: l.whatsapp, aberta: e.aberta,
   delivery: l.delivery, retirada: l.retirada, taxa_entrega: l.taxa_entrega, taxa_cartao: Number(l.taxa_cartao) || 0, recado: l.recado || '' });
 
 function urlBase(req, loja) {
@@ -293,7 +312,8 @@ rota('GET', '/api/publico/mesa/:token', null, async ({ p }) => {
 rota('POST', '/api/publico/pedido', null, async ({ req, b }) => {
   limitar('pedido:' + ipDe(req), 8, 10 * 60_000);
   const loja = await lerConfig('loja');
-  if (!loja.aberta) throw new Erro(403, 'A loja não está recebendo pedidos pelo site agora.');
+  const agora = estadoLoja(loja);
+  if (!agora.aberta) throw new Erro(403, 'A loja está fechada para pedidos pelo site agora.' + (/^Abre/.test(agora.texto) ? ' ' + agora.texto + '.' : ''));
   const tipo = b.tipo === 'retirada' ? 'retirada' : 'entrega';
   if (tipo === 'entrega' && !loja.delivery) throw new Erro(403, 'Hoje não estamos fazendo entregas. Escolha retirar no balcão.');
   if (tipo === 'retirada' && !loja.retirada) throw new Erro(403, 'Retirada no balcão indisponível agora.');
@@ -598,7 +618,7 @@ rota('GET', '/api/admin/tudo', ['admin'], async () => {
     pool.query('SELECT id, nome, login, telefone, permissoes, ativo, criado_em FROM usuarios ORDER BY ativo DESC, nome').then((r) => r.rows),
     pool.query('SELECT id, nome, token, ativa, ordem FROM mesas ORDER BY ativa DESC, ordem, id').then((r) => r.rows),
   ]);
-  return { cardapio, loja, quadro: quadro || [], usuarios, mesas, permissoes: auth.PERMISSOES };
+  return { cardapio, loja, agora: estadoLoja(loja), quadro: quadro || [], usuarios, mesas, permissoes: auth.PERMISSOES };
 });
 
 rota('PUT', '/api/admin/cardapio', ['admin'], async ({ b }) => {
@@ -610,7 +630,7 @@ rota('PUT', '/api/admin/cardapio', ['admin'], async ({ b }) => {
 rota('PUT', '/api/admin/loja', ['admin'], async ({ b }) => {
   const loja = validarLoja(b.loja || {}, await lerConfig('loja'));
   await salvarConfig('loja', loja);
-  return { ok: true, loja };
+  return { ok: true, loja, agora: estadoLoja(loja) };
 });
 
 rota('PUT', '/api/admin/quadro', ['admin'], async ({ b }) => {

@@ -2,7 +2,7 @@
 App.views.admin = {
   montar(el, params) {
     const { esc, brl } = App;
-    const ABAS = [['cardapio', 'Cardápio'], ['quadro', 'Quadro da Manu'], ['equipe', 'Funcionários'], ['mesas', 'Mesas e QR code'], ['loja', 'Loja'], ['impressora', 'Impressora']];
+    const ABAS = [['cardapio', 'Cardápio'], ['quadro', 'Quadro da Manu'], ['equipe', 'Funcionários'], ['mesas', 'Mesas e QR code'], ['horario', 'Horário e taxas'], ['loja', 'Loja'], ['impressora', 'Impressora']];
     let aba = ABAS.some(([a]) => a === params[0]) ? params[0] : 'cardapio';
     let d = null; // { cardapio, loja, usuarios, mesas, permissoes }
     const copia = (o) => JSON.parse(JSON.stringify(o));
@@ -389,18 +389,41 @@ App.views.admin = {
         <div class="grade-form">
           <label class="campo">Nome<input name="nome" value="${esc(l.nome)}"></label>
           <label class="campo">Frase do topo<input name="frase" value="${esc(l.frase || '')}"></label>
-          <label class="campo">Horário (aparece no app)<input name="horario" value="${esc(l.horario || '')}"></label>
           <label class="campo">WhatsApp da loja<input name="whatsapp" value="${esc(l.whatsapp || '')}" inputmode="tel"></label>
-          <label class="campo">Taxa de entrega (R$)<input name="taxa_entrega" type="number" step="0.5" min="0" value="${l.taxa_entrega || 0}"></label>
-          <label class="campo">Acréscimo no cartão (R$)<input name="taxa_cartao" type="number" step="0.5" min="0" value="${l.taxa_cartao ?? 1}"><small>Taxa da maquininha. Use 0 para não cobrar.</small></label>
           <label class="campo">Recado no quadro da Manu<input name="recado" maxlength="140" value="${esc(l.recado || '')}" placeholder="Ex.: Hoje tem açaí em dobro!"><small>Aparece quando não tem combo do dia nem aviso na aba Quadro da Manu.</small></label>
           <label class="campo">Endereço do site<input name="url_publica" value="${esc(l.url_publica || '')}" placeholder="https://pedidos.naturallemania.com.br"><small>Usado nos QR codes. Vazio = o endereço atual.</small></label>
         </div>
-        ${ch('aberta', 'Aceitando pedidos pelo site agora')}
         ${ch('delivery', 'Fazemos entrega')}
         ${ch('retirada', 'Cliente pode retirar no balcão')}
         ${ch('mesa_auto_confirmar', 'Pedido feito pelo QR da mesa vai direto para a cozinha (sem o garçom confirmar)')}
         <button class="btn verde grande">Salvar</button>
+      </form>`;
+    }
+
+    // ---------------- horário de funcionamento e taxas
+    function abaHorario() {
+      const l = d.loja, h = window.Horario.lista(l.horarios), auto = !!l.horario_automatico;
+      const NOMES = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+      return `<form class="cartao" data-form="horario">
+        <div class="status-loja ${d.agora.aberta ? 'aberta' : 'fechada'}"><b>${d.agora.aberta ? 'Aberto agora' : 'Fechado agora'}</b>
+          <span>${esc(d.agora.texto || '')}${d.agora.aberta ? ' · o cardápio está recebendo pedidos.' : ' · o cliente vê o cardápio, mas não consegue pedir.'}</span></div>
+        <h2>Horário de funcionamento</h2>
+        <label class="check"><input type="checkbox" name="horario_automatico" data-auto${auto ? ' checked' : ''}> <b>Abrir e fechar sozinho pelo horário</b></label>
+        <div class="rolagem" data-tabela-horario${auto ? '' : ' hidden'}><table class="tabela horarios"><thead><tr><th>Dia</th><th>Abre?</th><th>Abre às</th><th>Fecha às</th></tr></thead><tbody>
+          ${h.map((x, i) => `<tr><td><b>${NOMES[i]}</b></td>
+            <td><label class="check" style="min-height:0"><input type="checkbox" name="aberto${i}"${x.aberto ? ' checked' : ''}> Abre</label></td>
+            <td><input type="time" name="abre${i}" value="${esc(x.abre)}"></td><td><input type="time" name="fecha${i}" value="${esc(x.fecha)}"></td></tr>`).join('')}
+        </tbody></table>
+        <button type="button" class="btn" data-copia-horario>Usar o horário de segunda em todos os dias</button>
+        <p class="nota">Se fecha depois da meia-noite, coloque a hora normalmente (ex.: abre 18:30, fecha 00:30).</p></div>
+        <label class="campo" data-manual${auto ? ' hidden' : ''}>Horário que aparece no cardápio<input name="horario" value="${esc(l.horario || '')}" placeholder="Ex.: Desde 18h30"></label>
+        <label class="check"><input type="checkbox" name="aberta"${l.aberta ? ' checked' : ''}> Recebendo pedidos pelo site ${auto ? '(desmarque para fechar na hora, mesmo dentro do horário)' : '(desmarque para fechar)'}</label>
+        <h2 style="margin-top:8px">Taxas</h2>
+        <div class="grade-form">
+          <label class="campo">Taxa de entrega (R$)<input name="taxa_entrega" type="number" step="0.5" min="0" value="${Number(l.taxa_entrega) || 0}"><small>Somada em todo pedido de entrega.</small></label>
+          <label class="campo">Acréscimo do cartão (R$)<input name="taxa_cartao" type="number" step="0.5" min="0" value="${l.taxa_cartao ?? 1}"><small>Taxa da maquininha, somada quando o cliente paga no cartão. Use 0 para não cobrar.</small></label>
+        </div>
+        <button class="btn verde grande">Salvar horário e taxas</button>
       </form>`;
     }
 
@@ -421,7 +444,7 @@ App.views.admin = {
 
     // ---------------- geral
     function render() {
-      const corpo = { cardapio: abaCardapio, quadro: abaQuadro, mesas: abaMesas, equipe: abaEquipe, loja: abaLoja, impressora: abaImpressora }[aba]();
+      const corpo = { cardapio: abaCardapio, quadro: abaQuadro, horario: abaHorario, mesas: abaMesas, equipe: abaEquipe, loja: abaLoja, impressora: abaImpressora }[aba]();
       const scroll = window.scrollY;
       el.innerHTML = `<div class="topo"><div><h1>Administração</h1></div>
         <nav class="abas-admin" aria-label="Partes da administração">${ABAS.map(([a, n]) => `<a class="chip aba-adm" href="#/admin/${a}" aria-pressed="${aba === a}"${aba === a ? ' aria-current="page"' : ''}>${n}</a>`).join('')}</nav></div>
@@ -433,6 +456,11 @@ App.views.admin = {
       const b = e.target.closest('button');
       if (!b || b.closest('.janela')) return;
       if (b.hasAttribute('data-config-impressora')) App.configurarImpressora();
+      else if (b.hasAttribute('data-copia-horario')) {
+        const f = b.form;
+        for (let i = 0; i < 7; i++) if (i !== 1) { f['aberto' + i].checked = f.aberto1.checked; f['abre' + i].value = f.abre1.value; f['fecha' + i].value = f.fecha1.value; }
+        App.toast('Horário de segunda copiado. Clique em Salvar.');
+      }
       else if (b.hasAttribute('data-nova-cat')) editarCategoria(null);
       else if (b.dataset.catEdita != null) editarCategoria(Number(b.dataset.catEdita));
       else if (b.dataset.catSobe != null) {
@@ -477,6 +505,11 @@ App.views.admin = {
     }
 
     el.addEventListener('change', async (e) => {
+      if (e.target.hasAttribute('data-auto')) {
+        el.querySelector('[data-tabela-horario]').hidden = !e.target.checked;
+        el.querySelector('[data-manual]').hidden = e.target.checked;
+        return;
+      }
       if (!e.target.dataset.disp) return;
       const m = copia(d.cardapio);
       const p = m.produtos.find((x) => x.id === e.target.dataset.disp);
@@ -492,10 +525,20 @@ App.views.admin = {
         else if (f.dataset.form === 'uma') await acaoMesa({ nome: f.nome.value });
         else if (f.dataset.form === 'loja') {
           const fd = new FormData(f);
-          const loja = Object.fromEntries(['nome', 'frase', 'horario', 'whatsapp', 'taxa_entrega', 'taxa_cartao', 'url_publica', 'recado'].map((k) => [k, fd.get(k)]));
-          for (const k of ['aberta', 'delivery', 'retirada', 'mesa_auto_confirmar']) loja[k] = f[k].checked;
-          d.loja = (await App.api('/api/admin/loja', { loja }, 'PUT')).loja;
+          const loja = Object.fromEntries(['nome', 'frase', 'whatsapp', 'url_publica', 'recado'].map((k) => [k, fd.get(k)]));
+          for (const k of ['delivery', 'retirada', 'mesa_auto_confirmar']) loja[k] = f[k].checked;
+          Object.assign(d, await App.api('/api/admin/loja', { loja }, 'PUT'));
           App.toast('Loja salva'); render();
+        } else if (f.dataset.form === 'horario') {
+          const fd = new FormData(f);
+          const loja = {
+            aberta: f.aberta.checked, horario_automatico: f.horario_automatico.checked,
+            horarios: DIAS.map((_, i) => ({ aberto: f['aberto' + i].checked, abre: fd.get('abre' + i), fecha: fd.get('fecha' + i) })),
+            taxa_entrega: fd.get('taxa_entrega'), taxa_cartao: fd.get('taxa_cartao'),
+          };
+          if (f.horario) loja.horario = fd.get('horario');
+          Object.assign(d, await App.api('/api/admin/loja', { loja }, 'PUT'));
+          App.toast('Horário e taxas salvos'); render();
         }
       } catch (err) { App.toast(err.message, true); }
     });
