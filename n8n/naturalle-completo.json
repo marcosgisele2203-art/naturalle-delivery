@@ -6,43 +6,49 @@
         "assignments": {
           "assignments": [
             {
-              "id": "16d8e8b8-0a8d-491f-94af-3b2d16024e2d",
+              "id": "3ced1953-8ea6-4a65-9c80-70fd73fa6509",
+              "name": "site_url",
+              "value": "https://pedidos.manudigital.tech",
+              "type": "string"
+            },
+            {
+              "id": "14a749e9-d2c2-4a37-b2a8-c8fa0caaa3a5",
               "name": "evolution_url",
               "value": "https://SEU-EVOLUTION.easypanel.host",
               "type": "string"
             },
             {
-              "id": "528ae48c-d8ab-47bd-974a-ac21ce5c5b16",
+              "id": "93f60513-b3df-4c7b-9345-e608407d14c2",
               "name": "evolution_instance",
               "value": "naturalle",
               "type": "string"
             },
             {
-              "id": "b5588243-b138-4d1f-91ec-199895117884",
+              "id": "7ef5df81-21c5-4c39-aa90-f84f004a9533",
               "name": "evolution_apikey",
               "value": "COLE_AQUI_A_APIKEY_DA_EVOLUTION",
               "type": "string"
             },
             {
-              "id": "e0edb2c7-f72e-4062-9363-f55f18830c63",
+              "id": "31d407cf-f020-4855-b8b3-5b2d1db759b5",
               "name": "numero_loja",
               "value": "5567996421751",
               "type": "string"
             },
             {
-              "id": "03198eec-b1c4-4537-8e88-8b6e3dbbca50",
+              "id": "b6e7a0a7-e973-4d91-8671-508e11e7c6d6",
               "name": "pix_chave",
               "value": "COLE_AQUI_A_CHAVE_PIX",
               "type": "string"
             },
             {
-              "id": "3d4da0d7-cc73-4c95-be3e-a1492dfe9e59",
+              "id": "5f4bec84-c031-4f9e-b0c0-e7bf136042f9",
               "name": "pix_nome",
               "value": "Naturalle Mania",
               "type": "string"
             },
             {
-              "id": "77478d42-31f7-4501-951b-11167af6272c",
+              "id": "52b620e9-0f97-4e67-9b8d-f0913a6d89d8",
               "name": "token",
               "value": "TROQUE_ESTE_TOKEN",
               "type": "string"
@@ -52,13 +58,13 @@
         "includeOtherFields": true,
         "options": {}
       },
-      "id": "d48f9a90-3e3c-4059-bc56-bc00a30c1bb4",
+      "id": "e5f5d8b5-8bf0-4d1a-834c-064affda58a3",
       "name": "Config",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
         480,
-        300
+        340
       ]
     },
     {
@@ -67,7 +73,7 @@
         "path": "pedido",
         "options": {}
       },
-      "id": "65ceceab-e7a1-4581-8087-dbc62cadd32d",
+      "id": "ff429aaf-7d8d-4899-9e22-0db49f88cbec",
       "name": "Webhook pedido",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
@@ -75,13 +81,37 @@
         0,
         80
       ],
-      "webhookId": "a6b13594-7af5-49e1-b2bf-82c609358d3b"
+      "webhookId": "3b21ffc0-411b-4601-b551-d5e6ef1aa755"
     },
     {
       "parameters": {
-        "jsCode": "// só segue se o aviso chegou pela entrada 'pedido'\nif ($input.first().json.rota !== 'pedido') return [];\nconst brl = (v) => 'R$ ' + Number(v).toFixed(2).replace('.', ',');\nconst b = $input.first().json.body || {};\nconst cfg = $('Config').first().json;\nif (!cfg.token || b.token !== cfg.token) throw new Error('Token inválido');\nconst p = b.pedido;\nif (!p || !p.id || !p.cliente_telefone) return [];\nconst lista = (p.itens || []).map((i) =>\n  `• ${i.qtd}× ${i.nome}${i.detalhe ? ' (' + i.detalhe + ')' : ''}${i.obs ? ' · obs: ' + i.obs : ''} — ${brl(i.preco)}`).join('\\n');\nconst pagto = {\n  pix: 'Pix (aguardando comprovante)',\n  cartao: p.tipo === 'entrega' ? 'Cartão na entrega' : 'Cartão',\n  dinheiro: 'Dinheiro' + (p.troco_para ? ` (paga com ${brl(p.troco_para)}, troco de ${brl(p.troco_para - p.total)})` : ' (sem troco)'),\n}[p.pagamento] || 'A combinar';\nconst recebe = p.tipo === 'entrega' ? `Entrega: ${p.endereco}` : 'Retirada no balcão';\nconst saida = [];\n\nif (p.origem === 'site' && cfg.numero_loja) {\n  saida.push({ numero: cfg.numero_loja, texto:\n    `*NOVO PEDIDO PELO SITE #${p.id}*\\nCliente: ${p.cliente_nome} (${p.cliente_telefone})\\n${recebe}\\n\\n${lista}\\n\\n` +\n    (p.observacoes ? `Obs.: ${p.observacoes}\\n\\n` : '') +\n    `*Total: ${brl(p.total)}*\\nPagamento: ${pagto}\\n\\nConfirme no painel de pedidos.` });\n}\n\nlet cli = `Olá, ${p.cliente_nome}! Recebemos seu pedido *#${p.id}* na Naturalle Mania.\\n\\n${lista}\\n\\n`;\nif (Number(p.taxa_entrega)) cli += `Taxa de entrega: ${brl(p.taxa_entrega)}\\n`;\nif (Number(p.acrescimo_cartao)) cli += `Acréscimo da maquininha: ${brl(p.acrescimo_cartao)}\\n`;\ncli += `*Total: ${brl(p.total)}*\\n${recebe}\\n\\n`;\nif (p.pagamento === 'pix') {\n  cli += `Para pagar via Pix, use a chave:\\n*${cfg.pix_chave}*\\n(${cfg.pix_nome})\\n\\nDepois é só responder aqui com a foto do comprovante.`;\n} else if (p.pagamento === 'cartao') {\n  cli += p.tipo === 'entrega' ? 'Pagamento no cartão na entrega: o entregador leva a maquininha.' : 'Pagamento no cartão na retirada.';\n} else if (p.pagamento === 'dinheiro') {\n  cli += 'Pagamento em dinheiro' + (p.troco_para ? `: você paga com ${brl(p.troco_para)} e recebe ${brl(p.troco_para - p.total)} de troco.` : ', valor certo (sem troco).');\n}\ncli += p.status === 'novo' ? '\\n\\nJá já confirmamos e avisamos por aqui!' : '\\n\\nJá está sendo preparado. Avisamos por aqui a cada etapa!';\nsaida.push({ numero: p.cliente_telefone, texto: cli });\n\nreturn saida.map((json) => ({ json }));\n"
+        "assignments": {
+          "assignments": [
+            {
+              "id": "43533d99-756d-47d8-94b4-a5cbe56d595c",
+              "name": "rota",
+              "value": "pedido",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
       },
-      "id": "42642aeb-2d8e-4bf0-b78b-d299cf7f9382",
+      "id": "e803666a-7932-4f83-b324-7a3e57b8e46c",
+      "name": "Rota: pedido recebido",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        240,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// só segue se o aviso chegou pela entrada 'pedido'\nif ($input.first().json.rota !== 'pedido') return [];\nconst brl = (v) => 'R$ ' + Number(v).toFixed(2).replace('.', ',');\nconst b = $input.first().json.body || {};\nconst cfg = $('Config').first().json;\nif (!cfg.token || b.token !== cfg.token) throw new Error('Token inválido');\nconst p = b.pedido;\nif (!p || !p.id || !p.cliente_telefone) return [];\nconst lista = (p.itens || []).map((i) =>\n  `• ${i.qtd}× ${i.nome}${i.detalhe ? ' (' + i.detalhe + ')' : ''}${i.obs ? ' · obs: ' + i.obs : ''} — ${brl(i.preco)}`).join('\\n');\nconst pagto = {\n  pix: 'Pix (aguardando comprovante)',\n  cartao: p.tipo === 'entrega' ? 'Cartão na entrega' : 'Cartão',\n  dinheiro: 'Dinheiro' + (p.troco_para ? ` (paga com ${brl(p.troco_para)}, troco de ${brl(p.troco_para - p.total)})` : ' (sem troco)'),\n}[p.pagamento] || 'A combinar';\nconst recebe = p.tipo === 'entrega' ? `Entrega: ${p.endereco}` : 'Retirada no balcão';\nconst saida = [];\n\nif (['site', 'whatsapp', 'manu'].includes(p.origem) && cfg.numero_loja) {\n  saida.push({ numero: cfg.numero_loja, texto:\n    `*NOVO PEDIDO ${p.origem === 'site' ? 'PELO SITE' : 'PELA MANU'} #${p.id}*\\nCliente: ${p.cliente_nome} (${p.cliente_telefone})\\n${recebe}\\n\\n${lista}\\n\\n` +\n    (p.observacoes ? `Obs.: ${p.observacoes}\\n\\n` : '') +\n    `*Total: ${brl(p.total)}*\\nPagamento: ${pagto}\\n\\nConfirme no painel de pedidos.` });\n}\n\nlet cli = `Olá, ${p.cliente_nome}! Recebemos seu pedido *#${p.id}* na Naturalle Mania.\\n\\n${lista}\\n\\n`;\nif (Number(p.taxa_entrega)) cli += `Taxa de entrega: ${brl(p.taxa_entrega)}\\n`;\nif (Number(p.acrescimo_cartao)) cli += `Acréscimo da maquininha: ${brl(p.acrescimo_cartao)}\\n`;\ncli += `*Total: ${brl(p.total)}*\\n${recebe}\\n\\n`;\nif (p.pagamento === 'pix') {\n  cli += `Para pagar via Pix, use a chave:\\n*${cfg.pix_chave}*\\n(${cfg.pix_nome})\\n\\nDepois é só responder aqui com a foto do comprovante.`;\n} else if (p.pagamento === 'cartao') {\n  cli += p.tipo === 'entrega' ? 'Pagamento no cartão na entrega: o entregador leva a maquininha.' : 'Pagamento no cartão na retirada.';\n} else if (p.pagamento === 'dinheiro') {\n  cli += 'Pagamento em dinheiro' + (p.troco_para ? `: você paga com ${brl(p.troco_para)} e recebe ${brl(p.troco_para - p.total)} de troco.` : ', valor certo (sem troco).');\n}\ncli += p.status === 'novo' ? '\\n\\nJá já confirmamos e avisamos por aqui!' : '\\n\\nJá está sendo preparado. Avisamos por aqui a cada etapa!';\nsaida.push({ numero: p.cliente_telefone, texto: cli });\n\nreturn saida.map((json) => ({ json }));\n"
+      },
+      "id": "6d8225c4-cd5e-4900-ae25-865fee6470cc",
       "name": "Montar mensagens",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -108,7 +138,7 @@
         "jsonBody": "={{ JSON.stringify({ number: $json.numero, text: $json.texto }) }}",
         "options": {}
       },
-      "id": "55267840-8f10-45e7-bf3e-c20a316f8834",
+      "id": "ecb03e12-99ee-49f4-9061-a367f1732313",
       "name": "Enviar WhatsApp (pedido recebido)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -119,35 +149,11 @@
     },
     {
       "parameters": {
-        "assignments": {
-          "assignments": [
-            {
-              "id": "1398aac2-91f2-48fe-9abd-e19e4c0a417f",
-              "name": "rota",
-              "value": "pedido",
-              "type": "string"
-            }
-          ]
-        },
-        "includeOtherFields": true,
-        "options": {}
-      },
-      "id": "ac4370bf-19ad-4189-acfb-118cac87bb1f",
-      "name": "Rota: pedido recebido",
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 3.4,
-      "position": [
-        240,
-        80
-      ]
-    },
-    {
-      "parameters": {
         "httpMethod": "POST",
         "path": "status",
         "options": {}
       },
-      "id": "0f5c26e8-fd83-4dbd-bdc3-19774cfa442e",
+      "id": "5a52e29c-7a0f-473a-85ca-c697772ebdf3",
       "name": "Webhook status",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
@@ -155,13 +161,37 @@
         0,
         340
       ],
-      "webhookId": "307be048-d5b6-47bb-a696-9abbed1c076b"
+      "webhookId": "91109121-fe73-48e2-aacf-1faf1ab144c5"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "7e8c8643-898c-4d0c-9d03-09bae3121cf9",
+              "name": "rota",
+              "value": "status",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "345b7bfa-99d3-4b6f-9305-c6234f5e965e",
+      "name": "Rota: status",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        240,
+        340
+      ]
     },
     {
       "parameters": {
         "jsCode": "// só segue se o aviso chegou pela entrada 'status'\nif ($input.first().json.rota !== 'status') return [];\nconst brl = (v) => 'R$ ' + Number(v).toFixed(2).replace('.', ',');\nconst b = $input.first().json.body || {};\nconst cfg = $('Config').first().json;\nif (!cfg.token || b.token !== cfg.token) throw new Error('Token inválido');\nconst p = b.pedido;\nif (!p || !p.id || !p.cliente_telefone) return [];\nconst lista = (p.itens || []).map((i) =>\n  `• ${i.qtd}× ${i.nome}${i.detalhe ? ' (' + i.detalhe + ')' : ''}${i.obs ? ' · obs: ' + i.obs : ''} — ${brl(i.preco)}`).join('\\n');\nconst textos = {\n  preparo: `Seu pedido *#${p.id}* foi confirmado e já está sendo preparado!`,\n  pronto: `Seu pedido *#${p.id}* está pronto! Pode vir buscar no balcão.`,\n  saiu: `Seu pedido *#${p.id}* saiu para entrega${p.entregador_nome ? ' com ' + p.entregador_nome : ''}! Já já chega aí.` +\n    (p.pagamento === 'cartao' ? ' O entregador está levando a maquininha.' : p.pagamento === 'dinheiro' && p.troco_para ? ` Ele leva ${brl(p.troco_para - p.total)} de troco.` : ''),\n  entregue: `Pedido *#${p.id}* entregue. Obrigado, ${p.cliente_nome}! Bom apetite e volte sempre à Naturalle Mania.`,\n  cancelado: `Seu pedido *#${p.id}* foi cancelado. Qualquer dúvida, é só responder aqui.`,\n};\nif (!textos[p.status]) return [];\nreturn [{ json: { numero: p.cliente_telefone, texto: textos[p.status] } }];\n"
       },
-      "id": "bd6ff77d-f94c-4161-82b1-6e35be475254",
+      "id": "68bca617-f496-479c-b252-0a27d3fe9c80",
       "name": "Mensagem do status",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -188,7 +218,7 @@
         "jsonBody": "={{ JSON.stringify({ number: $json.numero, text: $json.texto }) }}",
         "options": {}
       },
-      "id": "b06c604c-f33a-4b5a-af10-a720e67b8bbd",
+      "id": "e06f58ef-eae8-448a-a07e-90b41c5c326a",
       "name": "Enviar WhatsApp (status)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -199,35 +229,11 @@
     },
     {
       "parameters": {
-        "assignments": {
-          "assignments": [
-            {
-              "id": "f28eb28e-b0ef-4ebc-a441-4263654b0d9e",
-              "name": "rota",
-              "value": "status",
-              "type": "string"
-            }
-          ]
-        },
-        "includeOtherFields": true,
-        "options": {}
-      },
-      "id": "444e8141-b044-4ef9-a25c-c5d7cd600e49",
-      "name": "Rota: status",
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 3.4,
-      "position": [
-        240,
-        340
-      ]
-    },
-    {
-      "parameters": {
         "httpMethod": "POST",
         "path": "evolution",
         "options": {}
       },
-      "id": "f4ab04f6-75e2-408b-9de1-4698964e6c69",
+      "id": "bb2185d5-fb7b-4a3f-94a9-b8a6dd1fa97c",
       "name": "Webhook Evolution",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
@@ -235,14 +241,38 @@
         0,
         600
       ],
-      "webhookId": "6726464c-d744-40d8-9df5-7feb0b5727b7"
+      "webhookId": "3c3bcaed-5173-4285-870b-efd01f3387d2"
     },
     {
       "parameters": {
-        "jsCode": "// só segue se o aviso chegou pela entrada 'evolution'\nif ($input.first().json.rota !== 'evolution') return [];\nconst b = $input.first().json.body || {};\nconst d = b.data || {};\nconst key = d.key || {};\nconst jid = key.remoteJid || '';\nif (b.event !== 'messages.upsert' || key.fromMe || !jid.endsWith('@s.whatsapp.net')) return [];\nconst tipo = d.messageType || Object.keys(d.message || {})[0] || '';\nif (!['imageMessage', 'documentMessage'].includes(tipo)) return [];\nconst telefone = jid.split('@')[0];\n// Compara pelos 8 últimos dígitos: o WhatsApp pode tirar o 9 extra do celular.\nreturn [{ json: { telefone, final8: telefone.slice(-8) } }];\n"
+        "assignments": {
+          "assignments": [
+            {
+              "id": "9aba975a-e67a-42c9-9b40-7d83b0cca4ab",
+              "name": "rota",
+              "value": "evolution",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
       },
-      "id": "8f83a311-f94b-4e2a-a73f-4ec46ddd4d0e",
-      "name": "Filtrar comprovante",
+      "id": "9b854ced-c11c-4434-85ea-43c170f00d88",
+      "name": "Rota: Manu",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        240,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// só segue se o aviso chegou pela entrada 'evolution'\nif ($input.first().json.rota !== 'evolution') return [];\nconst b = $input.first().json.body || {};\nconst cfg = $('Config').first().json;\nconst d = b.data || {};\nconst key = d.key || {};\nconst jid = key.remoteJid || '';\n// só conversa individual, e nunca as mensagens que a própria loja mandou\nif (b.event !== 'messages.upsert' || key.fromMe || !jid.endsWith('@s.whatsapp.net')) return [];\nconst m = d.message || {};\nconst tipo = d.messageType || Object.keys(m)[0] || '';\nlet texto = m.conversation || (m.extendedTextMessage && m.extendedTextMessage.text) || '';\nlet midia = null;\nif (['imageMessage', 'audioMessage', 'documentMessage'].includes(tipo)) {\n  const info = m[tipo] || {};\n  texto = texto || info.caption || '';\n  let base64 = m.base64 || d.base64 || '';\n  let mime = info.mimetype || '';\n  if (!base64) {\n    // sem \"Webhook Base64\" ligado na Evolution: busca o arquivo nela\n    try {\n      const r = await this.helpers.httpRequest({ method: 'POST', json: true,\n        url: `${cfg.evolution_url}/chat/getBase64FromMediaMessage/${cfg.evolution_instance}`,\n        headers: { apikey: cfg.evolution_apikey }, body: { message: { key }, convertToMp4: false } });\n      base64 = r.base64 || ''; mime = r.mimetype || mime;\n    } catch (e) { /* segue sem o arquivo */ }\n  }\n  if (base64) midia = { tipo: tipo === 'audioMessage' ? 'audio' : 'imagem', mime, base64 };\n}\nif (!texto && !midia) return [];\nreturn [{ json: { token: cfg.token, telefone: jid.split('@')[0], nome: d.pushName || '', texto, ...(midia || {}) } }];\n"
+      },
+      "id": "589914eb-63b7-49a1-a589-3a0279869024",
+      "name": "Preparar mensagem",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
@@ -252,16 +282,19 @@
     },
     {
       "parameters": {
-        "operation": "executeQuery",
-        "query": "UPDATE pedidos SET pix_status = 'comprovante_recebido', atualizado_em = now()\nWHERE id = (\n  SELECT id FROM pedidos\n  WHERE right(cliente_telefone, 8) = $1 AND pagamento = 'pix' AND pix_status = 'aguardando'\n  ORDER BY criado_em DESC LIMIT 1\n)\nRETURNING id, cliente_nome, cliente_telefone, total;",
+        "method": "POST",
+        "url": "={{ $('Config').first().json.site_url }}/api/manu/whatsapp",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
         "options": {
-          "queryReplacement": "={{ [ $json.final8 ] }}"
+          "timeout": 120000
         }
       },
-      "id": "668445b4-2de4-46ce-ae22-8055cc019817",
-      "name": "Marcar comprovante",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.5,
+      "id": "305a3d81-ded6-4dd8-99c1-de946bc78ece",
+      "name": "Perguntar à Manu",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [
         960,
         600
@@ -269,10 +302,10 @@
     },
     {
       "parameters": {
-        "jsCode": "const brl = (v) => 'R$ ' + Number(v).toFixed(2).replace('.', ',');\nconst p = $input.first().json;\nif (!p.id) return []; // nenhum pedido Pix aguardando para esse número\nconst cfg = $('Config').first().json;\nconst saida = [{ numero: p.cliente_telefone, texto: `Recebemos seu comprovante do pedido *#${p.id}*! Assim que conferirmos, seu pedido segue.` }];\nif (cfg.numero_loja) saida.push({ numero: cfg.numero_loja,\n  texto: `*Comprovante Pix recebido* do pedido #${p.id} (${p.cliente_nome}, ${brl(p.total)}). Confira e clique em \"Confirmar Pix\" no painel.` });\nreturn saida.map((json) => ({ json }));\n"
+        "jsCode": "return ($input.first().json.mensagens || []).filter((m) => m.texto).map((json) => ({ json }));"
       },
-      "id": "7f3cd8e4-a76f-4056-8ab7-6a56b4fcf2c3",
-      "name": "Montar avisos",
+      "id": "9aa87f6c-afe1-4c38-b233-1ea21a6476bf",
+      "name": "Separar respostas",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
@@ -298,36 +331,12 @@
         "jsonBody": "={{ JSON.stringify({ number: $json.numero, text: $json.texto }) }}",
         "options": {}
       },
-      "id": "c6ec072a-8197-4ac2-829d-bc00577784f9",
-      "name": "Enviar WhatsApp (comprovante Pix)",
+      "id": "96f8a738-0174-4dc3-9858-48d84859fa2e",
+      "name": "Enviar WhatsApp (Manu)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
         1440,
-        600
-      ]
-    },
-    {
-      "parameters": {
-        "assignments": {
-          "assignments": [
-            {
-              "id": "c2b17ca7-5b11-45f8-b360-59b0157cb94e",
-              "name": "rota",
-              "value": "evolution",
-              "type": "string"
-            }
-          ]
-        },
-        "includeOtherFields": true,
-        "options": {}
-      },
-      "id": "25065c79-7804-4af8-85f3-2383616f426d",
-      "name": "Rota: comprovante Pix",
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 3.4,
-      "position": [
-        240,
         600
       ]
     }
@@ -369,7 +378,7 @@
             "index": 0
           },
           {
-            "node": "Filtrar comprovante",
+            "node": "Preparar mensagem",
             "type": "main",
             "index": 0
           }
@@ -424,14 +433,14 @@
       "main": [
         [
           {
-            "node": "Rota: comprovante Pix",
+            "node": "Rota: Manu",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Rota: comprovante Pix": {
+    "Rota: Manu": {
       "main": [
         [
           {
@@ -442,33 +451,33 @@
         ]
       ]
     },
-    "Filtrar comprovante": {
+    "Preparar mensagem": {
       "main": [
         [
           {
-            "node": "Marcar comprovante",
+            "node": "Perguntar à Manu",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Marcar comprovante": {
+    "Perguntar à Manu": {
       "main": [
         [
           {
-            "node": "Montar avisos",
+            "node": "Separar respostas",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Montar avisos": {
+    "Separar respostas": {
       "main": [
         [
           {
-            "node": "Enviar WhatsApp (comprovante Pix)",
+            "node": "Enviar WhatsApp (Manu)",
             "type": "main",
             "index": 0
           }

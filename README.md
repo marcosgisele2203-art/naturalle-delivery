@@ -57,6 +57,7 @@ Não precisa criar tabelas: o site cria e atualiza tudo sozinho quando liga.
 DATABASE_URL=postgres://postgres:SENHA@naturalle_postgres:5432/naturalle
 N8N_URL=https://SEU-N8N/webhook
 N8N_TOKEN=uma-senha-forte-qualquer
+GEMINI_API_KEY=chave-do-google-ai-studio   (opcional: liga a Manu IA)
 ```
 
 Em *Domains*, aponte o domínio para a porta **3000** e faça o deploy.
@@ -77,7 +78,7 @@ Crie a **Evolution API** (template) com domínio. Crie a instância `naturalle` 
 **67 9715-5502**. Em *Webhook* da instância: `https://SEU-N8N/webhook/evolution`, evento `MESSAGES_UPSERT`.
 
 ### 5. n8n
-Use **um fluxo só**: `n8n/naturalle-completo.json` (faz tudo: pedido recebido, status e comprovante Pix).
+Use **um fluxo só**: `n8n/naturalle-completo.json` (avisos de pedido e de status + a Manu IA no WhatsApp).
 
 1. No n8n: **+ Criar fluxo › ⋯ › Importar de URL** e cole
    `https://raw.githubusercontent.com/marcosgisele2203-art/naturalle-delivery/main/n8n/naturalle-completo.json`
@@ -85,16 +86,28 @@ Use **um fluxo só**: `n8n/naturalle-completo.json` (faz tudo: pedido recebido, 
 
 | Campo | Valor |
 |---|---|
+| `site_url` | endereço do site, ex.: `https://pedidos.seudominio.com` (sem barra no final) |
 | `evolution_url` | endereço da Evolution, ex.: `https://api.seudominio.com` (sem barra no final) |
 | `evolution_instance` | nome da instância conectada ao WhatsApp |
 | `evolution_apikey` | API key da Evolution |
-| `numero_loja` | quem recebe aviso de pedido do site e de comprovante Pix (vem `5567996421751`) |
+| `numero_loja` | quem recebe aviso de pedido novo (vem `5567996421751`) |
 | `pix_chave` / `pix_nome` | chave Pix e nome do recebedor |
 | `token` | **o mesmo** valor do `N8N_TOKEN` do site |
 
-3. No nó **Marcar comprovante**, escolha a credencial **Postgres** (mesmo banco do site).
-4. **Save** e ligue **Active**.
-5. Na Evolution, webhook da instância: `https://SEU-N8N/webhook/evolution`, evento `MESSAGES_UPSERT`.
+3. **Save** e ligue **Active**.
+4. Na Evolution, webhook da instância: `https://SEU-N8N/webhook/evolution`, evento `MESSAGES_UPSERT`
+   (ligar **Webhook Base64** deixa fotos e áudios mais rápidos; sem ele o fluxo busca o arquivo na Evolution).
+
+### 6. Manu IA (garçonete online)
+A Manu atende no **WhatsApp** (texto, áudio e foto) e no botão **Pedir com a Manu** do cardápio. Ela consulta o cardápio do
+sistema, calcula com as mesmas regras do site, lança o pedido no painel (origem "Manu") e registra o comprovante Pix pela foto.
+
+1. Crie uma chave grátis em **https://aistudio.google.com/apikey** (Google AI Studio).
+2. No Easypanel, em *Environment* do site, acrescente `GEMINI_API_KEY=sua-chave` e clique em **Implantar**.
+   Opcional: `MANU_MODELO` (padrão `gemini-2.5-flash`).
+
+Sem a chave, o botão da Manu some do cardápio e, no WhatsApp, ela responde com o link do cardápio (a foto do comprovante Pix
+continua sendo registrada).
 
 Os arquivos `01`, `02` e `03` são o mesmo fluxo separado em três; use **ou** o completo **ou** os três, nunca os dois juntos
 (os endereços de webhook iriam se repetir).

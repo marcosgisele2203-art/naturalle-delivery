@@ -143,3 +143,21 @@ a:hover { color: var(--rosa-escuro); }
 .giz-zoom img { max-width: 100%; max-height: 80vh; border-radius: 12px; }
 .troco-calc { font-weight: 400; color: var(--cinza); font-size: 13px; }
 .troco-calc b { color: var(--verde); font-size: 15px; }
+
+/* Manu, garçonete online */
+.botao-manu { display: flex; align-items: center; gap: 8px; min-height: 56px; padding: 4px 16px 4px 4px; border: 0; border-radius: 999px; background: var(--rosa, #A3134A); color: #fff; font: 700 15px Inter, system-ui, sans-serif; box-shadow: 0 6px 18px rgba(0, 0, 0, .25); cursor: pointer; flex: none; }
+.botao-manu img { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; object-position: center 15%; background: #fff; }
+.botao-manu.so-icone { padding: 4px; }
+.manu-folha { height: 86vh; }
+.manu-quem { display: flex; align-items: center; gap: 10px; }
+.manu-quem img { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; object-position: center 15%; }
+.manu-quem h2 { font-size: 20px !important; }
+.manu-quem small { color: var(--cinza); }
+.manu-msgs { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 4px 2px; }
+.manu-msg { margin: 0; max-width: 85%; padding: 10px 12px; border-radius: 16px; font-size: 15px; line-height: 1.35; }
+.manu-msg.manu { align-self: flex-start; background: var(--fundo, #F5F4F0); border-bottom-left-radius: 4px; }
+.manu-msg.cliente { align-self: flex-end; background: var(--verde, #1E5B2B); color: #fff; border-bottom-right-radius: 4px; }
+.manu-msg.digitando { color: var(--cinza); font-style: italic; }
+.manu-form { display: flex; gap: 8px; }
+.manu-form input { flex: 1; min-height: 48px; border: 1px solid var(--linha); border-radius: 24px; padding: 0 16px; font-size: 16px; }
+.manu-form .botao { width: auto; padding: 0 20px; }

@@ -146,7 +146,9 @@
 
   function renderBarra() {
     const n = st.carrinho.reduce((s, i) => s + i.qtd, 0);
-    $('#barra').innerHTML = n ? `<button class="botao escuro flex" data-acao="abrir">${SACOLA}<span class="flex" style="text-align:left">Ver carrinho <span class="contador">${n}</span></span><span>${brl(window.Calc.somar(st.carrinho))}</span></button>` : '';
+    const manu = st.loja && st.loja.manu && !tokenMesa
+      ? `<button class="botao-manu${n ? ' so-icone' : ''}" data-acao="manu" aria-label="Pedir com a Manu"><img src="${MANU('acenando')}" alt="" width="44" height="44">${n ? '' : '<span>Pedir com a Manu</span>'}</button>` : '';
+    $('#barra').innerHTML = (n ? `<button class="botao escuro flex" data-acao="abrir">${SACOLA}<span class="flex" style="text-align:left">Ver carrinho <span class="contador">${n}</span></span><span>${brl(window.Calc.somar(st.carrinho))}</span></button>` : '<span class="flex"></span>') + manu;
   }
 
   // dinheiro: o cliente diz com quanto vai pagar e o troco aparece na hora
@@ -246,6 +248,7 @@
         const campo = $('[name=troco]'); if (campo) campo.focus();
         break;
       }
+      case 'manu': abrirManu(); break;
       case 'slide': clearInterval(timerQuadro); mostrarSlide(Number(b.dataset.v)); break;
       case 'ampliar': {
         const z = document.createElement('div');
@@ -309,6 +312,52 @@
     st.enviando = false;
     renderCarrinho(); renderBarra();
   });
+
+  // ---------------- chat com a Manu (garçonete online)
+  const manuChat = { sessao: guardado('nm-manu-sessao', ''), msgs: guardado('nm-manu-msgs', []), enviando: false };
+  if (!manuChat.sessao) { manuChat.sessao = Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join(''); guardar('nm-manu-sessao', manuChat.sessao); }
+  function abrirManu() {
+    let el = $('#manu-chat');
+    if (!el) {
+      el = document.createElement('div');
+      el.className = 'fundo'; el.id = 'manu-chat';
+      el.innerHTML = `<section class="folha manu-folha" role="dialog" aria-modal="true" aria-labelledby="manu-titulo">
+        <div class="folha-topo"><div class="manu-quem"><img src="${MANU('acenando')}" alt="" width="44" height="44"><div><h2 id="manu-titulo">Manu</h2><small>Garçonete online da Naturalle</small></div></div>
+          <button class="icone" data-manu-fechar aria-label="Fechar">✕</button></div>
+        <div class="manu-msgs" aria-live="polite"></div>
+        <form class="manu-form"><input name="msg" autocomplete="off" maxlength="1000" placeholder="Escreva para a Manu…" aria-label="Mensagem para a Manu">
+          <button class="botao verde" type="submit">Enviar</button></form></section>`;
+      document.body.appendChild(el);
+      el.addEventListener('click', (e) => { if (e.target === el || e.target.closest('[data-manu-fechar]')) { el.hidden = true; document.body.classList.remove('mt-travado'); } });
+      el.querySelector('form').addEventListener('submit', (e) => { e.preventDefault(); const i = e.target.msg; enviarManu(i.value); i.value = ''; });
+    }
+    el.hidden = false; document.body.classList.add('mt-travado');
+    desenharManu();
+    el.querySelector('input').focus();
+  }
+  function desenharManu() {
+    const box = $('#manu-chat .manu-msgs');
+    if (!box) return;
+    const msgs = [{ de: 'manu', texto: 'Oi! Eu sou a Manu 😊 Me diga o que você quer pedir que eu monto tudo para você. Pode perguntar dos sabores, tamanhos e preços!' }, ...manuChat.msgs];
+    box.innerHTML = msgs.map((m) => `<p class="manu-msg ${m.de}">${esc(m.texto).replace(/\n/g, '<br>').replace(/\*([^*\n]+)\*/g, '<b>$1</b>')}</p>`).join('')
+      + (manuChat.enviando ? '<p class="manu-msg manu digitando">Manu está digitando…</p>' : '');
+    box.scrollTop = box.scrollHeight;
+  }
+  async function enviarManu(texto) {
+    texto = String(texto || '').trim();
+    if (!texto || manuChat.enviando) return;
+    manuChat.msgs.push({ de: 'cliente', texto }); manuChat.enviando = true; desenharManu();
+    try {
+      const d = await api('/api/publico/manu', { sessao: manuChat.sessao, texto });
+      manuChat.msgs.push({ de: 'manu', texto: d.resposta });
+      if (d.pedido) { st.meus = [{ codigo: d.pedido.codigo, id: d.pedido.id }, ...st.meus].slice(0, 10); guardar(chave('pedidos'), st.meus); acompanhar(); }
+    } catch (err) {
+      manuChat.msgs.push({ de: 'manu', texto: err.message });
+    }
+    manuChat.enviando = false;
+    manuChat.msgs = manuChat.msgs.slice(-40); guardar('nm-manu-msgs', manuChat.msgs);
+    desenharManu();
+  }
 
   // ---------------- acompanhamento
   async function acompanhar() {

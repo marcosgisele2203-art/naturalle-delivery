@@ -7,7 +7,7 @@
         "path": "pedido",
         "options": {}
       },
-      "id": "fcba668f-6433-42a1-959c-dcf8ba451812",
+      "id": "c581df7c-8e84-4b27-ad3e-22ead5fa3e8a",
       "name": "Webhook pedido",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
@@ -15,50 +15,50 @@
         0,
         300
       ],
-      "webhookId": "1547d256-570f-407c-b048-2c8b77103ac5"
+      "webhookId": "40b2c2b2-dc0d-4d14-a0ed-03387aeb36de"
     },
     {
       "parameters": {
         "assignments": {
           "assignments": [
             {
-              "id": "16d8e8b8-0a8d-491f-94af-3b2d16024e2d",
+              "id": "14a749e9-d2c2-4a37-b2a8-c8fa0caaa3a5",
               "name": "evolution_url",
               "value": "https://SEU-EVOLUTION.easypanel.host",
               "type": "string"
             },
             {
-              "id": "528ae48c-d8ab-47bd-974a-ac21ce5c5b16",
+              "id": "93f60513-b3df-4c7b-9345-e608407d14c2",
               "name": "evolution_instance",
               "value": "naturalle",
               "type": "string"
             },
             {
-              "id": "b5588243-b138-4d1f-91ec-199895117884",
+              "id": "7ef5df81-21c5-4c39-aa90-f84f004a9533",
               "name": "evolution_apikey",
               "value": "COLE_AQUI_A_APIKEY_DA_EVOLUTION",
               "type": "string"
             },
             {
-              "id": "e0edb2c7-f72e-4062-9363-f55f18830c63",
+              "id": "31d407cf-f020-4855-b8b3-5b2d1db759b5",
               "name": "numero_loja",
               "value": "5567996421751",
               "type": "string"
             },
             {
-              "id": "03198eec-b1c4-4537-8e88-8b6e3dbbca50",
+              "id": "b6e7a0a7-e973-4d91-8671-508e11e7c6d6",
               "name": "pix_chave",
               "value": "COLE_AQUI_A_CHAVE_PIX",
               "type": "string"
             },
             {
-              "id": "3d4da0d7-cc73-4c95-be3e-a1492dfe9e59",
+              "id": "5f4bec84-c031-4f9e-b0c0-e7bf136042f9",
               "name": "pix_nome",
               "value": "Naturalle Mania",
               "type": "string"
             },
             {
-              "id": "77478d42-31f7-4501-951b-11167af6272c",
+              "id": "52b620e9-0f97-4e67-9b8d-f0913a6d89d8",
               "name": "token",
               "value": "TROQUE_ESTE_TOKEN",
               "type": "string"
@@ -68,7 +68,7 @@
         "includeOtherFields": true,
         "options": {}
       },
-      "id": "7aa6deb7-08ab-48f3-b107-b1c5bb104c75",
+      "id": "fcfd4ae2-30db-408e-a7c2-732dcf9470a6",
       "name": "Config",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
@@ -79,9 +79,9 @@
     },
     {
       "parameters": {
-        "jsCode": "const brl = (v) => 'R$ ' + Number(v).toFixed(2).replace('.', ',');\nconst b = $input.first().json.body || {};\nconst cfg = $('Config').first().json;\nif (!cfg.token || b.token !== cfg.token) throw new Error('Token inválido');\nconst p = b.pedido;\nif (!p || !p.id || !p.cliente_telefone) return [];\nconst lista = (p.itens || []).map((i) =>\n  `• ${i.qtd}× ${i.nome}${i.detalhe ? ' (' + i.detalhe + ')' : ''}${i.obs ? ' · obs: ' + i.obs : ''} — ${brl(i.preco)}`).join('\\n');\nconst pagto = {\n  pix: 'Pix (aguardando comprovante)',\n  cartao: p.tipo === 'entrega' ? 'Cartão na entrega' : 'Cartão',\n  dinheiro: 'Dinheiro' + (p.troco_para ? ` (paga com ${brl(p.troco_para)}, troco de ${brl(p.troco_para - p.total)})` : ' (sem troco)'),\n}[p.pagamento] || 'A combinar';\nconst recebe = p.tipo === 'entrega' ? `Entrega: ${p.endereco}` : 'Retirada no balcão';\nconst saida = [];\n\nif (p.origem === 'site' && cfg.numero_loja) {\n  saida.push({ numero: cfg.numero_loja, texto:\n    `*NOVO PEDIDO PELO SITE #${p.id}*\\nCliente: ${p.cliente_nome} (${p.cliente_telefone})\\n${recebe}\\n\\n${lista}\\n\\n` +\n    (p.observacoes ? `Obs.: ${p.observacoes}\\n\\n` : '') +\n    `*Total: ${brl(p.total)}*\\nPagamento: ${pagto}\\n\\nConfirme no painel de pedidos.` });\n}\n\nlet cli = `Olá, ${p.cliente_nome}! Recebemos seu pedido *#${p.id}* na Naturalle Mania.\\n\\n${lista}\\n\\n`;\nif (Number(p.taxa_entrega)) cli += `Taxa de entrega: ${brl(p.taxa_entrega)}\\n`;\nif (Number(p.acrescimo_cartao)) cli += `Acréscimo da maquininha: ${brl(p.acrescimo_cartao)}\\n`;\ncli += `*Total: ${brl(p.total)}*\\n${recebe}\\n\\n`;\nif (p.pagamento === 'pix') {\n  cli += `Para pagar via Pix, use a chave:\\n*${cfg.pix_chave}*\\n(${cfg.pix_nome})\\n\\nDepois é só responder aqui com a foto do comprovante.`;\n} else if (p.pagamento === 'cartao') {\n  cli += p.tipo === 'entrega' ? 'Pagamento no cartão na entrega: o entregador leva a maquininha.' : 'Pagamento no cartão na retirada.';\n} else if (p.pagamento === 'dinheiro') {\n  cli += 'Pagamento em dinheiro' + (p.troco_para ? `: você paga com ${brl(p.troco_para)} e recebe ${brl(p.troco_para - p.total)} de troco.` : ', valor certo (sem troco).');\n}\ncli += p.status === 'novo' ? '\\n\\nJá já confirmamos e avisamos por aqui!' : '\\n\\nJá está sendo preparado. Avisamos por aqui a cada etapa!';\nsaida.push({ numero: p.cliente_telefone, texto: cli });\n\nreturn saida.map((json) => ({ json }));\n"
+        "jsCode": "const brl = (v) => 'R$ ' + Number(v).toFixed(2).replace('.', ',');\nconst b = $input.first().json.body || {};\nconst cfg = $('Config').first().json;\nif (!cfg.token || b.token !== cfg.token) throw new Error('Token inválido');\nconst p = b.pedido;\nif (!p || !p.id || !p.cliente_telefone) return [];\nconst lista = (p.itens || []).map((i) =>\n  `• ${i.qtd}× ${i.nome}${i.detalhe ? ' (' + i.detalhe + ')' : ''}${i.obs ? ' · obs: ' + i.obs : ''} — ${brl(i.preco)}`).join('\\n');\nconst pagto = {\n  pix: 'Pix (aguardando comprovante)',\n  cartao: p.tipo === 'entrega' ? 'Cartão na entrega' : 'Cartão',\n  dinheiro: 'Dinheiro' + (p.troco_para ? ` (paga com ${brl(p.troco_para)}, troco de ${brl(p.troco_para - p.total)})` : ' (sem troco)'),\n}[p.pagamento] || 'A combinar';\nconst recebe = p.tipo === 'entrega' ? `Entrega: ${p.endereco}` : 'Retirada no balcão';\nconst saida = [];\n\nif (['site', 'whatsapp', 'manu'].includes(p.origem) && cfg.numero_loja) {\n  saida.push({ numero: cfg.numero_loja, texto:\n    `*NOVO PEDIDO ${p.origem === 'site' ? 'PELO SITE' : 'PELA MANU'} #${p.id}*\\nCliente: ${p.cliente_nome} (${p.cliente_telefone})\\n${recebe}\\n\\n${lista}\\n\\n` +\n    (p.observacoes ? `Obs.: ${p.observacoes}\\n\\n` : '') +\n    `*Total: ${brl(p.total)}*\\nPagamento: ${pagto}\\n\\nConfirme no painel de pedidos.` });\n}\n\nlet cli = `Olá, ${p.cliente_nome}! Recebemos seu pedido *#${p.id}* na Naturalle Mania.\\n\\n${lista}\\n\\n`;\nif (Number(p.taxa_entrega)) cli += `Taxa de entrega: ${brl(p.taxa_entrega)}\\n`;\nif (Number(p.acrescimo_cartao)) cli += `Acréscimo da maquininha: ${brl(p.acrescimo_cartao)}\\n`;\ncli += `*Total: ${brl(p.total)}*\\n${recebe}\\n\\n`;\nif (p.pagamento === 'pix') {\n  cli += `Para pagar via Pix, use a chave:\\n*${cfg.pix_chave}*\\n(${cfg.pix_nome})\\n\\nDepois é só responder aqui com a foto do comprovante.`;\n} else if (p.pagamento === 'cartao') {\n  cli += p.tipo === 'entrega' ? 'Pagamento no cartão na entrega: o entregador leva a maquininha.' : 'Pagamento no cartão na retirada.';\n} else if (p.pagamento === 'dinheiro') {\n  cli += 'Pagamento em dinheiro' + (p.troco_para ? `: você paga com ${brl(p.troco_para)} e recebe ${brl(p.troco_para - p.total)} de troco.` : ', valor certo (sem troco).');\n}\ncli += p.status === 'novo' ? '\\n\\nJá já confirmamos e avisamos por aqui!' : '\\n\\nJá está sendo preparado. Avisamos por aqui a cada etapa!';\nsaida.push({ numero: p.cliente_telefone, texto: cli });\n\nreturn saida.map((json) => ({ json }));\n"
       },
-      "id": "0bbdc696-1cd1-476d-a25b-bffb11903880",
+      "id": "ba54cd1a-a6e3-41c3-885c-c4151abbb227",
       "name": "Montar mensagens",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -108,7 +108,7 @@
         "jsonBody": "={{ JSON.stringify({ number: $json.numero, text: $json.texto }) }}",
         "options": {}
       },
-      "id": "571b4331-08ca-4a46-9a8a-5aee6faf7ce1",
+      "id": "ad92e71f-d393-4632-919d-f6ced0848bc0",
       "name": "Enviar WhatsApp",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,

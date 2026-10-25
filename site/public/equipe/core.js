@@ -78,7 +78,7 @@
   // ---------------- cartão de pedido (pedidos, garçom, caixa)
   const ROTULO_TIPO = { mesa: 'Mesa', entrega: 'Entrega', retirada: 'Retirada' };
   App.rotuloOrigem = (p) => (p.tipo === 'mesa' ? esc(p.mesa_nome || 'Mesa') : ROTULO_TIPO[p.tipo] || p.tipo)
-    + (p.origem === 'site' ? ' · site' : p.origem === 'mesa' ? ' · QR' : p.criado_por_nome ? ' · ' + esc(p.criado_por_nome) : '');
+    + (p.origem === 'site' ? ' · site' : p.origem === 'mesa' ? ' · QR' : p.origem === 'whatsapp' ? ' · Manu (WhatsApp)' : p.origem === 'manu' ? ' · Manu (chat)' : p.criado_por_nome ? ' · ' + esc(p.criado_por_nome) : '');
 
   App.cartaoPedido = (p, acoes = [], extra = {}) => {
     const itens = window.Montador.linhas(p.itens || []);

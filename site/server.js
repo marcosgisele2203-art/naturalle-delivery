@@ -281,7 +281,7 @@ function validarQuadro(lista) {
 const quadroDeHoje = (lista, dia) => (lista || []).filter((a) => a.ativo && (!a.dias.length || a.dias.includes(dia)))
   .map(({ id, tipo, titulo, texto: t, preco, foto, produto }) => ({ id, tipo, titulo, texto: t, preco, foto, produto }));
 
-const lojaPublica = (l, e = estadoLoja(l)) => ({ nome: l.nome, frase: l.frase, horario: e.texto, whatsapp: l.whatsapp, aberta: e.aberta,
+const lojaPublica = (l, e = estadoLoja(l)) => ({ manu: manu.ativa(), nome: l.nome, frase: l.frase, horario: e.texto, whatsapp: l.whatsapp, aberta: e.aberta,
   delivery: l.delivery, retirada: l.retirada, taxa_entrega: l.taxa_entrega, taxa_cartao: Number(l.taxa_cartao) || 0, recado: l.recado || '' });
 
 function urlBase(req, loja) {
@@ -294,6 +294,50 @@ function urlBase(req, loja) {
 
 const rotas = [];
 const rota = (metodo, padrao, perms, fn) => rotas.push({ metodo, re: new RegExp('^' + padrao.replace(/:(\w+)/g, '(?<$1>[^/]+)') + '$'), perms, fn });
+
+// --- Manu IA (garçonete online)
+
+const manu = require('./lib/manu').criar({ pool, lerConfig, Calc, diaDaSemana, estadoLoja, calcularItens, gravarPedido, lerPagamento,
+  telefoneBR, notificar, Erro, texto });
+
+// mensagem que chegou no WhatsApp (o n8n repassa da Evolution e manda de volta o que vier em "mensagens")
+rota('POST', '/api/manu/whatsapp', null, async ({ req, b }) => {
+  if (!N8N_TOKEN || b.token !== N8N_TOKEN) throw new Erro(401, 'Token inválido');
+  const telefone = soDigitos(b.telefone).slice(0, 15);
+  if (telefone.length < 10) throw new Erro(400, 'Telefone inválido');
+  const midia = b.base64 && ['imagem', 'audio'].includes(b.tipo)
+    ? { tipo: b.tipo, mime: texto(b.mime, 80).split(';')[0].trim() || (b.tipo === 'audio' ? 'audio/ogg' : 'image/jpeg'), base64: String(b.base64).replace(/^data:[^,]*,/, '') }
+    : null;
+  if (!midia && !texto(b.texto, 1)) return { mensagens: [] };
+  const entrada = { canal: 'whatsapp', chave: telefone, telefone, nome: texto(b.nome, 60), texto: b.texto, midia };
+  const loja = await lerConfig('loja');
+  let r;
+  try {
+    r = manu.ativa() ? await manu.responder(entrada) : await manu.semIA(entrada, urlBase(req, loja));
+  } catch (e) {
+    console.error('manu', e.message);
+    r = { resposta: 'Ops, tive um probleminha aqui 😅 Tenta de novo daqui a pouco ou faça o pedido pelo cardápio: ' + urlBase(req, loja), avisos: [] };
+  }
+  return { mensagens: [{ numero: telefone, texto: r.resposta }, ...(r.avisos || [])] };
+});
+
+// chat da Manu dentro do cardápio
+rota('POST', '/api/publico/manu', null, async ({ req, b }) => {
+  if (!manu.ativa()) throw new Erro(503, 'A Manu não está disponível agora. Faça o pedido pelo cardápio.');
+  const sessao = String(b.sessao || '');
+  if (!/^[\w-]{16,64}$/.test(sessao)) throw new Erro(400, 'Sessão inválida');
+  limitar('manu:' + ipDe(req), 40, 10 * 60_000);
+  limitar('manu-s:' + sessao, 60, 3600_000);
+  const msg = texto(b.texto, 1000);
+  if (!msg) throw new Erro(400, 'Escreva sua mensagem.');
+  try {
+    const r = await manu.responder({ canal: 'site', chave: sessao, texto: msg });
+    return { resposta: r.resposta, pedido: r.pedido };
+  } catch (e) {
+    console.error('manu site', e.message);
+    throw new Erro(502, 'A Manu não conseguiu responder agora. Tente de novo ou peça pelo cardápio.');
+  }
+});
 
 // --- público
 
@@ -784,7 +828,7 @@ const server = http.createServer(async (req, res) => {
       if (!u) throw new Erro(401, 'Faça login novamente.');
       if (achada.perms.length && !auth.pode(u, ...achada.perms)) throw new Erro(403, 'Seu usuário não tem acesso a esta seção.');
     }
-    const b = req.method === 'GET' ? {} : await lerCorpo(req, pathname === '/api/admin/fotos' ? 2_500_000 : 200_000);
+    const b = req.method === 'GET' ? {} : await lerCorpo(req, pathname === '/api/admin/fotos' ? 2_500_000 : pathname === '/api/manu/whatsapp' ? 16_000_000 : 200_000);
     const out = await achada.fn({ req, res, u, p: params, b, q: url.searchParams });
     if (!res.headersSent) json(res, 200, out);
   } catch (e) {

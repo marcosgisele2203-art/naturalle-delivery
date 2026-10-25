@@ -7,7 +7,7 @@
         "path": "status",
         "options": {}
       },
-      "id": "f5bcb4b0-2701-447a-bd0c-4870bc6c49c8",
+      "id": "c24306c9-186f-4767-8bff-17f75e2b43dd",
       "name": "Webhook status",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
@@ -15,50 +15,50 @@
         0,
         300
       ],
-      "webhookId": "9f540c50-c709-45be-a5ce-c71277cfd620"
+      "webhookId": "d1d309fb-f6ec-4625-818f-eaf2b1cbe40c"
     },
     {
       "parameters": {
         "assignments": {
           "assignments": [
             {
-              "id": "23ca6d67-0637-43c2-86d1-91b2e0f2d783",
+              "id": "853e9aac-e0bc-4315-8f74-74ab8ad788bc",
               "name": "evolution_url",
               "value": "https://SEU-EVOLUTION.easypanel.host",
               "type": "string"
             },
             {
-              "id": "ccd75c44-b142-48db-970c-0d0ea7e2acc5",
+              "id": "a8535e29-c48a-48ce-ac47-4485aed0deeb",
               "name": "evolution_instance",
               "value": "naturalle",
               "type": "string"
             },
             {
-              "id": "26c476e2-66ec-45e5-827d-1b7ed34e1d87",
+              "id": "9d107c70-f790-48ab-b6e3-04946fe6a7a9",
               "name": "evolution_apikey",
               "value": "COLE_AQUI_A_APIKEY_DA_EVOLUTION",
               "type": "string"
             },
             {
-              "id": "dceeffce-0348-48c1-9877-3dff20b139d0",
+              "id": "20d2c66a-0e47-4c5b-927a-72f16fd43f83",
               "name": "numero_loja",
               "value": "5567996421751",
               "type": "string"
             },
             {
-              "id": "80ca5b97-8d50-46cd-bfe0-0e547fecc04e",
+              "id": "0a7ea332-febd-41bd-a54d-d53e8174ceca",
               "name": "pix_chave",
               "value": "COLE_AQUI_A_CHAVE_PIX",
               "type": "string"
             },
             {
-              "id": "5856b01e-c109-4f98-b25e-7ea77266088d",
+              "id": "53b06c30-3963-419a-b601-3052909be8c4",
               "name": "pix_nome",
               "value": "Naturalle Mania",
               "type": "string"
             },
             {
-              "id": "9f673605-5e26-40db-83e1-ae6d23cd3eb3",
+              "id": "bc5f60a6-2fc7-4675-a89e-c2661011b464",
               "name": "token",
               "value": "TROQUE_ESTE_TOKEN",
               "type": "string"
@@ -68,7 +68,7 @@
         "includeOtherFields": true,
         "options": {}
       },
-      "id": "c9eb662a-0951-48e3-b78c-0a9c2ff1a533",
+      "id": "0454d9af-7818-4ed6-bc75-74b78ce1ebc3",
       "name": "Config",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
@@ -81,7 +81,7 @@
       "parameters": {
         "jsCode": "const brl = (v) => 'R$ ' + Number(v).toFixed(2).replace('.', ',');\nconst b = $input.first().json.body || {};\nconst cfg = $('Config').first().json;\nif (!cfg.token || b.token !== cfg.token) throw new Error('Token inválido');\nconst p = b.pedido;\nif (!p || !p.id || !p.cliente_telefone) return [];\nconst lista = (p.itens || []).map((i) =>\n  `• ${i.qtd}× ${i.nome}${i.detalhe ? ' (' + i.detalhe + ')' : ''}${i.obs ? ' · obs: ' + i.obs : ''} — ${brl(i.preco)}`).join('\\n');\nconst textos = {\n  preparo: `Seu pedido *#${p.id}* foi confirmado e já está sendo preparado!`,\n  pronto: `Seu pedido *#${p.id}* está pronto! Pode vir buscar no balcão.`,\n  saiu: `Seu pedido *#${p.id}* saiu para entrega${p.entregador_nome ? ' com ' + p.entregador_nome : ''}! Já já chega aí.` +\n    (p.pagamento === 'cartao' ? ' O entregador está levando a maquininha.' : p.pagamento === 'dinheiro' && p.troco_para ? ` Ele leva ${brl(p.troco_para - p.total)} de troco.` : ''),\n  entregue: `Pedido *#${p.id}* entregue. Obrigado, ${p.cliente_nome}! Bom apetite e volte sempre à Naturalle Mania.`,\n  cancelado: `Seu pedido *#${p.id}* foi cancelado. Qualquer dúvida, é só responder aqui.`,\n};\nif (!textos[p.status]) return [];\nreturn [{ json: { numero: p.cliente_telefone, texto: textos[p.status] } }];\n"
       },
-      "id": "6926d64f-d13b-4100-b591-99c0df89a562",
+      "id": "d88b9414-e7c2-4cb3-8802-58aefa7d9de3",
       "name": "Mensagem do status",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -108,7 +108,7 @@
         "jsonBody": "={{ JSON.stringify({ number: $json.numero, text: $json.texto }) }}",
         "options": {}
       },
-      "id": "d679eef4-7328-4dd9-ab90-7f5ae93bc676",
+      "id": "6403bcbd-f420-4686-9b2b-bdd65099f958",
       "name": "Enviar WhatsApp",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
