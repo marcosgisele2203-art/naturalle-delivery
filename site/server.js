@@ -13,6 +13,7 @@ const path = require('path');
 const crypto = require('crypto');
 const QRCode = require('qrcode');
 const Calc = require('./public/shared/calc.js');
+const Relatorio = require('./public/shared/relatorio.js');
 const { pool, migrar, lerConfig, salvarConfig } = require('./lib/db');
 const auth = require('./lib/auth');
 const { slug } = require('./lib/cardapio-inicial');
@@ -486,6 +487,21 @@ rota('GET', '/api/equipe/caixa/resumo', ['caixa', 'pedidos'], async () => {
       WHERE status <> 'cancelado' AND (criado_em AT TIME ZONE '${FUSO}')::date = (now() AT TIME ZONE '${FUSO}')::date
       GROUP BY 1 ORDER BY 1`);
   return { hoje: rows };
+});
+
+// relatório de vendas de um período (datas no fuso da loja)
+rota('GET', '/api/equipe/relatorio', ['caixa'], async ({ q }) => {
+  const de = q.get('de'), ate = q.get('ate');
+  const ok = (d) => /^\d{4}-\d{2}-\d{2}$/.test(d || '') && !Number.isNaN(Date.parse(d));
+  if (!ok(de) || !ok(ate) || ate < de) throw new Erro(400, 'Escolha as datas do relatório.');
+  if ((Date.parse(ate) - Date.parse(de)) / 86400000 > 400) throw new Erro(400, 'Escolha um período de até 1 ano.');
+  const { rows } = await pool.query(
+    `SELECT p.id, to_char(p.criado_em AT TIME ZONE '${FUSO}', 'YYYY-MM-DD') AS data, to_char(p.criado_em AT TIME ZONE '${FUSO}', 'HH24:MI') AS hora,
+            p.tipo, p.origem, m.nome AS mesa_nome, p.cliente_nome, p.itens, p.pagamento, p.subtotal, p.taxa_entrega, p.acrescimo_cartao, p.total, p.status
+       FROM pedidos p LEFT JOIN mesas m ON m.id = p.mesa_id
+      WHERE (p.criado_em AT TIME ZONE '${FUSO}')::date BETWEEN $1 AND $2
+      ORDER BY p.criado_em`, [de, ate]);
+  return Relatorio.montar(rows, de, ate);
 });
 
 // --- administrador
