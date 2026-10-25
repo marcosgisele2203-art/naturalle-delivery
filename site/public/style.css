@@ -124,3 +124,6 @@ a:hover { color: var(--rosa-escuro); }
 .giz-botao:hover { background: rgba(255, 255, 255, 0.12); }
 .link-equipe { color: var(--cinza); font-size: 12px; }
 #acompanhar:empty, #destaques:empty { display: none; }
+.manu-bebidas { margin-bottom: 10px; background: #E3F2DF; }
+.manu-bebidas h2 { color: var(--verde); }
+.manu-bebidas img { object-position: center 25%; }
