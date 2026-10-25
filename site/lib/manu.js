@@ -259,6 +259,14 @@ function criar(s) {
     const textoCliente = s.texto(entrada.texto, 2000);
     partes.push({ text: textoCliente || (entrada.midia ? (entrada.midia.tipo === 'audio' ? '(o cliente mandou um áudio)' : '(o cliente mandou uma foto)') : '(mensagem vazia)') });
     if (entrada.nome && !conv.mensagens.length) partes.push({ text: `(nome no WhatsApp: ${entrada.nome})` });
+    // cliente que já pediu antes: a Manu já sabe o nome e o último endereço
+    if (!conv.mensagens.length && entrada.telefone && s.clienteDoTelefone) {
+      const c = await s.clienteDoTelefone(entrada.telefone).catch(() => null);
+      if (c && c.pedidos > 0) {
+        partes.push({ text: `(cliente cadastrado: nome ${c.nome || '?'}; ${c.pedidos} pedido(s) antes${c.endereco ? '; último endereço: ' + c.endereco : ''}${c.preferido ? '; costuma pedir: ' + c.preferido : ''}. Cumprimente pelo nome; na hora da entrega pergunte se é no mesmo endereço em vez de pedir de novo; não precisa perguntar o nome.)` });
+        if (!ctx.nome) ctx.nome = c.nome;
+      }
+    }
 
     const contents = [...conv.mensagens, { role: 'user', parts: partes }];
     let resposta = '';

@@ -102,7 +102,9 @@ function notificar(caminho, pedido) {
 const CAMPOS_PEDIDO = `p.id, p.codigo, p.criado_em, p.confirmado_em, p.pronto_em, p.origem, p.tipo, p.status,
   p.cliente_nome, p.cliente_telefone, p.endereco, p.observacoes, p.itens, p.subtotal, p.taxa_entrega, p.acrescimo_cartao, p.total,
   p.pagamento, p.troco_para, p.pix_status, p.mesa_id, p.conta_id, m.nome AS mesa_nome, u.nome AS criado_por_nome,
-  p.entregador_id, e.nome AS entregador_nome, p.saiu_em, p.pago_em`;
+  p.entregador_id, e.nome AS entregador_nome, p.saiu_em, p.pago_em,
+  CASE WHEN length(p.cliente_telefone) >= 10 THEN (SELECT count(*)::int FROM pedidos q
+    WHERE right(q.cliente_telefone, 8) = right(p.cliente_telefone, 8) AND q.id <= p.id AND q.status <> 'cancelado') END AS n_pedido_cliente`;
 const FROM_PEDIDO = `FROM pedidos p LEFT JOIN mesas m ON m.id = p.mesa_id LEFT JOIN usuarios u ON u.id = p.criado_por
   LEFT JOIN usuarios e ON e.id = p.entregador_id`;
 
@@ -141,6 +143,15 @@ async function gravarPedido(d) {
         d.cliente_nome || '', d.cliente_telefone || '', d.endereco || '', d.observacoes || '', JSON.stringify(d.itens),
         subtotal, d.taxa_entrega || 0, total, d.pagamento || null, d.troco_para || null,
         d.pagamento === 'pix' ? 'aguardando' : null, acrescimo]);
+    // cadastro automático do cliente pelo WhatsApp (nome e endereço mais recentes)
+    if (String(d.cliente_telefone || '').length >= 10) {
+      await cli.query(
+        `INSERT INTO clientes (chave, telefone, nome, endereco) VALUES (right($1, 8), $1, $2, $3)
+         ON CONFLICT (chave) DO UPDATE SET telefone = EXCLUDED.telefone,
+           nome = CASE WHEN EXCLUDED.nome <> '' THEN EXCLUDED.nome ELSE clientes.nome END,
+           endereco = CASE WHEN EXCLUDED.endereco <> '' THEN EXCLUDED.endereco ELSE clientes.endereco END,
+           atualizado_em = now()`, [d.cliente_telefone, d.cliente_nome || '', d.endereco || '']);
+    }
     await cli.query('COMMIT');
     return buscarPedido(rows[0].id);
   } catch (e) {
@@ -297,7 +308,7 @@ const rota = (metodo, padrao, perms, fn) => rotas.push({ metodo, re: new RegExp(
 
 // --- Manu IA (garçonete online)
 
-const manu = require('./lib/manu').criar({ pool, lerConfig, Calc, diaDaSemana, estadoLoja, calcularItens, gravarPedido, lerPagamento,
+const manu = require('./lib/manu').criar({ clienteDoTelefone: (t) => clienteDoTelefone(t), pool, lerConfig, Calc, diaDaSemana, estadoLoja, calcularItens, gravarPedido, lerPagamento,
   telefoneBR, notificar, Erro, texto });
 
 // mensagem que chegou no WhatsApp (o n8n repassa da Evolution e manda de volta o que vier em "mensagens")
@@ -671,6 +682,45 @@ rota('PUT', '/api/admin/quadro', ['admin'], async ({ b }) => {
   await salvarConfig('quadro', quadro);
   return { ok: true, quadro };
 });
+
+// clientes: cadastro automático pelos pedidos, com o resumo de cada um
+const SQL_CLIENTES = `
+  SELECT c.chave, c.telefone, c.nome, c.endereco, c.criado_em,
+         count(p.id) FILTER (WHERE p.status <> 'cancelado')::int AS pedidos,
+         COALESCE(sum(p.total) FILTER (WHERE p.status <> 'cancelado'), 0) AS gasto,
+         max(p.criado_em) AS ultimo_pedido,
+         (SELECT i->>'nome' FROM pedidos q, jsonb_array_elements(q.itens) i
+           WHERE right(q.cliente_telefone, 8) = c.chave AND q.status <> 'cancelado'
+           GROUP BY 1 ORDER BY sum((i->>'qtd')::int) DESC LIMIT 1) AS preferido
+    FROM clientes c LEFT JOIN pedidos p ON right(p.cliente_telefone, 8) = c.chave`;
+
+rota('GET', '/api/admin/clientes', ['admin'], async ({ q }) => {
+  const busca = texto(q.get('busca'), 60);
+  const digitos = soDigitos(busca);
+  const { rows } = await pool.query(`${SQL_CLIENTES}
+    WHERE $1 = '' OR c.nome ILIKE '%' || $1 || '%' OR ($2 <> '' AND c.telefone LIKE '%' || $2 || '%')
+    GROUP BY c.chave ORDER BY max(p.criado_em) DESC NULLS LAST LIMIT 1000`, [busca, digitos]);
+  return { clientes: rows };
+});
+
+// LGPD: apaga o cadastro, tira os dados pessoais dos pedidos e a conversa com a Manu
+rota('POST', '/api/admin/clientes/:chave/apagar', ['admin'], async ({ p }) => {
+  const chave = soDigitos(p.chave).slice(-8);
+  if (chave.length !== 8) throw new Erro(400, 'Cliente inválido');
+  await pool.query(`UPDATE pedidos SET cliente_nome = 'Cliente apagado', cliente_telefone = '', endereco = ''
+                     WHERE right(cliente_telefone, 8) = $1`, [chave]);
+  await pool.query(`DELETE FROM manu_conversas WHERE canal = 'whatsapp' AND right(chave, 8) = $1`, [chave]);
+  const { rowCount } = await pool.query('DELETE FROM clientes WHERE chave = $1', [chave]);
+  if (!rowCount) throw new Erro(404, 'Cliente não encontrado');
+  return { ok: true };
+});
+
+async function clienteDoTelefone(telefone) {
+  const chave = soDigitos(telefone).slice(-8);
+  if (chave.length !== 8) return null;
+  const { rows } = await pool.query(`${SQL_CLIENTES} WHERE c.chave = $1 GROUP BY c.chave`, [chave]);
+  return rows[0] || null;
+}
 
 rota('POST', '/api/admin/usuarios', ['admin'], async ({ u, b }) => {
   const nome = texto(b.nome, 80), login = texto(b.login, 40).toLowerCase();

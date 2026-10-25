@@ -118,6 +118,16 @@ async function migrar() {
     CREATE INDEX IF NOT EXISTS pedidos_telefone_idx ON pedidos (right(cliente_telefone, 8));
     CREATE INDEX IF NOT EXISTS pedidos_conta_idx ON pedidos (conta_id);
 
+    -- clientes: um por WhatsApp (chave = 8 últimos dígitos, o WhatsApp às vezes tira o 9 da frente)
+    CREATE TABLE IF NOT EXISTS clientes (
+      chave         TEXT PRIMARY KEY,
+      telefone      TEXT NOT NULL,
+      nome          TEXT NOT NULL DEFAULT '',
+      endereco      TEXT NOT NULL DEFAULT '',
+      criado_em     TIMESTAMPTZ NOT NULL DEFAULT now(),
+      atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
     CREATE TABLE IF NOT EXISTS manu_conversas (
       canal         TEXT NOT NULL,
       chave         TEXT NOT NULL,
@@ -139,6 +149,16 @@ async function migrar() {
     [JSON.stringify(cardapioInicial), JSON.stringify(LOJA_PADRAO)]);
   // avisos iniciais do quadro da Manu (só se o quadro nunca foi salvo)
   await pool.query(`INSERT INTO config (chave, valor) VALUES ('quadro', $1) ON CONFLICT (chave) DO NOTHING`, [JSON.stringify(QUADRO_INICIAL)]);
+  // pedidos antigos viram clientes (só os que ainda não estão cadastrados)
+  await pool.query(`
+    INSERT INTO clientes (chave, telefone, nome, endereco, criado_em, atualizado_em)
+    SELECT DISTINCT ON (right(cliente_telefone, 8)) right(cliente_telefone, 8), cliente_telefone, cliente_nome,
+           COALESCE((SELECT q.endereco FROM pedidos q WHERE right(q.cliente_telefone, 8) = right(p.cliente_telefone, 8) AND q.endereco <> ''
+                     ORDER BY q.criado_em DESC LIMIT 1), ''),
+           (SELECT min(q.criado_em) FROM pedidos q WHERE right(q.cliente_telefone, 8) = right(p.cliente_telefone, 8)), criado_em
+      FROM pedidos p WHERE length(cliente_telefone) >= 10
+     ORDER BY right(cliente_telefone, 8), criado_em DESC
+    ON CONFLICT (chave) DO NOTHING`);
   await ajustesDoCardapio();
   await combosNoAcai();
   await trocarCartazMac();

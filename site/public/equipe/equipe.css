@@ -287,3 +287,6 @@ h1, h2, h3 { margin: 0; }
 .status-loja span { color: var(--tinta-2); font-size: 14px; }
 .tabela.horarios input[type=time] { min-height: 40px; border: 1px solid var(--linha); border-radius: 8px; padding: 4px 8px; font-size: 15px; }
 [data-tabela-horario] { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; margin: 8px 0; }
+
+.selo-cliente { align-self: flex-start; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; background: var(--coluna); color: var(--tinta-2); }
+.selo-cliente.novo { background: #FFF3C4; color: #7A2E0B; }

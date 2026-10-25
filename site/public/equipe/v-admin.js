@@ -2,7 +2,7 @@
 App.views.admin = {
   montar(el, params) {
     const { esc, brl } = App;
-    const ABAS = [['cardapio', 'Cardápio'], ['quadro', 'Quadro da Manu'], ['equipe', 'Funcionários'], ['mesas', 'Mesas e QR code'], ['horario', 'Horário e taxas'], ['loja', 'Loja'], ['impressora', 'Impressora']];
+    const ABAS = [['cardapio', 'Cardápio'], ['quadro', 'Quadro da Manu'], ['clientes', 'Clientes'], ['equipe', 'Funcionários'], ['mesas', 'Mesas e QR code'], ['horario', 'Horário e taxas'], ['loja', 'Loja'], ['impressora', 'Impressora']];
     let aba = ABAS.some(([a]) => a === params[0]) ? params[0] : 'cardapio';
     let d = null; // { cardapio, loja, usuarios, mesas, permissoes }
     const copia = (o) => JSON.parse(JSON.stringify(o));
@@ -298,6 +298,40 @@ App.views.admin = {
       </section>`;
     }
 
+    // ---------------- clientes (cadastro automático pelos pedidos)
+    let clientes = null, buscaCli = '';
+    async function carregarClientes() {
+      try { clientes = (await App.api('/api/admin/clientes?busca=' + encodeURIComponent(buscaCli))).clientes; }
+      catch (e) { clientes = []; App.toast(e.message, true); }
+      if (aba === 'clientes') render();
+    }
+    function abaClientes() {
+      if (!clientes) { carregarClientes(); return '<section class="cartao"><p class="nota">Carregando clientes…</p></section>'; }
+      const data = (d) => (d ? new Date(d).toLocaleDateString('pt-BR') : '—');
+      return `<section class="cartao"><div class="topo"><div><h2>Clientes</h2>
+            <p>${clientes.length} cliente(s). Todo pedido com WhatsApp (site, Manu, caixa) cadastra ou atualiza o cliente sozinho.</p></div>
+          <div class="controles"><button class="btn" data-cli-csv>Baixar planilha</button></div></div>
+        <form class="acoes" data-form="busca-cli"><label class="campo" style="flex:1">Buscar por nome ou WhatsApp<input name="busca" value="${esc(buscaCli)}" placeholder="Ex.: Ana ou 9988"></label>
+          <button class="btn" style="align-self:flex-end">Buscar</button></form>
+        <div class="rolagem"><table class="tabela"><thead><tr><th>Cliente</th><th>Último endereço</th><th class="num">Pedidos</th><th class="num">Gasto</th><th>Último pedido</th><th>Mais pede</th><th></th></tr></thead><tbody>
+        ${clientes.map((c) => `<tr><td><b>${esc(c.nome || 'Sem nome')}</b><br><a href="https://wa.me/${esc(c.telefone)}" target="_blank" rel="noopener">${esc(App.fone(c.telefone))}</a></td>
+          <td>${esc(c.endereco || '—')}</td><td class="num">${c.pedidos}</td><td class="num">${brl(c.gasto)}</td>
+          <td>${data(c.ultimo_pedido)}<br><small class="nota">cliente desde ${data(c.criado_em)}</small></td><td>${esc(c.preferido || '—')}</td>
+          <td><button class="btn fraco" data-cli-apagar="${esc(c.chave)}">Apagar</button></td></tr>`).join('') || '<tr><td colspan="7" class="nota">Nenhum cliente ainda. Eles aparecem aqui sozinhos a cada pedido.</td></tr>'}
+        </tbody></table></div>
+        <p class="nota">LGPD: use os dados só para atender e avisar o cliente. Se ele pedir, clique em <b>Apagar</b>: o cadastro some e os pedidos antigos ficam sem nome, telefone e endereço.</p></section>`;
+    }
+    function baixarClientesCsv() {
+      const cel = (v) => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+      const linhas = [['Nome', 'WhatsApp', 'Último endereço', 'Pedidos', 'Gasto', 'Último pedido', 'Cliente desde', 'Mais pede'].map(cel).join(';')]
+        .concat(clientes.map((c) => [c.nome, c.telefone, c.endereco, c.pedidos, String(Number(c.gasto).toFixed(2)).replace('.', ','),
+          c.ultimo_pedido ? new Date(c.ultimo_pedido).toLocaleDateString('pt-BR') : '', new Date(c.criado_em).toLocaleDateString('pt-BR'), c.preferido].map(cel).join(';')));
+      if (window.__demo) { App.toast('Na demonstração o download fica desligado.'); return; }
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob(['\ufeff' + linhas.join('\r\n')], { type: 'text/csv;charset=utf-8' }));
+      a.download = 'clientes-naturalle.csv'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    }
+
     // ---------------- funcionários
     const SECOES = {
       admin: 'Tudo: cardápio, mesas, funcionários, loja e relatórios.',
@@ -444,7 +478,7 @@ App.views.admin = {
 
     // ---------------- geral
     function render() {
-      const corpo = { cardapio: abaCardapio, quadro: abaQuadro, horario: abaHorario, mesas: abaMesas, equipe: abaEquipe, loja: abaLoja, impressora: abaImpressora }[aba]();
+      const corpo = { clientes: abaClientes, cardapio: abaCardapio, quadro: abaQuadro, horario: abaHorario, mesas: abaMesas, equipe: abaEquipe, loja: abaLoja, impressora: abaImpressora }[aba]();
       const scroll = window.scrollY;
       el.innerHTML = `<div class="topo"><div><h1>Administração</h1></div>
         <nav class="abas-admin" aria-label="Partes da administração">${ABAS.map(([a, n]) => `<a class="chip aba-adm" href="#/admin/${a}" aria-pressed="${aba === a}"${aba === a ? ' aria-current="page"' : ''}>${n}</a>`).join('')}</nav></div>
@@ -471,6 +505,13 @@ App.views.admin = {
       else if (b.dataset.edita) editarProduto(b.dataset.edita);
       else if (b.dataset.usuario != null) editarUsuario(b.dataset.usuario);
       else if (b.dataset.aviso != null) editarAviso(b.dataset.aviso);
+      else if (b.hasAttribute('data-cli-csv')) baixarClientesCsv();
+      else if (b.dataset.cliApagar) {
+        const c = clientes.find((x) => x.chave === b.dataset.cliApagar);
+        if (!confirm(`Apagar ${c.nome || 'este cliente'}? O cadastro some e os pedidos antigos dele ficam sem nome, telefone e endereço. Não dá para desfazer.`)) return;
+        try { await App.api('/api/admin/clientes/' + c.chave + '/apagar', {}); App.toast('Cliente apagado'); await carregarClientes(); }
+        catch (err) { App.toast(err.message, true); }
+      }
       else if (b.dataset.avisoAtivo) {
         const lista = copia(d.quadro); const a = lista[Number(b.dataset.avisoAtivo)];
         a.ativo = !a.ativo;
@@ -521,6 +562,7 @@ App.views.admin = {
       e.preventDefault();
       const f = e.target;
       try {
+        if (f.dataset.form === 'busca-cli') { buscaCli = f.busca.value.trim(); await carregarClientes(); return; }
         if (f.dataset.form === 'varias') await acaoMesa({ de: f.de.value, ate: f.ate.value }, '/api/admin/mesas/varias');
         else if (f.dataset.form === 'uma') await acaoMesa({ nome: f.nome.value });
         else if (f.dataset.form === 'loja') {
