@@ -92,10 +92,3 @@ App.novoPedido = function (el, opts) {
     renderCarrinho();
   })();
 };
-
-App.views.balcao = {
-  montar(el) {
-    el.innerHTML = `<div class="topo"><div><h1>Novo pedido</h1><p>Pedido feito no balcão ou por telefone. Vai direto para a cozinha.</p></div></div><div id="balcao"></div>`;
-    App.novoPedido(el.querySelector('#balcao'), { somenteMesa: !App.pode('caixa', 'pedidos') });
-  },
-};

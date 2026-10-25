@@ -40,8 +40,15 @@ App.fecharConta = async function (mesa, aoFechar) {
 };
 
 App.views.caixa = {
-  montar(el) {
+  montar(el, params) {
     const { esc, brl } = App;
+    const abas = (atual) => `<nav class="abas-admin" aria-label="Partes do caixa">${[['novo', 'Novo pedido'], ['contas', 'Contas e resumo do dia']].map(([a, n]) =>
+      `<a class="chip aba-adm" href="#/caixa/${a}" aria-pressed="${atual === a}"${atual === a ? ' aria-current="page"' : ''}>${n}</a>`).join('')}</nav>`;
+    if (params[0] !== 'contas') {
+      el.innerHTML = `<div class="topo"><div><h1>Caixa</h1><p>Pedido feito no balcão ou por telefone. Vai direto para a cozinha.</p></div>${abas('novo')}</div><div id="balcao"></div>`;
+      App.novoPedido(el.querySelector('#balcao'), {});
+      return null;
+    }
     let mesas = [], resumo = [];
     let ativo = true;
     const NOMES = { pix: 'Pix', cartao: 'Cartão', dinheiro: 'Dinheiro', 'em aberto': 'Em aberto' };
@@ -57,8 +64,7 @@ App.views.caixa = {
       if (!ativo) return;
       const abertas = mesas.filter((m) => m.conta_id);
       const totalDia = resumo.reduce((s, r) => s + Number(r.total), 0);
-      el.innerHTML = `<div class="topo"><div><h1>Caixa</h1><p>Contas das mesas e movimento de hoje.</p></div>
-          <div class="controles"><a class="btn principal" href="#/balcao">+ Novo pedido no balcão</a></div></div>
+      el.innerHTML = `<div class="topo"><div><h1>Caixa</h1><p>Contas das mesas e movimento de hoje.</p></div>${abas('contas')}</div>
         <section class="cartao"><h2>Hoje</h2>
           <div class="rolagem"><table class="tabela"><thead><tr><th>Pagamento</th><th>Pedidos</th><th>Total</th></tr></thead><tbody>
           ${resumo.map((r) => `<tr><td>${NOMES[r.pagamento] || esc(r.pagamento)}</td><td>${r.pedidos}</td><td>${brl(r.total)}</td></tr>`).join('')}

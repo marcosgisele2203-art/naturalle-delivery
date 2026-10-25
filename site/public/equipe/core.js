@@ -170,7 +170,6 @@
     ['pedidos', 'Pedidos', ['pedidos']],
     ['cozinha', 'Cozinha', ['cozinha']],
     ['garcom', 'Mesas (garçom)', ['garcom']],
-    ['balcao', 'Novo pedido', ['caixa', 'pedidos']],
     ['caixa', 'Caixa', ['caixa']],
     ['relatorios', 'Relatórios', ['caixa']],
     ['admin', 'Administração', ['admin']],
