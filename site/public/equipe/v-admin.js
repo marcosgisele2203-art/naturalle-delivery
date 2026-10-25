@@ -31,6 +31,7 @@ App.views.admin = {
           const ps = m.produtos.filter((p) => p.categoria === c.id);
           return `<section class="cartao"><div class="topo"><h2>${esc(c.nome)}</h2><button class="btn" data-novo-prod="${esc(c.id)}">+ Produto</button></div>
             ${ps.map((p) => `<div class="produto-adm">
+              ${p.foto ? `<img class="foto-adm" src="${esc(p.foto)}" alt="" loading="lazy" onerror="this.remove()">` : '<span class="foto-adm sem-foto" aria-hidden="true"></span>'}
               <div><b>${esc(p.nome)}</b> ${p.disponivel === false ? '<span class="selo-off">esgotado</span>' : ''}
                 <small>${(p.grupos || []).some((g) => g.obrigatorio) ? 'a partir de ' : ''}${brl(window.Calc.precoMinimo(p))}${p.dias && p.dias.length ? ' · só ' + p.dias.map((x) => DIAS[x]).join(', ') : ''}${(p.grupos || []).length ? ' · ' + p.grupos.map((g) => esc(g.nome)).join(', ') : ''}</small></div>
               <label class="check" style="font-size:13px"><input type="checkbox" data-disp="${esc(p.id)}"${p.disponivel === false ? '' : ' checked'}> Disponível</label>
@@ -283,7 +284,7 @@ App.views.admin = {
       const corpo = { cardapio: abaCardapio, mesas: abaMesas, equipe: abaEquipe, loja: abaLoja }[aba]();
       const scroll = window.scrollY;
       el.innerHTML = `<div class="topo"><div><h1>Administração</h1></div>
-        <nav class="abas-admin" aria-label="Partes da administração">${ABAS.map(([a, n]) => `<a class="chip" style="display:inline-flex;align-items:center;text-decoration:none;color:inherit" href="#/admin/${a}" aria-pressed="${aba === a}">${n}</a>`).join('')}</nav></div>
+        <nav class="abas-admin" aria-label="Partes da administração">${ABAS.map(([a, n]) => `<a class="chip aba-adm" href="#/admin/${a}" aria-pressed="${aba === a}"${aba === a ? ' aria-current="page"' : ''}>${n}</a>`).join('')}</nav></div>
         ${corpo}`;
       window.scrollTo(0, scroll);
     }

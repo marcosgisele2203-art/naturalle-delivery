@@ -168,3 +168,8 @@ h1, h2, h3 { margin: 0; }
 .toast.ruim { background: var(--erro); }
 
 .modo-cozinha .area { padding: 0; }
+
+.aba-adm { display: inline-flex; align-items: center; text-decoration: none; color: var(--tinta); }
+.aba-adm[aria-pressed="true"] { color: #fff; }
+.foto-adm { width: 52px; height: 52px; flex: none; object-fit: cover; border-radius: 10px; background: var(--fundo); }
+.foto-adm.sem-foto { border: 1px dashed var(--linha); }
