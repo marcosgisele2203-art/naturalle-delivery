@@ -6,7 +6,7 @@ App.views.pedidos = {
     let filtro = 'todos';
     const COLUNAS = [
       { status: 'novo', nome: 'Aguardando confirmação', cor: '#A3134A' },
-      { status: 'preparo', nome: 'Na cozinha', cor: '#8A5A0B' },
+      { status: 'preparo', nome: 'Preparando (cozinha)', cor: '#8A5A0B' },
       { status: 'pronto', nome: 'Prontos', cor: '#1E5B2B' },
       { status: 'saiu', nome: 'Saiu para entrega', cor: '#1D5FA8' },
       { status: 'fim', nome: 'Finalizados hoje', cor: '#5A615B' },

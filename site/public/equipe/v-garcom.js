@@ -31,7 +31,7 @@ App.views.garcom = {
         ${aguardando.length ? `<section class="cartao"><h2>Pedidos pelo QR esperando confirmação (${aguardando.length})</h2><div class="quadro">${aguardando.map((p) => App.cartaoPedido(p, acoesPedido(p), { destaque: true })).join('')}</div></section>` : ''}
         <div class="mesas">${mesas.map((m) => {
           const classe = Number(m.aguardando) ? 'alerta' : Number(m.prontos) ? 'pronto' : m.conta_id ? 'ocupada' : '';
-          const sinal = Number(m.aguardando) ? 'Pedido para confirmar' : Number(m.prontos) ? 'Pronto para servir' : Number(m.preparando) ? 'Na cozinha' : m.conta_id ? 'Ocupada' : 'Livre';
+          const sinal = Number(m.aguardando) ? 'Pedido para confirmar' : Number(m.prontos) ? 'Pronto para servir' : Number(m.preparando) ? 'Preparando' : m.conta_id ? 'Ocupada' : 'Livre';
           return `<button class="mesa ${classe}" data-mesa="${m.id}"><b>${esc(m.nome)}</b><span class="sinal">${sinal}</span>${m.conta_id ? `<span>${brl(m.total)} · ${App.tempo(m.aberta_em)}</span>` : ''}</button>`;
         }).join('') || '<p class="nota">Nenhuma mesa cadastrada. O administrador cadastra em Administração › Mesas.</p>'}</div>`;
     }

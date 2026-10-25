@@ -176,7 +176,7 @@ const TRANSICOES = {
   'preparo>pronto': ['cozinha'],
   'pronto>preparo': ['cozinha'],
   'preparo>cancelado': ['pedidos', 'caixa'],
-  'pronto>saiu': ['pedidos', 'caixa'],
+  'pronto>saiu': ['pedidos'], // só o painel de pedidos libera a saída (e escolhe o entregador)
   'pronto>entregue': ['pedidos', 'caixa', 'garcom'],
   'saiu>entregue': ['pedidos', 'caixa'],
   'pronto>cancelado': ['pedidos', 'caixa'],
@@ -471,17 +471,6 @@ rota('POST', '/api/equipe/pedido/:id/status', ['pedidos', 'garcom', 'caixa', 'co
 rota('GET', '/api/equipe/entregadores', ['pedidos', 'caixa'], async () => {
   const { rows } = await pool.query(`SELECT id, nome FROM usuarios WHERE ativo AND 'entregador' = ANY(permissoes) ORDER BY nome`);
   return { entregadores: rows };
-});
-
-// o entregador pega um pedido pronto: sai para entrega com ele
-rota('POST', '/api/equipe/pedido/:id/pegar', ['entregador'], async ({ u, p }) => {
-  const { rowCount } = await pool.query(
-    `UPDATE pedidos SET status = 'saiu', entregador_id = $2, saiu_em = now(), atualizado_em = now()
-      WHERE id = $1 AND tipo = 'entrega' AND status = 'pronto'`, [Number(p.id), u.id]);
-  if (!rowCount) throw new Erro(409, 'Esse pedido já saiu com outro entregador ou ainda não está pronto.');
-  const pedido = await buscarPedido(Number(p.id));
-  notificar('/status', pedido);
-  return { ok: true, pedido };
 });
 
 // entregue e pago: confirma como o cliente pagou de verdade (pode ter mudado na porta)

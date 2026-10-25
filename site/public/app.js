@@ -24,7 +24,7 @@
     }
   }
   const ETAPAS = {
-    novo: 'Recebido, aguardando confirmação', preparo: 'Em preparo', pronto: 'Pronto',
+    novo: 'Recebido, aguardando confirmação', preparo: 'Preparando', pronto: 'Pronto',
     saiu: 'Saiu para entrega', entregue: 'Entregue', cancelado: 'Cancelado',
   };
 

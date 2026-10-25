@@ -1,4 +1,4 @@
-// Entregador: pega os pedidos prontos, vê o que levar (maquininha, troco) e confirma o pagamento na entrega.
+// Entregador: recebe as entregas liberadas pelo painel de pedidos, vê o que levar (maquininha, troco) e confirma o pagamento na entrega.
 (function () {
   const { esc, brl } = App;
   const PAG = { pix: 'Pix', cartao: 'Cartão', dinheiro: 'Dinheiro' };
@@ -88,11 +88,12 @@
               ? `<button class="btn verde grande" data-entregar="${p.id}">Entregue e pago</button>
                  ${p.endereco ? `<a class="btn" href="${mapa}" target="_blank" rel="noopener">Abrir no mapa</a>` : ''}
                  ${p.cliente_telefone ? `<a class="btn" href="https://wa.me/${esc(p.cliente_telefone)}" target="_blank" rel="noopener">WhatsApp</a>` : ''}`
-              : `<button class="btn principal grande" data-pegar="${p.id}">Pegar esta entrega</button>`}
+              : '<p class="nota">Aguardando o atendente liberar a saída pelo painel de pedidos.</p>'}
           </div></article>`;
       }
       function render(mudaram) {
-        if (mudaram && mudaram.some((m) => m.para === 'pronto' && App.pedidos.find((p) => p.id === m.id && p.tipo === 'entrega'))) App.bip(2);
+        // toca quando o painel de pedidos manda uma entrega para este entregador
+        if (mudaram && mudaram.some((m) => m.para === 'saiu' && App.pedidos.find((p) => p.id === m.id && p.entregador_id === App.usuario.id))) App.bip(2);
         const minhas = App.pedidos.filter((p) => p.tipo === 'entrega' && p.status === 'saiu' && p.entregador_id === App.usuario.id);
         const prontos = App.pedidos.filter((p) => p.tipo === 'entrega' && p.status === 'pronto');
         const feitas = App.pedidos.filter((p) => p.tipo === 'entrega' && p.status === 'entregue' && p.entregador_id === App.usuario.id);
@@ -101,19 +102,14 @@
             <div class="controles"><button class="btn" data-som aria-pressed="${App.somLigado()}">${App.somLigado() ? 'Som ligado' : 'Ligar som'}</button></div></div>
           <section class="cartao"><h2>Minhas entregas (${minhas.length})</h2>
             ${minhas.length ? `<div class="quadro">${minhas.map((p) => cartao(p, true)).join('')}</div>` : '<p class="nota">Nenhuma entrega com você agora.</p>'}</section>
-          <section class="cartao"><h2>Prontos para sair (${prontos.length})</h2>
-            ${prontos.length ? `<div class="quadro">${prontos.map((p) => cartao(p, false)).join('')}</div>` : '<p class="nota">Nenhum pedido pronto esperando entregador.</p>'}</section>`;
+          <section class="cartao"><h2>Prontos na cozinha (${prontos.length})</h2>
+            ${prontos.length ? `<div class="quadro">${prontos.map((p) => cartao(p, false)).join('')}</div>` : '<p class="nota">Nenhum pedido pronto agora. Quando o atendente liberar a saída para você, ele aparece em Minhas entregas.</p>'}</section>`;
       }
       el.addEventListener('click', async (e) => {
         const b = e.target.closest('button');
         if (!b) return;
         if (b.hasAttribute('data-som')) { App.alternarSom(); render(); return; }
-        if (b.dataset.pegar) {
-          b.disabled = true;
-          try { await App.api('/api/equipe/pedido/' + b.dataset.pegar + '/pegar', {}); App.toast('Entrega #' + b.dataset.pegar + ' é sua. Boa viagem!'); }
-          catch (err) { App.toast(err.message, true); }
-          App.atualizarPedidos();
-        } else if (b.dataset.entregar) {
+        if (b.dataset.entregar) {
           const p = App.pedidos.find((x) => x.id === Number(b.dataset.entregar));
           if (p) App.confirmarEntrega(p);
         }
