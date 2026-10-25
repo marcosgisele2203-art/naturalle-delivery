@@ -77,24 +77,27 @@ Crie a **Evolution API** (template) com domínio. Crie a instância `naturalle` 
 **67 9715-5502**. Em *Webhook* da instância: `https://SEU-N8N/webhook/evolution`, evento `MESSAGES_UPSERT`.
 
 ### 5. n8n
-1. *Credentials → New → Postgres* com os dados do passo 1 (só o fluxo 3 usa).
-2. Importe os 3 arquivos de `n8n/`. Em **cada** um, abra o nó **Config** e preencha:
+Use **um fluxo só**: `n8n/naturalle-completo.json` (faz tudo: pedido recebido, status e comprovante Pix).
+
+1. No n8n: **+ Criar fluxo › ⋯ › Importar de URL** e cole
+   `https://raw.githubusercontent.com/marcosgisele2203-art/naturalle-delivery/main/n8n/naturalle-completo.json`
+2. Abra o nó **Config** e preencha:
 
 | Campo | Valor |
 |---|---|
-| `evolution_url` | endereço da Evolution, ex.: `https://evolution.seudominio.com` |
-| `evolution_instance` | `naturalle` |
+| `evolution_url` | endereço da Evolution, ex.: `https://api.seudominio.com` (sem barra no final) |
+| `evolution_instance` | nome da instância conectada ao WhatsApp |
 | `evolution_apikey` | API key da Evolution |
 | `numero_loja` | quem recebe aviso de pedido do site e de comprovante Pix (vem `5567996421751`) |
 | `pix_chave` / `pix_nome` | chave Pix e nome do recebedor |
 | `token` | **o mesmo** valor do `N8N_TOKEN` do site |
 
-3. No fluxo 3, escolha a credencial Postgres. **Save** e **Activate** nos 3.
+3. No nó **Marcar comprovante**, escolha a credencial **Postgres** (mesmo banco do site).
+4. **Save** e ligue **Active**.
+5. Na Evolution, webhook da instância: `https://SEU-N8N/webhook/evolution`, evento `MESSAGES_UPSERT`.
 
-Os fluxos:
-- `01-pedido-recebido`: confirma o pedido ao cliente (com a chave Pix, se for Pix) e avisa a loja dos pedidos do site.
-- `02-status-pedido`: confirmado, pronto para retirar, saiu, entregue, cancelado.
-- `03-comprovante-pix`: cliente manda a foto do comprovante → pedido marcado "comprovante recebido" → loja avisada.
+Os arquivos `01`, `02` e `03` são o mesmo fluxo separado em três; use **ou** o completo **ou** os três, nunca os dois juntos
+(os endereços de webhook iriam se repetir).
 
 Se o n8n cair, os pedidos continuam funcionando normalmente; só as mensagens de WhatsApp param.
 
