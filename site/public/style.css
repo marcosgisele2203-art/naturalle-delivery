@@ -102,9 +102,9 @@ a:hover { color: var(--rosa-escuro); }
 .manu-card p { margin: 2px 0 0; font-size: 14px; color: var(--tinta-2); }
 .folha .manu-card { background: var(--fundo); padding: 8px; }
 .folha .manu-card img { width: 84px; height: 105px; }
-.manu-acai { margin-bottom: 10px; background: #F4E9F7; padding: 12px 16px; }
+.manu-acai { margin-bottom: 10px; background: #F4E9F7; }
 .manu-acai h2 { color: #5B2A86; }
-.manu-mac { margin-bottom: 10px; background: #FFF3C4; padding: 12px 16px; }
+.manu-mac { margin-bottom: 10px; background: #FFF3C4; }
 .manu-mac h2 { color: #7A2E0B; }
 .acompanhar { padding: 10px; }
 .acompanhar .manu-card { padding: 0; }

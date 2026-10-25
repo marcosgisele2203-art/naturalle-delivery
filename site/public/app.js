@@ -117,6 +117,9 @@
     }
     // o quadro da Manu é a primeira imagem do app
     $('#giz').innerHTML = quadro;
+    $('#destaques').innerHTML = `
+      <div class="manu-card manu-aponta"><img src="${MANU('apontando')}" alt="" width="104" height="130">
+        <div><h2>Escolha aqui embaixo!</h2><p>Toque no item para montar do seu jeito.</p></div></div>`;
   }
 
   function renderBarra() {
@@ -287,8 +290,10 @@
     renderDestaques();
     montador = window.Montador.criar({
       el: $('#cardapio'), cardapio: st.cardapio, dia: st.dia, onAdicionar: adicionar,
-      banners: { acai: `<div class="manu-card manu-acai"><div><h2>Açaí cremoso</h2><p>Escolha o tamanho do copo e monte com frutas, cremes, chocolates e caldas.</p></div></div>`,
-        mac: `<div class="manu-card manu-mac"><div><h2>Aqui é Mac de 10!</h2><p>Escolha com 1, 2 ou 3 hambúrgueres. Vem com alface, tomate, cheddar ou mussarela e molho da casa. E tem porção de batata para acompanhar!</p></div></div>` },
+      banners: { acai: `<div class="manu-card manu-acai"><img src="${MANU('acai')}" alt="" width="104" height="130">
+        <div><h2>Açaí cremoso</h2><p>Escolha o tamanho do copo e monte com frutas, cremes, chocolates e caldas.</p></div></div>`,
+        mac: `<div class="manu-card manu-mac"><img src="${MANU('hamburguer')}" alt="" width="104" height="130">
+        <div><h2>Aqui é Mac de 10!</h2><p>Escolha com 1, 2 ou 3 hambúrgueres. Vem com alface, tomate, cheddar ou mussarela e molho da casa. E tem porção de batata para acompanhar!</p></div></div>` },
     });
     renderBarra();
     acompanhar();

@@ -42,7 +42,6 @@
           }).join('')}</div></fieldset>`;
       }).join('');
       fundo.innerHTML = `<div class="mt-folha" role="dialog" aria-modal="true" aria-labelledby="mt-titulo">
-          ${p.foto ? `<img class="mt-foto-grande" src="${esc(p.foto)}" alt="Foto de ${esc(p.nome)}" onerror="this.remove()">` : ''}
           <div class="mt-topo"><div><h2 id="mt-titulo">${esc(p.nome)}</h2>${p.descricao ? `<p>${esc(p.descricao)}</p>` : ''}</div>
             <button type="button" class="mt-icone" data-acao="fechar" aria-label="Fechar">${X}</button></div>
           <div class="mt-corpo">${grupos}
