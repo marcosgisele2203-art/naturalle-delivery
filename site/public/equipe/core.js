@@ -161,6 +161,13 @@
   // primeira tela do painel que a pessoa logada pode abrir
   const telaLiberada = (painel) => painel.telas.find((t) => permitidos().some(([id]) => id === t));
   const painelDaTela = (tela) => PAINEIS.find((p) => p.id === tela || p.telas.includes(tela));
+  // painel em que a pessoa entrou neste aparelho: cada cartão pede o próprio login
+  const lerPainel = () => { try { return localStorage.getItem('nm-painel'); } catch { return null; } };
+  const gravarPainel = (id) => { try { if (id) localStorage.setItem('nm-painel', id); else localStorage.removeItem('nm-painel'); } catch { /* sem armazenamento */ } };
+  async function sairDaConta() {
+    await App.api('/api/equipe/sair', {}).catch(() => {});
+    App.usuario = null; App.permissoes = {}; gravarPainel(null);
+  }
 
   function telaPaineis() {
     pararTudo();
@@ -174,10 +181,10 @@
           <p class="conferido">${cadeado}<span>Permissões conferidas pelo sistema</span></p></div>
         <div class="paineis">
           ${PAINEIS.map((p) => {
-            const livre = logado && telaLiberada(p);
-            return `<a class="painel-cartao" href="#/${p.id}">
+            const livre = logado && lerPainel() === p.id;
+            return `<a class="painel-cartao" href="#/painel/${p.id}">
               <span class="painel-icone">${icone(p.id)}</span>
-              <span class="painel-selo">${cadeado}${livre ? 'Acesso autorizado' : logado ? 'Outra conta' : 'Pede login'}</span>
+              <span class="painel-selo">${cadeado}${livre ? 'Acesso autorizado' : 'Pede login'}</span>
               <b>${p.nome}</b><span class="painel-texto">${p.texto}</span>
               <span class="painel-abrir">Abrir meu painel<i aria-hidden="true">⟶</i></span></a>`;
           }).join('')}
@@ -191,7 +198,7 @@
         ${logado ? `<span>Você entrou como <b>${esc(logado.nome)}</b> · <button type="button" id="sair-entrada">Sair da minha conta</button></span>` : ''}</footer>
     </div>`;
     const b = $('#sair-entrada');
-    if (b) b.addEventListener('click', async () => { await App.api('/api/equipe/sair', {}); App.usuario = null; App.permissoes = {}; telaPaineis(); });
+    if (b) b.addEventListener('click', async () => { await sairDaConta(); telaPaineis(); });
   }
 
   // ---------------- login
@@ -215,6 +222,7 @@
       const d = Object.fromEntries(new FormData(e.target));
       try {
         await App.api(primeiro ? '/api/equipe/primeiro-admin' : '/api/equipe/entrar', d);
+        gravarPainel(primeiro ? 'admin' : painel && painel.id);
         await App.iniciar();
       } catch (err) {
         $('#erro-login').textContent = err.message; $('#erro-login').hidden = false;
@@ -233,7 +241,11 @@
     ['relatorios', 'Relatórios', ['caixa']],
     ['admin', 'Administração', ['admin']],
   ];
-  const permitidos = () => MENU.filter(([, , perms]) => App.pode(...perms));
+  // fora da Administração, o menu mostra só as telas do painel escolhido na entrada
+  const permitidos = () => {
+    const painel = PAINEIS.find((p) => p.id === lerPainel());
+    return MENU.filter(([id, , perms]) => App.pode(...perms) && (!painel || painel.id === 'admin' || painel.telas.includes(id)));
+  };
 
   function atualizarContagens() {
     const conta = {
@@ -261,7 +273,7 @@
       </nav>
       <main class="area" id="area"></main>
     </div>`;
-    $('#sair').addEventListener('click', async () => { await App.api('/api/equipe/sair', {}); App.usuario = null; App.permissoes = {}; location.hash = '#/'; });
+    $('#sair').addEventListener('click', async () => { await sairDaConta(); location.hash = '#/'; });
     $('#minha-senha').addEventListener('click', trocarSenha);
     $('#impressora').addEventListener('click', () => App.configurarImpressora());
   }
@@ -311,16 +323,23 @@
 
   // decide o que mostrar pelo endereço: entrada, login do painel ou a tela
   function mostrar() {
-    const [nome] = location.hash.replace(/^#\/?/, '').split('/');
+    const [nome, sub] = location.hash.replace(/^#\/?/, '').split('/');
     if (App.primeiro) return telaLogin(null, true);
     if (!nome) return telaPaineis();
+    const semAcesso = (p) => telaLogin(p, false, `Você entrou como <b>${esc(App.usuario.nome)}</b>, que não tem acesso a ${esc(p.nome)}. Entre com a conta deste painel.`);
+    // cartão da entrada: sempre pede o login daquele painel, a não ser que já tenha entrado nele
+    if (nome === 'painel') {
+      const p = PAINEIS.find((x) => x.id === sub);
+      if (!p) return telaPaineis();
+      if (!App.usuario || lerPainel() !== p.id) return telaLogin(p);
+      const tela = telaLiberada(p);
+      if (!tela) return semAcesso(p);
+      location.replace('#/' + tela); return;
+    }
+    // endereço de uma tela (menu ou favorito, ex.: #/cozinha)
     const painel = painelDaTela(nome);
     if (!App.usuario) return telaLogin(painel);
-    if (painel && (painel.id === nome || !permitidos().some(([id]) => id === nome))) {
-      const tela = telaLiberada(painel);
-      if (!tela) return telaLogin(painel, false, `Você entrou como <b>${esc(App.usuario.nome)}</b>, que não tem acesso a ${esc(painel.nome)}. Entre com a conta deste painel.`);
-      if (tela !== nome) { location.replace('#/' + tela); return; }
-    }
+    if (painel && !permitidos().some(([id]) => id === nome)) return lerPainel() === painel.id ? semAcesso(painel) : telaLogin(painel);
     if (!$('#app')) {
       layout();
       timerPedidos = setInterval(() => { if (!document.hidden) App.atualizarPedidos(); }, 5000);

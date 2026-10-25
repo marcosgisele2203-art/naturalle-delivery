@@ -105,7 +105,7 @@ Se o n8n cair, os pedidos continuam funcionando normalmente; só as mensagens de
   marcado como pronto por engano.
 - **Som**: cada aparelho precisa clicar uma vez em *Ligar som* (o navegador exige).
 - **QR code fotografado**: se alguém estiver pedindo de fora com foto do QR, use *Trocar QR* na mesa e imprima de novo.
-- **Tablet da cozinha / celular do entregador**: salve como favorito `seudominio/equipe#/cozinha` (ou `#/entregador`) para abrir direto no painel.
+- **Tablet da cozinha / celular do entregador**: salve como favorito `seudominio/equipe#/cozinha` (ou `#/entregas`) para abrir direto no painel.
 - **Senha esquecida**: o administrador define uma nova em Administração › Equipe.
 
 ## Impressora térmica
