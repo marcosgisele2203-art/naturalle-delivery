@@ -74,11 +74,6 @@
       if (l.delivery && Number(l.taxa_entrega)) selos.push(`<span class="selo">Entrega ${brl(l.taxa_entrega)}</span>`);
     }
     $('#selos').innerHTML = selos.join('');
-    if (tokenMesa) {
-      $('#balao').textContent = 'Oi! Escolha aí que a gente leva até a sua mesa!';
-      $('#manu-topo').src = MANU('bandeja');
-      $('#manu-topo').alt = 'Manu levando uma bandeja com hambúrguer, batata e refrigerante';
-    }
     const aviso = $('#aviso-topo');
     if (!tokenMesa && !l.aberta) { aviso.hidden = false; aviso.textContent = 'Estamos fechados para pedidos pelo site agora. Você pode olhar o cardápio à vontade.'; }
     $('#rodape').innerHTML = (l.whatsapp ? `<p>${esc(l.nome)} · Fale com a gente no WhatsApp <a href="https://wa.me/${esc(l.whatsapp)}">${formatarFone(l.whatsapp)}</a></p>` : '')
@@ -113,14 +108,16 @@
       quadro = `<span class="giz-pequeno">Hoje é dia de</span><span class="giz-titulo">${esc(p.nome)}</span>
         <span class="giz-texto">${esc(p.descricao || '')}</span><span class="giz-preco">a partir de ${brl(window.Calc.precoMinimo(p))}</span>
         <button class="giz-botao" data-acao="destaque" data-v="${esc(p.id)}">Quero!</button>`;
+    } else if (st.loja.recado) {
+      quadro = `<span class="giz-titulo">${esc(st.loja.recado)}</span>`;
+    } else if (tokenMesa) {
+      quadro = `<span class="giz-pequeno">Oi!</span><span class="giz-titulo">Escolha aí que a gente leva até a sua mesa!</span>`;
     } else {
-      quadro = `<span class="giz-titulo">${esc(st.loja.recado || 'Bateu a fome?')}</span><span class="giz-texto">${st.loja.recado ? '' : 'Açaí do seu jeito, Mac de 10 e muito mais!'}</span>`;
+      quadro = `<span class="giz-pequeno">Oi, pessoal!</span><span class="giz-titulo">Bateu a fome?</span><span class="giz-texto">Faça seu pedido aqui embaixo!</span>`;
     }
+    // o quadro da Manu é a primeira imagem do app
+    $('#giz').innerHTML = quadro;
     $('#destaques').innerHTML = `
-      <section class="quadro-manu" aria-label="Destaque do dia">
-        <img src="${MANU('quadro')}" alt="Manu ao lado do quadro-negro" width="900" height="1125">
-        <div class="giz">${quadro}</div>
-      </section>
       <div class="manu-card manu-aponta"><img src="${MANU('apontando')}" alt="" width="104" height="130">
         <div><h2>Escolha aqui embaixo!</h2><p>Toque no item para montar do seu jeito.</p></div></div>`;
   }
