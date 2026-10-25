@@ -164,6 +164,8 @@
   // painel em que a pessoa entrou neste aparelho: cada cartão pede o próprio login
   const lerPainel = () => { try { return localStorage.getItem('nm-painel'); } catch { return null; } };
   const gravarPainel = (id) => { try { if (id) localStorage.setItem('nm-painel', id); else localStorage.removeItem('nm-painel'); } catch { /* sem armazenamento */ } };
+  // quem entrou pela Administração (o dono) abre todos os painéis sem digitar a senha de novo
+  const jaEntrou = (p) => !!App.usuario && (lerPainel() === p.id || (lerPainel() === 'admin' && App.usuario.permissoes.includes('admin')));
   async function sairDaConta() {
     await App.api('/api/equipe/sair', {}).catch(() => {});
     App.usuario = null; App.permissoes = {}; gravarPainel(null);
@@ -181,7 +183,7 @@
           <p class="conferido">${cadeado}<span>Permissões conferidas pelo sistema</span></p></div>
         <div class="paineis">
           ${PAINEIS.map((p) => {
-            const livre = logado && lerPainel() === p.id;
+            const livre = jaEntrou(p);
             return `<a class="painel-cartao" href="#/painel/${p.id}">
               <span class="painel-icone">${icone(p.id)}</span>
               <span class="painel-selo">${cadeado}${livre ? 'Acesso autorizado' : 'Pede login'}</span>
@@ -331,7 +333,7 @@
     if (nome === 'painel') {
       const p = PAINEIS.find((x) => x.id === sub);
       if (!p) return telaPaineis();
-      if (!App.usuario || lerPainel() !== p.id) return telaLogin(p);
+      if (!jaEntrou(p)) return telaLogin(p);
       const tela = telaLiberada(p);
       if (!tela) return semAcesso(p);
       location.replace('#/' + tela); return;
