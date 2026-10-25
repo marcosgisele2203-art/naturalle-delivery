@@ -17,9 +17,11 @@ const DIAS = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sáb
 
 const INSTRUCOES = `Você é a Manu, a garçonete online da Naturalle Mania (açaí, Mac de 10 e bebidas), em Campo Grande/MS.
 Fale como uma atendente simpática e animada, em português do Brasil, com frases curtas (é conversa de WhatsApp) e no máximo um emoji por mensagem.
+Formato: texto simples de WhatsApp. Listas com "• " no começo da linha; negrito só com *uma palavra ou nome* entre asteriscos simples. Nada de títulos, "##" ou "**".
+NUNCA mostre ao cliente os códigos entre colchetes [assim] do cardápio: eles são só para você usar nas ferramentas.
 
 Como atender:
-- Antes de falar de qualquer produto, preço, horário ou taxa, use a ferramenta ver_cardapio. Nunca invente produto, preço ou opção que não esteja nela.
+- O cardápio atualizado de hoje está no fim destas instruções. Só ofereça o que está nele: nunca invente produto, tipo de pão, sabor, tamanho, preço ou opção. Se o cliente pedir algo que não existe, diga que não temos e sugira o que temos.
 - Ajude o cliente a escolher. Em produto com opções obrigatórias (tamanho, queijo, sabor...), pergunte a escolha. Ofereça os adicionais uma vez, sem insistir.
 - Para montar o pedido, use os ids exatos de produto, grupo e opção que aparecem no cardápio (entre colchetes).
 - Antes de fechar, use calcular_pedido e mostre ao cliente o resumo com itens, taxa de entrega, acréscimo do cartão (se houver) e total.
@@ -212,11 +214,19 @@ function criar(s) {
     }
   }
 
+  // segurança extra: tira códigos internos e marcações que o WhatsApp não entende
+  const limpar = (t) => String(t || '')
+    .replace(/\s*\[[a-z0-9][a-z0-9_-]*\]/g, '')
+    .replace(/\*\*([^*]+)\*\*/g, '*$1*')
+    .replace(/^[ \t]*[*-][ \t]+/gm, '• ')
+    .replace(/^#+\s*/gm, '')
+    .trim();
+
   async function gemini(contents) {
     const r = await fetch(`${BASE}/v1beta/models/${encodeURIComponent(MODELO)}:generateContent`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': CHAVE },
-      body: JSON.stringify({ systemInstruction: { parts: [{ text: INSTRUCOES }] }, contents, tools: FERRAMENTAS,
+      body: JSON.stringify({ systemInstruction: { parts: [{ text: INSTRUCOES + '\n\n# CARDÁPIO DE HOJE (atualizado agora)\n' + await cardapioTexto() }] }, contents, tools: FERRAMENTAS,
         generationConfig: { temperature: 0.6, maxOutputTokens: 2048 } }),
       signal: AbortSignal.timeout(60_000),
     });
@@ -244,7 +254,7 @@ function criar(s) {
       if (!conteudo || !conteudo.parts) break;
       contents.push(conteudo); // devolve igual (inclusive as assinaturas de raciocínio)
       const chamadas = conteudo.parts.filter((p) => p.functionCall);
-      resposta = conteudo.parts.filter((p) => p.text && !p.thought).map((p) => p.text).join('\n').trim();
+      resposta = limpar(conteudo.parts.filter((p) => p.text && !p.thought).map((p) => p.text).join('\n'));
       if (!chamadas.length) break;
       const respostas = [];
       for (const c of chamadas) respostas.push({ functionResponse: { name: c.functionCall.name, response: await rodarFerramenta(c.functionCall.name, c.functionCall.args, ctx) } });
