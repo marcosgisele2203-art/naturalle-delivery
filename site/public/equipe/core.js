@@ -94,7 +94,7 @@
       ${p.cliente_nome || p.endereco ? `<div class="cliente">${p.cliente_nome ? `<strong>${esc(p.cliente_nome)}</strong>` : ''}${p.endereco ? `<span>${esc(p.endereco)}</span>` : ''}${p.cliente_telefone ? `<span>${App.fone(p.cliente_telefone)}</span>` : ''}</div>` : ''}
       <div>${itens}</div>
       ${p.observacoes ? `<div class="obs"><b>Obs.:</b> ${esc(p.observacoes)}</div>` : ''}
-      <div class="tags">${pag}${Number(p.taxa_entrega) ? `<span class="tag">Entrega ${brl(p.taxa_entrega)}</span>` : ''}${Number(p.acrescimo_cartao) ? `<span class="tag">Maquininha ${brl(p.acrescimo_cartao)}</span>` : ''}<span class="tag forte">${brl(p.total)}</span></div>
+      <div class="tags">${pag}${Number(p.taxa_entrega) ? `<span class="tag">Entrega ${brl(p.taxa_entrega)}</span>` : ''}${Number(p.acrescimo_cartao) ? `<span class="tag">Maquininha ${brl(p.acrescimo_cartao)}</span>` : ''}<span class="tag forte">${brl(p.total)}</span>${p.entregador_nome ? `<span class="tag">Entregador: ${esc(p.entregador_nome)}</span>` : ''}${p.pago_em ? '<span class="tag ok">Pago</span>' : ''}</div>
       ${`<div class="acoes">${acoes.map((a) => a.href
         ? `<a class="btn" href="${esc(a.href)}" target="_blank" rel="noopener">${a.rotulo}</a>`
         : `<button class="btn ${a.classe || ''}" data-acao="${a.acao}" data-id="${p.id}"${a.valor ? ` data-valor="${a.valor}"` : ''}>${a.rotulo}</button>`).join('')}
@@ -117,7 +117,7 @@
   let anteriores = null, timerPedidos;
   App.on = (fn) => { App.ouvintes.push(fn); return () => { App.ouvintes = App.ouvintes.filter((f) => f !== fn); }; };
   App.atualizarPedidos = async () => {
-    if (!App.pode('pedidos', 'garcom', 'caixa', 'cozinha')) return;
+    if (!App.pode('pedidos', 'garcom', 'caixa', 'cozinha', 'entregador')) return;
     try {
       const d = await App.api('/api/equipe/pedidos');
       App.pedidos = d.pedidos;
@@ -171,6 +171,7 @@
     ['pedidos', 'Pedidos', ['pedidos']],
     ['cozinha', 'Cozinha', ['cozinha']],
     ['garcom', 'Mesas (garçom)', ['garcom']],
+    ['entregas', 'Entregas', ['entregador']],
     ['caixa', 'Caixa', ['caixa']],
     ['relatorios', 'Relatórios', ['caixa']],
     ['admin', 'Administração', ['admin']],
@@ -182,6 +183,7 @@
       pedidos: App.pedidos.filter((p) => p.status === 'novo').length,
       cozinha: App.pedidos.filter((p) => p.status === 'preparo').length,
       garcom: App.pedidos.filter((p) => p.tipo === 'mesa' && (p.status === 'novo' || p.status === 'pronto')).length,
+      entregas: App.pedidos.filter((p) => p.tipo === 'entrega' && p.status === 'pronto').length,
     };
     for (const [nome, n] of Object.entries(conta)) {
       const el = document.querySelector(`.lateral a[data-view="${nome}"] .contagem`);

@@ -7,7 +7,7 @@
         "path": "status",
         "options": {}
       },
-      "id": "dcc4fc91-d670-4891-b196-ce50917aaa9c",
+      "id": "97f2d56b-f58e-4ad1-9591-fc9892c6bfd8",
       "name": "Webhook status",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
@@ -15,50 +15,50 @@
         0,
         300
       ],
-      "webhookId": "24184d7a-8814-48fb-995b-4a82a5818e0c"
+      "webhookId": "52686422-6480-4960-b438-77391b69c550"
     },
     {
       "parameters": {
         "assignments": {
           "assignments": [
             {
-              "id": "0d10e71a-7717-4cf9-8e70-d8ac7b41deaf",
+              "id": "0ce98c4b-43a6-4c67-a8ac-da84b5ac26e6",
               "name": "evolution_url",
               "value": "https://SEU-EVOLUTION.easypanel.host",
               "type": "string"
             },
             {
-              "id": "181385e4-5ca1-4044-9e2b-5172c4ab61cf",
+              "id": "68d81584-4f3d-44e3-b19f-0816195a153c",
               "name": "evolution_instance",
               "value": "naturalle",
               "type": "string"
             },
             {
-              "id": "73402e3c-38d9-4873-8fde-46b7f096c775",
+              "id": "7d0fb085-66f6-41d1-a4dc-491d3fa81f2f",
               "name": "evolution_apikey",
               "value": "COLE_AQUI_A_APIKEY_DA_EVOLUTION",
               "type": "string"
             },
             {
-              "id": "c3875af5-9003-457c-97a0-412f90f5ddd0",
+              "id": "bc68bc4f-9853-40cf-a861-57b2d62dde10",
               "name": "numero_loja",
               "value": "5567996421751",
               "type": "string"
             },
             {
-              "id": "fd6454e3-fb19-4c32-b04e-3b6f97992941",
+              "id": "aa7cf063-2b03-40b0-b54f-4be67a214b5f",
               "name": "pix_chave",
               "value": "COLE_AQUI_A_CHAVE_PIX",
               "type": "string"
             },
             {
-              "id": "cb7fc002-67a4-4f77-afe7-430bf7a8eed8",
+              "id": "0680b147-2ffc-4f61-9da5-c34419c00b25",
               "name": "pix_nome",
               "value": "Naturalle Mania",
               "type": "string"
             },
             {
-              "id": "f794d833-5c7b-43f8-a350-d1d35aa0a3c4",
+              "id": "b628d7d2-175e-4c66-b46a-2d10b03d911c",
               "name": "token",
               "value": "TROQUE_ESTE_TOKEN",
               "type": "string"
@@ -68,7 +68,7 @@
         "includeOtherFields": true,
         "options": {}
       },
-      "id": "09d20084-e32e-40ed-b4ec-e39fb6390ebf",
+      "id": "f2b1cb76-0fc9-40f6-9221-6b0998da22e4",
       "name": "Config",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
@@ -79,9 +79,9 @@
     },
     {
       "parameters": {
-        "jsCode": "const brl = (v) => 'R$ ' + Number(v).toFixed(2).replace('.', ',');\nconst b = $input.first().json.body || {};\nconst cfg = $('Config').first().json;\nif (!cfg.token || b.token !== cfg.token) throw new Error('Token inválido');\nconst p = b.pedido;\nif (!p || !p.id || !p.cliente_telefone) return [];\nconst lista = (p.itens || []).map((i) =>\n  `• ${i.qtd}× ${i.nome}${i.detalhe ? ' (' + i.detalhe + ')' : ''}${i.obs ? ' · obs: ' + i.obs : ''} — ${brl(i.preco)}`).join('\\n');\nconst textos = {\n  preparo: `Seu pedido *#${p.id}* foi confirmado e já está sendo preparado!`,\n  pronto: `Seu pedido *#${p.id}* está pronto! Pode vir buscar no balcão.`,\n  saiu: `Seu pedido *#${p.id}* saiu para entrega! Já já chega aí.`,\n  entregue: `Pedido *#${p.id}* entregue. Obrigado, ${p.cliente_nome}! Bom apetite e volte sempre à Naturalle Mania.`,\n  cancelado: `Seu pedido *#${p.id}* foi cancelado. Qualquer dúvida, é só responder aqui.`,\n};\nif (!textos[p.status]) return [];\nreturn [{ json: { numero: p.cliente_telefone, texto: textos[p.status] } }];\n"
+        "jsCode": "const brl = (v) => 'R$ ' + Number(v).toFixed(2).replace('.', ',');\nconst b = $input.first().json.body || {};\nconst cfg = $('Config').first().json;\nif (!cfg.token || b.token !== cfg.token) throw new Error('Token inválido');\nconst p = b.pedido;\nif (!p || !p.id || !p.cliente_telefone) return [];\nconst lista = (p.itens || []).map((i) =>\n  `• ${i.qtd}× ${i.nome}${i.detalhe ? ' (' + i.detalhe + ')' : ''}${i.obs ? ' · obs: ' + i.obs : ''} — ${brl(i.preco)}`).join('\\n');\nconst textos = {\n  preparo: `Seu pedido *#${p.id}* foi confirmado e já está sendo preparado!`,\n  pronto: `Seu pedido *#${p.id}* está pronto! Pode vir buscar no balcão.`,\n  saiu: `Seu pedido *#${p.id}* saiu para entrega${p.entregador_nome ? ' com ' + p.entregador_nome : ''}! Já já chega aí.` +\n    (p.pagamento === 'cartao' ? ' O entregador está levando a maquininha.' : p.pagamento === 'dinheiro' && p.troco_para ? ` Ele leva troco para ${brl(p.troco_para)}.` : ''),\n  entregue: `Pedido *#${p.id}* entregue. Obrigado, ${p.cliente_nome}! Bom apetite e volte sempre à Naturalle Mania.`,\n  cancelado: `Seu pedido *#${p.id}* foi cancelado. Qualquer dúvida, é só responder aqui.`,\n};\nif (!textos[p.status]) return [];\nreturn [{ json: { numero: p.cliente_telefone, texto: textos[p.status] } }];\n"
       },
-      "id": "0d3c7976-b60a-4c42-a368-54b72634fe80",
+      "id": "c916668d-8627-4908-9597-dc5658c5e668",
       "name": "Mensagem do status",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -108,7 +108,7 @@
         "jsonBody": "={{ JSON.stringify({ number: $json.numero, text: $json.texto }) }}",
         "options": {}
       },
-      "id": "fcfb68ea-b41f-49c6-af89-917ee9f6a7f3",
+      "id": "b642cf2d-d60e-4dce-a6e9-0dea30ecc40d",
       "name": "Enviar WhatsApp",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,

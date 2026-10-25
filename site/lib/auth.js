@@ -8,6 +8,7 @@ const PERMISSOES = {
   cozinha: 'Cozinha',
   garcom: 'Garçom',
   caixa: 'Caixa / balcão',
+  entregador: 'Entregador',
 };
 const DURACAO = 14 * 24 * 3600 * 1000; // 14 dias
 let segredo = process.env.SESSION_SECRET || null;

@@ -192,3 +192,12 @@ h1, h2, h3 { margin: 0; }
 
 .passos { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 10px; line-height: 1.5; }
 .passos code { background: var(--fundo); padding: 1px 6px; border-radius: 4px; }
+
+/* entregador */
+.levar { padding: 10px 12px; border-radius: 10px; font-size: 15px; background: var(--fundo); }
+.levar.cartao { background: #E3EDFA; color: #1D4F8A; }
+.levar.dinheiro { background: #FFF3C4; color: #5C4300; }
+.levar.pix { background: #FDECEA; color: var(--erro); }
+.levar.pago { background: var(--verde-claro); color: var(--verde); }
+.endereco { font-size: 15px; font-weight: 600; color: var(--azul); }
+.entrega-card details summary { cursor: pointer; font-weight: 600; min-height: 32px; }

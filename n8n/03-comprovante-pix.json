@@ -7,7 +7,7 @@
         "path": "evolution",
         "options": {}
       },
-      "id": "9fbf42b0-ad5f-4366-8f7e-a9a1a79f0411",
+      "id": "8caeb8ec-6017-4533-a435-88f4927cc964",
       "name": "Webhook Evolution",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
@@ -15,50 +15,50 @@
         0,
         300
       ],
-      "webhookId": "05580e6f-0410-4a6a-be82-bfcbe465f3d9"
+      "webhookId": "ed60942a-a204-4d99-95a2-bbbad5df189a"
     },
     {
       "parameters": {
         "assignments": {
           "assignments": [
             {
-              "id": "a4caa33d-d454-4cea-b8b5-e0536532e8f8",
+              "id": "558009b7-cd44-4495-b484-ac4738fbb4de",
               "name": "evolution_url",
               "value": "https://SEU-EVOLUTION.easypanel.host",
               "type": "string"
             },
             {
-              "id": "638d2fe7-7b32-4eb9-9793-abd3ea7b6f4f",
+              "id": "d661fda0-441d-4a7b-997b-29710aad2c31",
               "name": "evolution_instance",
               "value": "naturalle",
               "type": "string"
             },
             {
-              "id": "86877f5a-cdfa-4173-a142-21563100eba9",
+              "id": "46d9185f-25f7-4f3b-b423-9be75bfcdc8b",
               "name": "evolution_apikey",
               "value": "COLE_AQUI_A_APIKEY_DA_EVOLUTION",
               "type": "string"
             },
             {
-              "id": "385fbff7-0139-4e74-9270-8c8d8b7f5381",
+              "id": "e97218c7-1a00-4f70-b880-dc87c5291853",
               "name": "numero_loja",
               "value": "5567996421751",
               "type": "string"
             },
             {
-              "id": "7ec4d66d-0428-40a9-b8e7-bf97e00c749a",
+              "id": "e99aa018-3802-4ff5-aa87-8359366bffdb",
               "name": "pix_chave",
               "value": "COLE_AQUI_A_CHAVE_PIX",
               "type": "string"
             },
             {
-              "id": "ffbf9003-7c6b-4c38-bfef-a478b9ff2ba9",
+              "id": "2b56c9f0-00cd-4f52-885d-67842f8676ce",
               "name": "pix_nome",
               "value": "Naturalle Mania",
               "type": "string"
             },
             {
-              "id": "bf0ff52a-72de-4328-a427-1a20482df169",
+              "id": "3e693878-f5de-4610-8f49-018945b6313c",
               "name": "token",
               "value": "TROQUE_ESTE_TOKEN",
               "type": "string"
@@ -68,7 +68,7 @@
         "includeOtherFields": true,
         "options": {}
       },
-      "id": "80eae5e2-b56f-4e9e-936d-bd7a6afb0a0f",
+      "id": "13032e56-d8e3-4be2-a69a-043526ff8e55",
       "name": "Config",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
@@ -81,7 +81,7 @@
       "parameters": {
         "jsCode": "const b = $input.first().json.body || {};\nconst d = b.data || {};\nconst key = d.key || {};\nconst jid = key.remoteJid || '';\nif (b.event !== 'messages.upsert' || key.fromMe || !jid.endsWith('@s.whatsapp.net')) return [];\nconst tipo = d.messageType || Object.keys(d.message || {})[0] || '';\nif (!['imageMessage', 'documentMessage'].includes(tipo)) return [];\nconst telefone = jid.split('@')[0];\n// Compara pelos 8 últimos dígitos: o WhatsApp pode tirar o 9 extra do celular.\nreturn [{ json: { telefone, final8: telefone.slice(-8) } }];\n"
       },
-      "id": "2a3578bb-11f5-4357-87de-88be5256a6e2",
+      "id": "a05ef78d-35d8-4c21-883b-e7251ef21384",
       "name": "Filtrar comprovante",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -98,7 +98,7 @@
           "queryReplacement": "={{ [ $json.final8 ] }}"
         }
       },
-      "id": "3e19ffae-ef0f-4229-9510-3acf419f3691",
+      "id": "ca219a9c-c1e4-4c8f-b124-061a8592a8d5",
       "name": "Marcar comprovante",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -111,7 +111,7 @@
       "parameters": {
         "jsCode": "const brl = (v) => 'R$ ' + Number(v).toFixed(2).replace('.', ',');\nconst p = $input.first().json;\nif (!p.id) return []; // nenhum pedido Pix aguardando para esse número\nconst cfg = $('Config').first().json;\nconst saida = [{ numero: p.cliente_telefone, texto: `Recebemos seu comprovante do pedido *#${p.id}*! Assim que conferirmos, seu pedido segue.` }];\nif (cfg.numero_loja) saida.push({ numero: cfg.numero_loja,\n  texto: `*Comprovante Pix recebido* do pedido #${p.id} (${p.cliente_nome}, ${brl(p.total)}). Confira e clique em \"Confirmar Pix\" no painel.` });\nreturn saida.map((json) => ({ json }));\n"
       },
-      "id": "7091b90b-925d-450f-a0cb-e4b3a7158665",
+      "id": "eda4e552-175e-4702-ab1f-bce69378d847",
       "name": "Montar avisos",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -138,7 +138,7 @@
         "jsonBody": "={{ JSON.stringify({ number: $json.numero, text: $json.texto }) }}",
         "options": {}
       },
-      "id": "909991da-b92e-42fe-91af-054a9cb609f2",
+      "id": "54ba89a3-7b20-4794-bd72-bc688169e49c",
       "name": "Enviar WhatsApp",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,

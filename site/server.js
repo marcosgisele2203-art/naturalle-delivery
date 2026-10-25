@@ -92,8 +92,10 @@ function notificar(caminho, pedido) {
 
 const CAMPOS_PEDIDO = `p.id, p.codigo, p.criado_em, p.confirmado_em, p.pronto_em, p.origem, p.tipo, p.status,
   p.cliente_nome, p.cliente_telefone, p.endereco, p.observacoes, p.itens, p.subtotal, p.taxa_entrega, p.acrescimo_cartao, p.total,
-  p.pagamento, p.troco_para, p.pix_status, p.mesa_id, p.conta_id, m.nome AS mesa_nome, u.nome AS criado_por_nome`;
-const FROM_PEDIDO = `FROM pedidos p LEFT JOIN mesas m ON m.id = p.mesa_id LEFT JOIN usuarios u ON u.id = p.criado_por`;
+  p.pagamento, p.troco_para, p.pix_status, p.mesa_id, p.conta_id, m.nome AS mesa_nome, u.nome AS criado_por_nome,
+  p.entregador_id, e.nome AS entregador_nome, p.saiu_em, p.pago_em`;
+const FROM_PEDIDO = `FROM pedidos p LEFT JOIN mesas m ON m.id = p.mesa_id LEFT JOIN usuarios u ON u.id = p.criado_por
+  LEFT JOIN usuarios e ON e.id = p.entregador_id`;
 
 async function calcularItens(escolhas) {
   if (!Array.isArray(escolhas) || !escolhas.length) throw new Erro(400, 'O pedido está vazio.');
@@ -356,12 +358,12 @@ rota('POST', '/api/equipe/minha-senha', [], async ({ u, b }) => {
 
 // --- operação
 
-rota('GET', '/api/equipe/cardapio', ['pedidos', 'garcom', 'caixa', 'cozinha'], async () => {
+rota('GET', '/api/equipe/cardapio', ['pedidos', 'garcom', 'caixa', 'cozinha', 'entregador'], async () => {
   const [menu, loja] = await Promise.all([lerConfig('cardapio'), lerConfig('loja')]);
   return { cardapio: menu, loja: lojaPublica(loja), dia: diaDaSemana() };
 });
 
-rota('GET', '/api/equipe/pedidos', ['pedidos', 'garcom', 'caixa', 'cozinha'], async () => {
+rota('GET', '/api/equipe/pedidos', ['pedidos', 'garcom', 'caixa', 'cozinha', 'entregador'], async () => {
   const { rows } = await pool.query(
     `SELECT ${CAMPOS_PEDIDO} ${FROM_PEDIDO}
       WHERE p.status IN ('novo', 'preparo', 'pronto', 'saiu') OR p.atualizado_em > now() - interval '14 hours'
@@ -403,17 +405,81 @@ rota('POST', '/api/equipe/pedido/:id/status', ['pedidos', 'garcom', 'caixa', 'co
   if (!perms) throw new Erro(409, 'O pedido já mudou de etapa. A tela foi atualizada.');
   if (!auth.pode(u, ...perms)) throw new Erro(403, 'Seu usuário não pode fazer isso.');
   if (b.status === 'saiu' && atual.tipo !== 'entrega') throw new Erro(400, 'Só pedidos de entrega saem para entrega.');
+  // ao sair para entrega, o painel pode dizer qual entregador levou
+  let entregador = null;
+  if (b.status === 'saiu' && b.entregador_id) {
+    const { rows } = await pool.query(`SELECT id FROM usuarios WHERE id = $1 AND ativo AND 'entregador' = ANY(permissoes)`, [Number(b.entregador_id)]);
+    if (!rows[0]) throw new Erro(400, 'Entregador não encontrado.');
+    entregador = rows[0].id;
+  }
   const { rowCount } = await pool.query(
     `UPDATE pedidos SET status = $1, atualizado_em = now(),
         confirmado_em = CASE WHEN $1 = 'preparo' AND confirmado_em IS NULL THEN now() ELSE confirmado_em END,
-        pronto_em = CASE WHEN $1 = 'pronto' THEN now() WHEN $1 = 'preparo' THEN NULL ELSE pronto_em END
-      WHERE id = $2 AND status = $3`, [b.status, id, atual.status]);
+        pronto_em = CASE WHEN $1 = 'pronto' THEN now() WHEN $1 = 'preparo' THEN NULL ELSE pronto_em END,
+        saiu_em = CASE WHEN $1 = 'saiu' THEN now() ELSE saiu_em END,
+        entregador_id = COALESCE($4, entregador_id)
+      WHERE id = $2 AND status = $3`, [b.status, id, atual.status, entregador]);
   if (!rowCount) throw new Erro(409, 'O pedido já mudou de etapa. A tela foi atualizada.');
   const pedido = await buscarPedido(id);
   // pronto só interessa ao cliente quando ele vai buscar; na entrega ele recebe "saiu"
   const avisa = !(b.status === 'pronto' && atual.tipo === 'entrega') && !(chave === 'pronto>preparo');
   if (avisa) notificar('/status', pedido);
   return { ok: true, pedido };
+});
+
+// --- entregador
+
+rota('GET', '/api/equipe/entregadores', ['pedidos', 'caixa'], async () => {
+  const { rows } = await pool.query(`SELECT id, nome FROM usuarios WHERE ativo AND 'entregador' = ANY(permissoes) ORDER BY nome`);
+  return { entregadores: rows };
+});
+
+// o entregador pega um pedido pronto: sai para entrega com ele
+rota('POST', '/api/equipe/pedido/:id/pegar', ['entregador'], async ({ u, p }) => {
+  const { rowCount } = await pool.query(
+    `UPDATE pedidos SET status = 'saiu', entregador_id = $2, saiu_em = now(), atualizado_em = now()
+      WHERE id = $1 AND tipo = 'entrega' AND status = 'pronto'`, [Number(p.id), u.id]);
+  if (!rowCount) throw new Erro(409, 'Esse pedido já saiu com outro entregador ou ainda não está pronto.');
+  const pedido = await buscarPedido(Number(p.id));
+  notificar('/status', pedido);
+  return { ok: true, pedido };
+});
+
+// entregue e pago: confirma como o cliente pagou de verdade (pode ter mudado na porta)
+rota('POST', '/api/equipe/pedido/:id/entregar', ['entregador', 'pedidos', 'caixa'], async ({ u, p, b }) => {
+  const id = Number(p.id);
+  const atual = await buscarPedido(id);
+  if (!atual || atual.status !== 'saiu') throw new Erro(409, 'Esse pedido não está em entrega.');
+  if (!auth.pode(u, 'pedidos', 'caixa') && atual.entregador_id !== u.id) throw new Erro(403, 'Essa entrega está com outro entregador.');
+  const pagamento = ['pix', 'cartao', 'dinheiro'].includes(b.pagamento) ? b.pagamento : null;
+  if (!pagamento) throw new Erro(400, 'Diga como o cliente pagou.');
+  const loja = await lerConfig('loja');
+  const acrescimo = pagamento === 'cartao' ? Number(loja.taxa_cartao) || 0 : 0;
+  await pool.query(
+    `UPDATE pedidos SET status = 'entregue', atualizado_em = now(), pagamento = $2, acrescimo_cartao = $3,
+        total = COALESCE(subtotal, total - taxa_entrega - acrescimo_cartao) + taxa_entrega + $3,
+        pix_status = CASE WHEN $2 = 'pix' THEN 'confirmado' ELSE pix_status END,
+        troco_para = CASE WHEN $2 = 'dinheiro' THEN troco_para END,
+        pago_em = now(), pago_confirmado_por = $4, entregador_id = COALESCE(entregador_id, $5)
+      WHERE id = $1 AND status = 'saiu'`, [id, pagamento, acrescimo, u.id, auth.pode(u, 'entregador') ? u.id : null]);
+  const pedido = await buscarPedido(id);
+  notificar('/status', pedido);
+  return { ok: true, pedido };
+});
+
+// acerto do dia: quanto cada entregador recebeu
+rota('GET', '/api/equipe/caixa/entregadores', ['caixa', 'pedidos'], async () => {
+  const { rows } = await pool.query(
+    `SELECT COALESCE(e.nome, 'Sem entregador') AS nome, count(*) FILTER (WHERE p.status = 'entregue')::int AS entregas,
+            COALESCE(sum(p.total) FILTER (WHERE p.pagamento = 'dinheiro' AND p.status = 'entregue'), 0) AS dinheiro,
+            COALESCE(sum(p.total) FILTER (WHERE p.pagamento = 'cartao' AND p.status = 'entregue'), 0) AS cartao,
+            COALESCE(sum(p.total) FILTER (WHERE p.pagamento = 'pix' AND p.status = 'entregue'), 0) AS pix,
+            count(*) FILTER (WHERE p.status = 'saiu')::int AS na_rua
+       FROM pedidos p LEFT JOIN usuarios e ON e.id = p.entregador_id
+      WHERE p.tipo = 'entrega' AND p.status IN ('saiu', 'entregue')
+        AND (p.criado_em AT TIME ZONE '${FUSO}')::date = (now() AT TIME ZONE '${FUSO}')::date
+      GROUP BY 1 ORDER BY 1`);
+  return { entregadores: rows };
 });
 
 rota('POST', '/api/equipe/pedido/:id/pix', ['pedidos', 'caixa'], async ({ p }) => {
@@ -497,8 +563,9 @@ rota('GET', '/api/equipe/relatorio', ['caixa'], async ({ q }) => {
   if ((Date.parse(ate) - Date.parse(de)) / 86400000 > 400) throw new Erro(400, 'Escolha um período de até 1 ano.');
   const { rows } = await pool.query(
     `SELECT p.id, to_char(p.criado_em AT TIME ZONE '${FUSO}', 'YYYY-MM-DD') AS data, to_char(p.criado_em AT TIME ZONE '${FUSO}', 'HH24:MI') AS hora,
-            p.tipo, p.origem, m.nome AS mesa_nome, p.cliente_nome, p.itens, p.pagamento, p.subtotal, p.taxa_entrega, p.acrescimo_cartao, p.total, p.status
-       FROM pedidos p LEFT JOIN mesas m ON m.id = p.mesa_id
+            p.tipo, p.origem, m.nome AS mesa_nome, p.cliente_nome, p.itens, p.pagamento, p.subtotal, p.taxa_entrega, p.acrescimo_cartao, p.total, p.status,
+            e.nome AS entregador_nome
+       FROM pedidos p LEFT JOIN mesas m ON m.id = p.mesa_id LEFT JOIN usuarios e ON e.id = p.entregador_id
       WHERE (p.criado_em AT TIME ZONE '${FUSO}')::date BETWEEN $1 AND $2
       ORDER BY p.criado_em`, [de, ate]);
   return Relatorio.montar(rows, de, ate);

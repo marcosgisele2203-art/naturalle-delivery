@@ -18,7 +18,7 @@ App.views.pedidos = {
       if (p.status === 'pronto' && p.tipo === 'entrega') a.push({ rotulo: 'Saiu para entrega', classe: 'azul', acao: 'status', valor: 'saiu' });
       if (p.status === 'pronto' && p.tipo === 'retirada') a.push({ rotulo: 'Cliente retirou', classe: 'verde', acao: 'status', valor: 'entregue' });
       if (p.status === 'pronto' && p.tipo === 'mesa') a.push({ rotulo: 'Servido na mesa', classe: 'verde', acao: 'status', valor: 'entregue' });
-      if (p.status === 'saiu') a.push({ rotulo: 'Entregue', classe: 'verde', acao: 'status', valor: 'entregue' });
+      if (p.status === 'saiu') a.push({ rotulo: 'Entregue e pago', classe: 'verde', acao: 'entregar' });
       if (p.pagamento === 'pix' && p.pix_status !== 'confirmado' && p.status !== 'cancelado') a.push({ rotulo: 'Confirmar Pix', acao: 'pix' });
       if (p.cliente_telefone) a.push({ rotulo: 'WhatsApp', href: 'https://wa.me/' + p.cliente_telefone });
       if (['novo', 'preparo', 'pronto', 'saiu'].includes(p.status) && (p.status === 'novo' || App.pode('pedidos', 'caixa'))) a.push({ rotulo: 'Cancelar', classe: 'fraco', acao: 'status', valor: 'cancelado' });
@@ -61,7 +61,12 @@ App.views.pedidos = {
       const id = Number(b.dataset.id);
       if (b.dataset.acao === 'status') {
         if (b.dataset.valor === 'cancelado' && !confirm('Cancelar o pedido #' + id + '?' + (App.pedidos.find((p) => p.id === id)?.cliente_telefone ? ' O cliente será avisado no WhatsApp.' : ''))) return;
-        App.mudarStatus(id, b.dataset.valor, b);
+        const p = App.pedidos.find((x) => x.id === id);
+        if (b.dataset.valor === 'saiu' && p) App.escolherEntregador(p);
+        else App.mudarStatus(id, b.dataset.valor, b);
+      } else if (b.dataset.acao === 'entregar') {
+        const p = App.pedidos.find((x) => x.id === id);
+        if (p) App.confirmarEntrega(p);
       } else if (b.dataset.acao === 'pix') {
         b.disabled = true;
         try { await App.api('/api/equipe/pedido/' + id + '/pix', {}); } catch (err) { App.toast(err.message, true); }

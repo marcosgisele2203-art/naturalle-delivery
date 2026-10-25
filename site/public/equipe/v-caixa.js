@@ -49,14 +49,14 @@ App.views.caixa = {
       App.novoPedido(el.querySelector('#balcao'), {});
       return null;
     }
-    let mesas = [], resumo = [];
+    let mesas = [], resumo = [], entregadores = [];
     let ativo = true;
     const NOMES = { pix: 'Pix', cartao: 'Cartão', dinheiro: 'Dinheiro', 'em aberto': 'Em aberto' };
 
     async function carregar() {
       try {
-        const [m, r] = await Promise.all([App.api('/api/equipe/mesas'), App.api('/api/equipe/caixa/resumo')]);
-        mesas = m.mesas; resumo = r.hoje;
+        const [m, r, e] = await Promise.all([App.api('/api/equipe/mesas'), App.api('/api/equipe/caixa/resumo'), App.api('/api/equipe/caixa/entregadores')]);
+        mesas = m.mesas; resumo = r.hoje; entregadores = e.entregadores;
       } catch (e) { App.toast(e.message, true); }
     }
 
@@ -70,6 +70,11 @@ App.views.caixa = {
           ${resumo.map((r) => `<tr><td>${NOMES[r.pagamento] || esc(r.pagamento)}</td><td>${r.pedidos}</td><td>${brl(r.total)}</td></tr>`).join('')}
           <tr><th>Total</th><th>${resumo.reduce((s, r) => s + r.pedidos, 0)}</th><th>${brl(totalDia)}</th></tr></tbody></table></div>
           <p class="nota">"Em aberto" são mesas ainda sem conta fechada e pedidos de balcão sem forma de pagamento marcada.</p>
+        </section>
+        <section class="cartao"><h2>Acerto dos entregadores (hoje)</h2>
+          ${entregadores.length ? `<div class="rolagem"><table class="tabela"><thead><tr><th>Entregador</th><th class="num">Entregas</th><th class="num">Dinheiro</th><th class="num">Cartão</th><th class="num">Pix</th><th class="num">Na rua</th></tr></thead><tbody>
+          ${entregadores.map((x) => `<tr><td><b>${esc(x.nome)}</b></td><td class="num">${x.entregas}</td><td class="num">${brl(x.dinheiro)}</td><td class="num">${brl(x.cartao)}</td><td class="num">${brl(x.pix)}</td><td class="num">${x.na_rua}</td></tr>`).join('')}
+          </tbody></table></div><p class="nota">"Dinheiro" é o que o entregador deve entregar no caixa. "Na rua" são entregas que ainda não voltaram.</p>` : '<p class="nota">Nenhuma entrega hoje.</p>'}
         </section>
         <section class="cartao"><h2>Mesas com conta aberta (${abertas.length})</h2>
           ${abertas.length ? `<div class="rolagem"><table class="tabela"><thead><tr><th>Mesa</th><th>Aberta</th><th>Total</th><th></th></tr></thead><tbody>

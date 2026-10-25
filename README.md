@@ -18,7 +18,8 @@ Seções da área da equipe:
 | **Pedidos** | Pedidos e delivery | Quadro com todos os pedidos: confirmar os do site, saiu para entrega, entregue, confirmar Pix, cancelar |
 | **Cozinha** | Cozinha | Tela (pode ficar numa TV/tablet) com os pedidos **já confirmados**, tempo de espera em cores e botão **Pronto**. Som de novo pedido |
 | **Mesas (garçom)** | Garçom | Mapa das mesas (livre, ocupada, pedido para confirmar, pronto para servir), lançar pedido na mesa pelo celular, confirmar pedidos do QR, marcar **Servido** |
-| **Caixa** | Caixa / balcão | **Novo pedido** de balcão ou telefone (retirada, entrega ou mesa), contas abertas das mesas, **fechar conta** e resumo do dia |
+| **Entregas** | Entregador | No celular: pega os pedidos prontos, vê o que levar (maquininha ou troco), abre o endereço no mapa e confirma **entregue e pago** (com a forma que o cliente usou) |
+| **Caixa** | Caixa / balcão | **Novo pedido** de balcão ou telefone (retirada, entrega ou mesa), contas abertas das mesas, **fechar conta**, resumo do dia e **acerto dos entregadores** |
 | **Relatórios** | Caixa / balcão | Vendas do dia, semana, mês, ano ou período escolhido; baixar planilha (Excel) e imprimir / PDF |
 | **Administração** | Administrador | Cardápio, mesas e QR codes, equipe e permissões, dados da loja |
 

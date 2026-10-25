@@ -224,6 +224,7 @@ App.views.admin = {
           <li><b>Pedidos e delivery</b>: quadro de pedidos, confirmar pedidos do site, saiu para entrega, confirmar Pix, novo pedido.</li>
           <li><b>Cozinha</b>: tela da cozinha com os pedidos confirmados e o botão Pronto.</li>
           <li><b>Garçom</b>: mapa das mesas, lançar pedido na mesa, confirmar pedidos do QR, marcar servido.</li>
+          <li><b>Entregador</b>: tela Entregas no celular: pega os pedidos prontos, vê o que levar (maquininha, troco), abre o mapa e confirma o pagamento na entrega.</li>
           <li><b>Caixa / balcão</b>: novo pedido de balcão/telefone/entrega, fechar conta das mesas, resumo do dia.</li></ul></section>`;
     }
 

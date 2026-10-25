@@ -7,7 +7,7 @@
         "path": "pedido",
         "options": {}
       },
-      "id": "0f26e6ae-e876-4b8e-86a0-7baf136fb5e5",
+      "id": "f575cfdb-9edd-4710-9fbb-dcf2e80127eb",
       "name": "Webhook pedido",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
@@ -15,50 +15,50 @@
         0,
         300
       ],
-      "webhookId": "6e152eca-4199-4df2-83cb-942e43333007"
+      "webhookId": "56730338-05f1-4664-87c3-1a1cb1062019"
     },
     {
       "parameters": {
         "assignments": {
           "assignments": [
             {
-              "id": "5c4ef1ea-17b8-459a-956e-fb3b4bf5277b",
+              "id": "9b9dfbb8-881b-48fb-8dca-b4182abb4efb",
               "name": "evolution_url",
               "value": "https://SEU-EVOLUTION.easypanel.host",
               "type": "string"
             },
             {
-              "id": "916a0265-6fb2-4de0-83a0-885af268fdae",
+              "id": "37295c93-e56f-40d9-ae77-63b81c3c2196",
               "name": "evolution_instance",
               "value": "naturalle",
               "type": "string"
             },
             {
-              "id": "b61df91d-8475-4326-9abe-6c5c634011ad",
+              "id": "076d01e9-054e-4ef3-89d0-8e82374e411d",
               "name": "evolution_apikey",
               "value": "COLE_AQUI_A_APIKEY_DA_EVOLUTION",
               "type": "string"
             },
             {
-              "id": "654afb96-9750-4724-9550-8b0ff880415a",
+              "id": "044a0c8a-8fbb-457b-893d-e8dd86b6cb65",
               "name": "numero_loja",
               "value": "5567996421751",
               "type": "string"
             },
             {
-              "id": "f3627947-38ca-4eea-b2bc-e8fad0e0e1c1",
+              "id": "8ecc27a4-8165-4952-bdd4-750b923a667f",
               "name": "pix_chave",
               "value": "COLE_AQUI_A_CHAVE_PIX",
               "type": "string"
             },
             {
-              "id": "df06fcd6-85df-4c75-9d39-00e1230ca77b",
+              "id": "72204d39-2883-492f-93f1-8b160ee31cf2",
               "name": "pix_nome",
               "value": "Naturalle Mania",
               "type": "string"
             },
             {
-              "id": "3b1dc550-dad9-436a-8142-1853e2fe5447",
+              "id": "8bcef7cb-bec3-4b33-b61b-39f91a047648",
               "name": "token",
               "value": "TROQUE_ESTE_TOKEN",
               "type": "string"
@@ -68,7 +68,7 @@
         "includeOtherFields": true,
         "options": {}
       },
-      "id": "89a1c9bb-64e2-4d2a-8dde-53a16f41fc3c",
+      "id": "1bf8df9c-19ee-4208-9445-f5d81d0d8330",
       "name": "Config",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
@@ -81,7 +81,7 @@
       "parameters": {
         "jsCode": "const brl = (v) => 'R$ ' + Number(v).toFixed(2).replace('.', ',');\nconst b = $input.first().json.body || {};\nconst cfg = $('Config').first().json;\nif (!cfg.token || b.token !== cfg.token) throw new Error('Token inválido');\nconst p = b.pedido;\nif (!p || !p.id || !p.cliente_telefone) return [];\nconst lista = (p.itens || []).map((i) =>\n  `• ${i.qtd}× ${i.nome}${i.detalhe ? ' (' + i.detalhe + ')' : ''}${i.obs ? ' · obs: ' + i.obs : ''} — ${brl(i.preco)}`).join('\\n');\nconst pagto = {\n  pix: 'Pix (aguardando comprovante)',\n  cartao: p.tipo === 'entrega' ? 'Cartão na entrega' : 'Cartão',\n  dinheiro: 'Dinheiro' + (p.troco_para ? ` (troco para ${brl(p.troco_para)})` : ''),\n}[p.pagamento] || 'A combinar';\nconst recebe = p.tipo === 'entrega' ? `Entrega: ${p.endereco}` : 'Retirada no balcão';\nconst saida = [];\n\nif (p.origem === 'site' && cfg.numero_loja) {\n  saida.push({ numero: cfg.numero_loja, texto:\n    `*NOVO PEDIDO PELO SITE #${p.id}*\\nCliente: ${p.cliente_nome} (${p.cliente_telefone})\\n${recebe}\\n\\n${lista}\\n\\n` +\n    (p.observacoes ? `Obs.: ${p.observacoes}\\n\\n` : '') +\n    `*Total: ${brl(p.total)}*\\nPagamento: ${pagto}\\n\\nConfirme no painel de pedidos.` });\n}\n\nlet cli = `Olá, ${p.cliente_nome}! Recebemos seu pedido *#${p.id}* na Naturalle Mania.\\n\\n${lista}\\n\\n`;\nif (Number(p.taxa_entrega)) cli += `Taxa de entrega: ${brl(p.taxa_entrega)}\\n`;\nif (Number(p.acrescimo_cartao)) cli += `Acréscimo da maquininha: ${brl(p.acrescimo_cartao)}\\n`;\ncli += `*Total: ${brl(p.total)}*\\n${recebe}\\n\\n`;\nif (p.pagamento === 'pix') {\n  cli += `Para pagar via Pix, use a chave:\\n*${cfg.pix_chave}*\\n(${cfg.pix_nome})\\n\\nDepois é só responder aqui com a foto do comprovante.`;\n} else if (p.pagamento === 'cartao') {\n  cli += p.tipo === 'entrega' ? 'Pagamento no cartão na entrega: o entregador leva a maquininha.' : 'Pagamento no cartão na retirada.';\n} else if (p.pagamento === 'dinheiro') {\n  cli += 'Pagamento em dinheiro' + (p.troco_para ? `, troco para ${brl(p.troco_para)}.` : '.');\n}\ncli += p.status === 'novo' ? '\\n\\nJá já confirmamos e avisamos por aqui!' : '\\n\\nJá está sendo preparado. Avisamos por aqui a cada etapa!';\nsaida.push({ numero: p.cliente_telefone, texto: cli });\n\nreturn saida.map((json) => ({ json }));\n"
       },
-      "id": "188369da-0335-4a60-9418-4177f5dae108",
+      "id": "6f31c43d-772c-4ff5-aa65-cc798ac30f33",
       "name": "Montar mensagens",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -108,7 +108,7 @@
         "jsonBody": "={{ JSON.stringify({ number: $json.numero, text: $json.texto }) }}",
         "options": {}
       },
-      "id": "1eeb5661-4d08-432d-a845-3def662c9860",
+      "id": "498de7a6-0592-4868-b45a-314b9b8b252c",
       "name": "Enviar WhatsApp",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,

@@ -61,11 +61,11 @@
     const NOMES = { pix: 'Pix', cartao: 'Cartão', dinheiro: 'Dinheiro', entrega: 'Entrega', retirada: 'Retirada', mesa: 'Mesa' };
     const num = (v) => Number(v || 0).toFixed(2).replace('.', ',');
     const campo = (v) => { const s = String(v == null ? '' : v); return /[;"\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
-    const linhas = [['Pedido', 'Data', 'Hora', 'Tipo', 'Mesa', 'Cliente', 'Itens', 'Pagamento', 'Subtotal', 'Taxa de entrega', 'Acréscimo cartão', 'Total', 'Situação']];
+    const linhas = [['Pedido', 'Data', 'Hora', 'Tipo', 'Mesa', 'Cliente', 'Itens', 'Pagamento', 'Subtotal', 'Taxa de entrega', 'Acréscimo cartão', 'Total', 'Entregador', 'Situação']];
     for (const p of rel.pedidos) {
       linhas.push([p.id, p.data.split('-').reverse().join('/'), p.hora, NOMES[p.tipo] || p.tipo, p.mesa_nome || '', p.cliente_nome || '',
         (p.itens || []).map((i) => `${i.qtd}x ${i.nome}${i.detalhe ? ' (' + i.detalhe + ')' : ''}`).join(' | '),
-        NOMES[p.pagamento] || (p.pagamento ? p.pagamento : 'Em aberto'), num(p.subtotal), num(p.taxa_entrega), num(p.acrescimo_cartao), num(p.total),
+        NOMES[p.pagamento] || (p.pagamento ? p.pagamento : 'Em aberto'), num(p.subtotal), num(p.taxa_entrega), num(p.acrescimo_cartao), num(p.total), p.entregador_nome || '',
         p.status === 'cancelado' ? 'Cancelado' : 'Vendido']);
     }
     return '﻿' + linhas.map((l) => l.map(campo).join(';')).join('\r\n');
