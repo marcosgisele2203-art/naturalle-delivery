@@ -244,6 +244,24 @@ function validarLoja(b, atual) {
   };
 }
 
+// quadro da Manu: promoções e novidades que o admin coloca, com foto opcional
+function validarQuadro(lista) {
+  if (!Array.isArray(lista)) throw new Erro(400, 'Quadro inválido');
+  if (lista.length > 15) throw new Erro(400, 'No máximo 15 avisos no quadro.');
+  return lista.map((a, i) => {
+    const titulo = texto(a.titulo, 50);
+    if (!titulo) throw new Erro(400, `Aviso ${i + 1}: escreva o título.`);
+    const foto = /^\/(fotos|img)\/[\w./-]+$/.test(a.foto || '') && !String(a.foto).includes('..') ? a.foto : '';
+    const dias = Array.isArray(a.dias) ? [...new Set(a.dias.map(Number).filter((d) => Number.isInteger(d) && d >= 0 && d <= 6))].sort() : [];
+    return {
+      id: texto(a.id, 40) || 'q' + Date.now().toString(36) + i, tipo: a.tipo === 'novidade' ? 'novidade' : 'promocao',
+      titulo, texto: texto(a.texto, 140), preco: texto(a.preco, 30), foto, produto: texto(a.produto, 60), dias, ativo: a.ativo !== false,
+    };
+  });
+}
+const quadroDeHoje = (lista, dia) => (lista || []).filter((a) => a.ativo && (!a.dias.length || a.dias.includes(dia)))
+  .map(({ id, tipo, titulo, texto: t, preco, foto, produto }) => ({ id, tipo, titulo, texto: t, preco, foto, produto }));
+
 const lojaPublica = (l) => ({ nome: l.nome, frase: l.frase, horario: l.horario, whatsapp: l.whatsapp, aberta: l.aberta,
   delivery: l.delivery, retirada: l.retirada, taxa_entrega: l.taxa_entrega, taxa_cartao: Number(l.taxa_cartao) || 0, recado: l.recado || '' });
 
@@ -261,8 +279,9 @@ const rota = (metodo, padrao, perms, fn) => rotas.push({ metodo, re: new RegExp(
 // --- público
 
 rota('GET', '/api/publico/cardapio', null, async () => {
-  const [menu, loja] = await Promise.all([lerConfig('cardapio'), lerConfig('loja')]);
-  return { loja: lojaPublica(loja), cardapio: menu, dia: diaDaSemana() };
+  const [menu, loja, quadro] = await Promise.all([lerConfig('cardapio'), lerConfig('loja'), lerConfig('quadro')]);
+  const dia = diaDaSemana();
+  return { loja: lojaPublica(loja), cardapio: menu, dia, quadro: quadroDeHoje(quadro, dia) };
 });
 
 rota('GET', '/api/publico/mesa/:token', null, async ({ p }) => {
@@ -574,12 +593,12 @@ rota('GET', '/api/equipe/relatorio', ['caixa'], async ({ q }) => {
 // --- administrador
 
 rota('GET', '/api/admin/tudo', ['admin'], async () => {
-  const [cardapio, loja, usuarios, mesas] = await Promise.all([
-    lerConfig('cardapio'), lerConfig('loja'),
+  const [cardapio, loja, quadro, usuarios, mesas] = await Promise.all([
+    lerConfig('cardapio'), lerConfig('loja'), lerConfig('quadro'),
     pool.query('SELECT id, nome, login, telefone, permissoes, ativo, criado_em FROM usuarios ORDER BY ativo DESC, nome').then((r) => r.rows),
     pool.query('SELECT id, nome, token, ativa, ordem FROM mesas ORDER BY ativa DESC, ordem, id').then((r) => r.rows),
   ]);
-  return { cardapio, loja, usuarios, mesas, permissoes: auth.PERMISSOES };
+  return { cardapio, loja, quadro: quadro || [], usuarios, mesas, permissoes: auth.PERMISSOES };
 });
 
 rota('PUT', '/api/admin/cardapio', ['admin'], async ({ b }) => {
@@ -592,6 +611,12 @@ rota('PUT', '/api/admin/loja', ['admin'], async ({ b }) => {
   const loja = validarLoja(b.loja || {}, await lerConfig('loja'));
   await salvarConfig('loja', loja);
   return { ok: true, loja };
+});
+
+rota('PUT', '/api/admin/quadro', ['admin'], async ({ b }) => {
+  const quadro = validarQuadro(b.quadro);
+  await salvarConfig('quadro', quadro);
+  return { ok: true, quadro };
 });
 
 rota('POST', '/api/admin/usuarios', ['admin'], async ({ u, b }) => {

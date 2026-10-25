@@ -35,6 +35,7 @@
     tipo: 'entrega', pagamento: 'pix', troco: '', obs: '',
     enviando: false, erro: '', enviado: null,
     meus: guardado(chave('pedidos'), []), // [{ codigo, id }]
+    quadro: [],
     acompanhamento: {},
   };
   let montador;
@@ -97,25 +98,45 @@
     </section>`;
   }
 
+  // quadro-negro da Manu: combos do dia + promoções e novidades da Administração, passando sozinhos
+  let timerQuadro;
   function renderDestaques() {
-    const hoje = st.cardapio.produtos.filter((p) => Array.isArray(p.dias) && p.dias.includes(st.dia) && p.disponivel !== false);
-    let quadro;
+    clearInterval(timerQuadro);
+    const disponivel = (id) => st.cardapio.produtos.find((p) => p.id === id && p.disponivel !== false && window.Calc.disponivelHoje(p, st.dia));
+    const botao = (id) => (disponivel(id) ? `<button class="giz-botao" data-acao="destaque" data-v="${esc(id)}">Quero!</button>` : '');
+    const foto = (src, alt) => (src ? `<button type="button" class="giz-foto" data-acao="ampliar" data-v="${esc(src)}" aria-label="Ver a foto de ${esc(alt)}"><img src="${esc(src)}" alt=""></button>` : '');
+    const slides = [];
     if (!tokenMesa && !st.loja.aberta) {
-      quadro = `<span class="giz-titulo">Fechados agora</span><span class="giz-texto">${esc(st.loja.horario || 'Volte mais tarde!')}</span>`;
-    } else if (hoje.length) {
-      const p = hoje[0];
-      quadro = `<span class="giz-pequeno">Hoje é dia de</span><span class="giz-titulo">${esc(p.nome)}</span>
-        <span class="giz-texto">${esc(p.descricao || '')}</span><span class="giz-preco">a partir de ${brl(window.Calc.precoMinimo(p))}</span>
-        <button class="giz-botao" data-acao="destaque" data-v="${esc(p.id)}">Quero!</button>`;
-    } else if (st.loja.recado) {
-      quadro = `<span class="giz-titulo">${esc(st.loja.recado)}</span>`;
-    } else if (tokenMesa) {
-      quadro = `<span class="giz-pequeno">Oi!</span><span class="giz-titulo">Escolha aí que a gente leva até a sua mesa!</span>`;
+      slides.push(`<span class="giz-titulo">Fechados agora</span><span class="giz-texto">${esc(st.loja.horario || 'Volte mais tarde!')}</span>`);
     } else {
-      quadro = `<span class="giz-pequeno">Oi, pessoal!</span><span class="giz-titulo">Bateu a fome?</span><span class="giz-texto">Faça seu pedido aqui embaixo!</span>`;
+      for (const p of st.cardapio.produtos.filter((x) => Array.isArray(x.dias) && x.dias.includes(st.dia) && x.disponivel !== false)) {
+        slides.push(`<span class="giz-pequeno">Hoje é dia de</span>${foto(p.foto, p.nome)}<span class="giz-titulo">${esc(p.nome)}</span>
+          <span class="giz-texto">${esc(p.descricao || '')}</span><span class="giz-preco">a partir de ${brl(window.Calc.precoMinimo(p))}</span>${botao(p.id)}`);
+      }
+      for (const a of st.quadro) {
+        slides.push(`<span class="giz-pequeno">${a.tipo === 'novidade' ? 'Novidade!' : 'Promoção!'}</span>${foto(a.foto, a.titulo)}
+          <span class="giz-titulo">${esc(a.titulo)}</span>${a.texto ? `<span class="giz-texto">${esc(a.texto)}</span>` : ''}
+          ${a.preco ? `<span class="giz-preco">${esc(a.preco)}</span>` : ''}${a.produto ? botao(a.produto) : ''}`);
+      }
+      if (!slides.length) {
+        if (st.loja.recado) slides.push(`<span class="giz-titulo">${esc(st.loja.recado)}</span>`);
+        else if (tokenMesa) slides.push('<span class="giz-pequeno">Oi!</span><span class="giz-titulo">Escolha aí que a gente leva até a sua mesa!</span>');
+        else slides.push('<span class="giz-pequeno">Oi, pessoal!</span><span class="giz-titulo">Bateu a fome?</span><span class="giz-texto">Faça seu pedido aqui embaixo!</span>');
+      }
     }
     // o quadro da Manu é a primeira imagem do app
-    $('#giz').innerHTML = quadro;
+    $('#giz').innerHTML = slides.map((h, i) => `<div class="giz-slide${h.includes('giz-foto') ? ' com-foto' : ''}"${i ? ' hidden' : ''}>${h}</div>`).join('')
+      + (slides.length > 1 ? `<div class="giz-pontos">${slides.map((_, i) => `<button type="button" data-acao="slide" data-v="${i}" aria-label="Aviso ${i + 1}"${i ? '' : ' aria-current="true"'}></button>`).join('')}</div>` : '');
+    if (slides.length > 1) timerQuadro = setInterval(() => { if (!document.hidden) mostrarSlide(slideAtual + 1); }, 6000);
+    slideAtual = 0;
+  }
+  let slideAtual = 0;
+  function mostrarSlide(n) {
+    const lista = document.querySelectorAll('#giz .giz-slide');
+    if (!lista.length) return;
+    slideAtual = (n + lista.length) % lista.length;
+    lista.forEach((el, i) => { el.hidden = i !== slideAtual; });
+    document.querySelectorAll('#giz .giz-pontos button').forEach((b, i) => { if (i === slideAtual) b.setAttribute('aria-current', 'true'); else b.removeAttribute('aria-current'); });
   }
 
   function renderBarra() {
@@ -200,6 +221,15 @@
       case 'fechar': fechar(); break;
       case 'pagamento': lerForm(); st.pagamento = b.dataset.v; renderCarrinho(); break;
       case 'tipo': lerForm(); st.tipo = b.dataset.v; renderCarrinho(); break;
+      case 'slide': clearInterval(timerQuadro); mostrarSlide(Number(b.dataset.v)); break;
+      case 'ampliar': {
+        const z = document.createElement('div');
+        z.className = 'giz-zoom'; z.setAttribute('role', 'dialog'); z.setAttribute('aria-label', 'Foto da promoção');
+        z.innerHTML = `<img src="${esc(b.dataset.v)}" alt=""><button type="button" class="botao escuro">Fechar</button>`;
+        z.addEventListener('click', () => z.remove());
+        document.body.appendChild(z);
+        break;
+      }
       case 'destaque': {
         const p = st.cardapio.produtos.find((x) => x.id === b.dataset.v);
         if (p) window.Montador.abrirProduto(p, st.dia, adicionar);
@@ -271,7 +301,7 @@
   (async () => {
     try {
       const d = await api('/api/publico/cardapio');
-      st.loja = d.loja; st.cardapio = d.cardapio; st.dia = d.dia;
+      st.loja = d.loja; st.cardapio = d.cardapio; st.dia = d.dia; st.quadro = d.quadro || [];
       if (tokenMesa) st.mesa = (await api('/api/publico/mesa/' + tokenMesa)).mesa;
       if (!st.loja.delivery && st.loja.retirada) st.tipo = 'retirada';
     } catch (e) {

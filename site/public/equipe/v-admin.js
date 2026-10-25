@@ -2,7 +2,7 @@
 App.views.admin = {
   montar(el, params) {
     const { esc, brl } = App;
-    const ABAS = [['cardapio', 'Cardápio'], ['equipe', 'Funcionários'], ['mesas', 'Mesas e QR code'], ['loja', 'Loja'], ['impressora', 'Impressora']];
+    const ABAS = [['cardapio', 'Cardápio'], ['quadro', 'Quadro da Manu'], ['equipe', 'Funcionários'], ['mesas', 'Mesas e QR code'], ['loja', 'Loja'], ['impressora', 'Impressora']];
     let aba = ABAS.some(([a]) => a === params[0]) ? params[0] : 'cardapio';
     let d = null; // { cardapio, loja, usuarios, mesas, permissoes }
     const copia = (o) => JSON.parse(JSON.stringify(o));
@@ -186,6 +186,94 @@ App.views.admin = {
       return webp.startsWith('data:image/webp') ? webp : c.toDataURL('image/jpeg', 0.85);
     }
 
+    // ---------------- quadro da Manu (promoções e novidades)
+    async function salvarQuadro(lista, msg) {
+      try {
+        d.quadro = (await App.api('/api/admin/quadro', { quadro: lista }, 'PUT')).quadro;
+        App.toast(msg || 'Quadro salvo');
+        return true;
+      } catch (e) { App.toast(e.message, true); return false; }
+    }
+
+    function abaQuadro() {
+      const q = d.quadro;
+      const quando = (a) => (a.dias.length ? a.dias.map((i) => DIAS[i]).join(', ') : 'Todos os dias');
+      return `<section class="cartao"><div class="topo"><div><h2>Quadro da Manu</h2>
+            <p>O quadro-negro no topo do cardápio. Coloque promoções e novidades com foto; quando tem mais de um, eles passam sozinhos.</p></div>
+          <button class="btn verde grande" data-aviso="">+ Novo aviso</button></div>
+        <div class="avisos">
+        ${q.map((a, i) => `<article class="aviso-quadro${a.ativo ? '' : ' inativo'}">
+          ${a.foto ? `<img src="${esc(a.foto)}" alt="" onerror="this.remove()">` : '<span class="aviso-sem-foto">sem foto</span>'}
+          <div><span class="aviso-tipo ${a.tipo}">${a.tipo === 'novidade' ? 'Novidade' : 'Promoção'}</span>${a.ativo ? '' : ' <span class="selo-off">pausado</span>'}
+            <b>${esc(a.titulo)}</b>${a.texto ? `<small>${esc(a.texto)}</small>` : ''}
+            <small>${a.preco ? esc(a.preco) + ' · ' : ''}${quando(a)}</small></div>
+          <div class="acoes"><button class="btn" data-aviso="${i}">Editar</button>
+            <button class="btn fraco" data-aviso-ativo="${i}">${a.ativo ? 'Pausar' : 'Mostrar'}</button>
+            <button class="btn fraco" data-aviso-sobe="${i}" aria-label="Mostrar antes"${i ? '' : ' disabled'}>↑</button></div>
+        </article>`).join('') || '<p class="nota">Nenhum aviso ainda. Sem avisos, o quadro mostra o combo do dia ou o recado da aba Loja.</p>'}
+        </div>
+        <p class="nota">Os combos do dia entram no quadro sozinhos, no dia deles. Foto deitada (mais larga que alta) fica melhor no quadro; o cliente toca na foto para ver grande.</p></section>`;
+    }
+
+    function editarAviso(i) {
+      const lista = copia(d.quadro);
+      const a = i === '' ? { tipo: 'promocao', titulo: '', texto: '', preco: '', foto: '', produto: '', dias: [], ativo: true } : lista[Number(i)];
+      const j = App.janela(i === '' ? 'Novo aviso no quadro' : 'Editar aviso', '<div data-corpo></div>');
+      const corpo = j.querySelector('[data-corpo]');
+      const ler = () => {
+        const f = corpo.querySelector('form');
+        Object.assign(a, { titulo: f.titulo.value, texto: f.texto.value, preco: f.preco.value, produto: f.produto.value, ativo: f.ativo.checked,
+          dias: [...f.querySelectorAll('[name=dia]:checked')].map((x) => Number(x.value)) });
+      };
+      const desenhar = () => {
+        corpo.innerHTML = `<form style="display:flex;flex-direction:column;gap:14px">
+          <div class="campo"><span>Tipo</span><div class="chips">${[['promocao', 'Promoção'], ['novidade', 'Novidade']].map(([v, n]) =>
+            `<button type="button" class="chip" data-tipo="${v}" aria-pressed="${a.tipo === v}">${n}</button>`).join('')}</div></div>
+          <label class="campo">Título<input name="titulo" required maxlength="50" value="${esc(a.titulo)}" placeholder="Ex.: Açaí 500 ml + 3 adicionais"></label>
+          <label class="campo">Texto (opcional)<input name="texto" maxlength="140" value="${esc(a.texto)}" placeholder="Ex.: Só neste fim de semana!"></label>
+          <label class="campo">Preço ou destaque (opcional)<input name="preco" maxlength="30" value="${esc(a.preco)}" placeholder="Ex.: R$ 19,90 ou Leve 2, pague 1"></label>
+          <div class="campo"><span>Foto da promoção</span>
+            <div class="acoes">${a.foto ? `<img src="${esc(a.foto)}" alt="Foto atual" style="width:128px;height:96px;object-fit:cover;border-radius:10px">` : '<span class="nota">Sem foto</span>'}
+              <label class="btn" style="cursor:pointer">${a.foto ? 'Trocar foto' : 'Enviar foto'}<input type="file" accept="image/*" data-foto hidden></label>
+              ${a.foto ? '<button type="button" class="btn fraco" data-tira-foto>Remover foto</button>' : ''}</div>
+            <small>Pode ser a arte da promoção. Ela é reduzida antes de enviar.</small></div>
+          <label class="campo">Botão "Quero!" abre o produto (opcional)<select name="produto"><option value="">Sem botão</option>
+            ${d.cardapio.produtos.map((p) => `<option value="${esc(p.id)}"${a.produto === p.id ? ' selected' : ''}>${esc(p.nome)}</option>`).join('')}</select></label>
+          <div class="campo"><span>Dias em que aparece (nenhum marcado = todos os dias)</span><div class="dias">${DIAS.map((n, k) =>
+            `<label><input type="checkbox" name="dia" value="${k}"${a.dias.includes(k) ? ' checked' : ''}> ${n}</label>`).join('')}</div></div>
+          <label class="check"><input type="checkbox" name="ativo"${a.ativo ? ' checked' : ''}> Mostrar no quadro</label>
+          <div class="acoes"><button class="btn verde grande">Salvar aviso</button>
+            ${i === '' ? '' : '<button type="button" class="btn fraco" data-apaga>Apagar aviso</button>'}</div></form>`;
+      };
+      corpo.addEventListener('change', async (e) => {
+        if (!e.target.matches('[data-foto]') || !e.target.files[0]) return;
+        ler();
+        try {
+          App.toast('Enviando foto…');
+          a.foto = (await App.api('/api/admin/fotos', { dados: await reduzirFoto(e.target.files[0]) })).url;
+          desenhar(); App.toast('Foto enviada. Clique em Salvar aviso.');
+        } catch (err) { App.toast(err.message, true); }
+      });
+      corpo.addEventListener('click', async (e) => {
+        const b = e.target.closest('button');
+        if (!b) return;
+        if (b.dataset.tipo) { ler(); a.tipo = b.dataset.tipo; desenhar(); }
+        else if (b.hasAttribute('data-tira-foto')) { ler(); a.foto = ''; desenhar(); }
+        else if (b.hasAttribute('data-apaga')) {
+          if (!confirm('Apagar o aviso "' + a.titulo + '"?')) return;
+          lista.splice(Number(i), 1);
+          if (await salvarQuadro(lista, 'Aviso apagado')) { j.fechar(); render(); }
+        }
+      });
+      corpo.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        ler();
+        if (i === '') lista.unshift(a);
+        if (await salvarQuadro(lista, 'Aviso salvo. Já aparece no quadro do cardápio.')) { j.fechar(); render(); }
+      });
+      desenhar();
+    }
+
     // ---------------- mesas
     function abaMesas() {
       return `<section class="cartao"><div class="topo"><div><h2>Mesas</h2><p>Cada mesa tem um QR code. O cliente aponta a câmera e pede sem chamar o garçom.</p></div>
@@ -305,7 +393,7 @@ App.views.admin = {
           <label class="campo">WhatsApp da loja<input name="whatsapp" value="${esc(l.whatsapp || '')}" inputmode="tel"></label>
           <label class="campo">Taxa de entrega (R$)<input name="taxa_entrega" type="number" step="0.5" min="0" value="${l.taxa_entrega || 0}"></label>
           <label class="campo">Acréscimo no cartão (R$)<input name="taxa_cartao" type="number" step="0.5" min="0" value="${l.taxa_cartao ?? 1}"><small>Taxa da maquininha. Use 0 para não cobrar.</small></label>
-          <label class="campo">Recado no quadro da Manu<input name="recado" maxlength="140" value="${esc(l.recado || '')}" placeholder="Ex.: Hoje tem açaí em dobro!"><small>Aparece nos dias sem combo.</small></label>
+          <label class="campo">Recado no quadro da Manu<input name="recado" maxlength="140" value="${esc(l.recado || '')}" placeholder="Ex.: Hoje tem açaí em dobro!"><small>Aparece quando não tem combo do dia nem aviso na aba Quadro da Manu.</small></label>
           <label class="campo">Endereço do site<input name="url_publica" value="${esc(l.url_publica || '')}" placeholder="https://pedidos.naturallemania.com.br"><small>Usado nos QR codes. Vazio = o endereço atual.</small></label>
         </div>
         ${ch('aberta', 'Aceitando pedidos pelo site agora')}
@@ -333,7 +421,7 @@ App.views.admin = {
 
     // ---------------- geral
     function render() {
-      const corpo = { cardapio: abaCardapio, mesas: abaMesas, equipe: abaEquipe, loja: abaLoja, impressora: abaImpressora }[aba]();
+      const corpo = { cardapio: abaCardapio, quadro: abaQuadro, mesas: abaMesas, equipe: abaEquipe, loja: abaLoja, impressora: abaImpressora }[aba]();
       const scroll = window.scrollY;
       el.innerHTML = `<div class="topo"><div><h1>Administração</h1></div>
         <nav class="abas-admin" aria-label="Partes da administração">${ABAS.map(([a, n]) => `<a class="chip aba-adm" href="#/admin/${a}" aria-pressed="${aba === a}"${aba === a ? ' aria-current="page"' : ''}>${n}</a>`).join('')}</nav></div>
@@ -354,6 +442,16 @@ App.views.admin = {
       } else if (b.dataset.novoProd) editarProduto(null, b.dataset.novoProd);
       else if (b.dataset.edita) editarProduto(b.dataset.edita);
       else if (b.dataset.usuario != null) editarUsuario(b.dataset.usuario);
+      else if (b.dataset.aviso != null) editarAviso(b.dataset.aviso);
+      else if (b.dataset.avisoAtivo) {
+        const lista = copia(d.quadro); const a = lista[Number(b.dataset.avisoAtivo)];
+        a.ativo = !a.ativo;
+        if (await salvarQuadro(lista, a.ativo ? 'Aviso de volta no quadro' : 'Aviso pausado')) render();
+      } else if (b.dataset.avisoSobe) {
+        const lista = copia(d.quadro); const k = Number(b.dataset.avisoSobe);
+        [lista[k - 1], lista[k]] = [lista[k], lista[k - 1]];
+        if (await salvarQuadro(lista, 'Ordem salva')) render();
+      }
       else if (b.dataset.ativar) {
         const u = d.usuarios.find((x) => x.id === Number(b.dataset.ativar));
         if (u.ativo && !confirm('Desativar ' + u.nome + '? O acesso dele é cortado na hora.')) return;
