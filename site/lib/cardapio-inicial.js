@@ -52,7 +52,7 @@ module.exports = {
     combo('Quarta', 3, 'Açaí, morango, leite condensado e leite Ninho', [22, 24, 28, 35], [26, 28, 32, 39]),
     combo('Quinta', 4, 'Açaí, Ovomaltine, banana e leite condensado', [21, 23, 27, 34], [25, 27, 31, 38]),
     {
-      id: 'porcao-batata', categoria: 'mac', nome: 'Porção de batata', descricao: 'Média de 300 g.', preco: 25,
+      id: 'porcao-batata', categoria: 'mac', nome: 'Porção de batata', descricao: 'Média de 300 g, com cheddar ou catupiry e bacon ou calabresa.', preco: 25, foto: '/img/lanches/batata.webp',
       grupos: [
         grupo('Cobertura', 'unica', true, [['Cheddar', 0], ['Catupiry', 0]]),
         grupo('Complemento', 'unica', true, [['Bacon', 0], ['Calabresa', 0]]),
