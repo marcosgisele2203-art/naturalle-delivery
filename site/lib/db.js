@@ -17,6 +17,12 @@ const LOJA_PADRAO = {
   mesa_auto_confirmar: false, // pedido da mesa (QR) vai direto pra cozinha
 };
 
+const QUADRO_INICIAL = [
+  { id: 'q-marmita', tipo: 'novidade', titulo: 'Marmita Trufada', texto: 'Açaí + 5 adicionais à sua escolha.', preco: 'R$ 40,00', foto: '/img/quadro/marmita-trufada.webp', produto: 'marmita-trufada', dias: [], ativo: true },
+  { id: 'q-batata', tipo: 'novidade', titulo: 'Porção de batata no Mac de 10', texto: 'Cheddar ou catupiry, com bacon ou calabresa (média 300 g).', preco: 'R$ 25,00', foto: '/img/quadro/batata.webp', produto: 'porcao-batata', dias: [], ativo: true },
+  { id: 'q-mac', tipo: 'promocao', titulo: 'Manu apresenta: Mac de 10!', texto: 'Com 1, 2 ou 3 hambúrgueres.', preco: 'a partir de R$ 10', foto: '/img/quadro/mac-de-10.webp', produto: 'mac-de-10-1', dias: [], ativo: true },
+];
+
 async function migrar() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS config (
@@ -115,6 +121,8 @@ async function migrar() {
   await pool.query(
     `INSERT INTO config (chave, valor) VALUES ('cardapio', $1), ('loja', $2) ON CONFLICT (chave) DO NOTHING`,
     [JSON.stringify(cardapioInicial), JSON.stringify(LOJA_PADRAO)]);
+  // avisos iniciais do quadro da Manu (só se o quadro nunca foi salvo)
+  await pool.query(`INSERT INTO config (chave, valor) VALUES ('quadro', $1) ON CONFLICT (chave) DO NOTHING`, [JSON.stringify(QUADRO_INICIAL)]);
   await ajustesDoCardapio();
   await combosNoAcai();
 }

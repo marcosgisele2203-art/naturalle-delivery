@@ -146,3 +146,5 @@ a:hover { color: var(--rosa-escuro); }
 .giz:has(.giz-pontos) { padding-bottom: 22px; }
 .giz-slide.com-foto .giz-pequeno { font-size: clamp(15px, 3.8vw, 24px); }
 .giz-slide.com-foto .giz-preco { font-size: clamp(16px, 4.2vw, 26px); }
+.giz-slide.arte .giz-foto { transform: rotate(-1.5deg); }
+.giz-slide.arte .giz-titulo, .giz-slide.arte .giz-texto { display: none !important; }

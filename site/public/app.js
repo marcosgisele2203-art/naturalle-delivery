@@ -127,9 +127,21 @@
     // o quadro da Manu é a primeira imagem do app
     $('#giz').innerHTML = slides.map((h, i) => `<div class="giz-slide${h.includes('giz-foto') ? ' com-foto' : ''}"${i ? ' hidden' : ''}>${h}</div>`).join('')
       + (slides.length > 1 ? `<div class="giz-pontos">${slides.map((_, i) => `<button type="button" data-acao="slide" data-v="${i}" aria-label="Aviso ${i + 1}"${i ? '' : ' aria-current="true"'}></button>`).join('')}</div>` : '');
+    // arte em pé (cartaz da promoção) aparece inteira, sem repetir o texto que já está nela
+    document.querySelectorAll('#giz .giz-foto img').forEach((img) => {
+      if (img.complete) ajustarArte(img); else img.addEventListener('load', () => ajustarArte(img));
+    });
     if (slides.length > 1) timerQuadro = setInterval(() => { if (!document.hidden) mostrarSlide(slideAtual + 1); }, 6000);
     slideAtual = 0;
   }
+  function ajustarArte(img) {
+    if (!img.naturalWidth || img.naturalHeight < img.naturalWidth * 1.1) return;
+    const giz = $('#giz'), foto = img.closest('.giz-foto');
+    img.closest('.giz-slide').classList.add('arte');
+    foto.style.aspectRatio = img.naturalWidth + ' / ' + img.naturalHeight;
+    foto.style.width = Math.min(giz.clientWidth * 0.8, giz.clientHeight * 0.6 * img.naturalWidth / img.naturalHeight) + 'px';
+  }
+  window.addEventListener('resize', () => document.querySelectorAll('#giz .arte .giz-foto img').forEach(ajustarArte));
   let slideAtual = 0;
   function mostrarSlide(n) {
     const lista = document.querySelectorAll('#giz .giz-slide');
