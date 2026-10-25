@@ -12,7 +12,7 @@ const LOJA_PADRAO = {
   aberta: true,            // aceitando pedidos pelo site
   delivery: true,          // aceita entrega
   retirada: true,          // aceita retirar no balcão
-  taxa_entrega: 0,
+  taxa_entrega: 6,
   taxa_cartao: 1,          // acréscimo da maquininha quando paga no cartão
   mesa_auto_confirmar: false, // pedido da mesa (QR) vai direto pra cozinha
 };
