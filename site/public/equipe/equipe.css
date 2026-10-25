@@ -12,13 +12,58 @@ button { cursor: pointer; }
 a { color: var(--rosa); }
 h1, h2, h3 { margin: 0; }
 
-/* login */
-.tela-login { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px; background: var(--verde-escuro); }
-.caixa-login { width: 100%; max-width: 380px; background: #fff; border-radius: 20px; padding: 28px; display: flex; flex-direction: column; gap: 14px; }
-.manu-login { width: 120px; height: 150px; object-fit: cover; border-radius: 16px; align-self: center; }
-.caixa-login h1 { font-family: var(--display); font-weight: 800; font-size: 30px; }
+/* entrada: escolha do painel e login */
+.entrada { min-height: 100vh; padding: clamp(16px, 4vw, 40px); display: grid; grid-template-columns: minmax(180px, 280px) minmax(0, 1fr); grid-template-rows: 1fr auto; gap: 20px 28px; align-items: end;
+  background: linear-gradient(180deg, rgba(10, 20, 12, .15) 0%, rgba(10, 20, 12, .55) 100%), url(/img/fachada-noite.webp) center top / cover no-repeat fixed var(--verde-escuro); }
+.entrada svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.entrada-manu { position: relative; display: flex; flex-direction: column; align-items: center; align-self: end; }
+.entrada-manu img { width: 100%; max-width: 250px; height: auto; filter: drop-shadow(0 12px 18px rgba(0, 0, 0, .45)); }
+.balao { position: relative; background: #FFFDF6; border-radius: 16px; padding: 12px 16px; text-align: center; box-shadow: 0 8px 24px rgba(0, 0, 0, .3); margin-bottom: 8px; }
+.balao::after { content: ''; position: absolute; left: 55%; bottom: -9px; width: 18px; height: 18px; background: #FFFDF6; transform: rotate(45deg); }
+.balao b { display: block; font-family: var(--display); font-size: 22px; color: var(--verde); }
+.balao span { font-size: 14px; color: var(--tinta-2); }
+.entrada-quadro { background: rgba(250, 248, 240, .95); border-radius: 22px; padding: clamp(16px, 2.4vw, 26px); box-shadow: 0 20px 50px rgba(0, 0, 0, .35); min-width: 0; }
+.entrada-topo { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+.entrada-topo small { font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--cinza); }
+.entrada-topo h1 { font-family: var(--display); font-weight: 800; font-size: clamp(24px, 3vw, 32px); color: var(--verde-escuro); margin-top: 4px; }
+.conferido { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 12px; color: var(--cinza); max-width: 200px; }
+.paineis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.painel-cartao { position: relative; display: flex; flex-direction: column; gap: 6px; background: #fff; border: 1px solid var(--linha); border-radius: 14px; padding: 16px; color: var(--tinta); text-decoration: none; transition: transform .12s, box-shadow .12s, border-color .12s; }
+.painel-cartao:hover { transform: translateY(-2px); box-shadow: 0 10px 22px rgba(0, 0, 0, .12); border-color: var(--verde); }
+.painel-icone { width: 38px; height: 38px; border-radius: 10px; background: var(--verde-claro); color: var(--verde); display: inline-flex; align-items: center; justify-content: center; margin-bottom: 6px; }
+.painel-cartao:nth-child(3) .painel-icone { background: #FBEFD9; color: var(--ocre); }
+.painel-cartao:nth-child(5) .painel-icone { background: #E3EDF8; color: var(--azul); }
+.painel-selo { position: absolute; top: 18px; right: 16px; display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--cinza); }
+.painel-selo svg { width: 13px; height: 13px; }
+.painel-cartao b { font-family: var(--display); font-size: 21px; color: var(--verde-escuro); }
+.painel-texto { font-size: 14px; color: var(--cinza); flex: 1; }
+.painel-abrir { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--linha); padding-top: 12px; margin-top: 10px; font-weight: 700; font-size: 14px; color: var(--tinta); }
+.painel-abrir i { font-style: normal; font-size: 18px; transition: transform .12s; }
+.painel-cartao:hover .painel-abrir i { transform: translateX(4px); }
+.entrada-rodape { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; gap: 10px 20px; flex-wrap: wrap; background: rgba(250, 248, 240, .95); border-radius: 12px; padding: 10px 16px; font-size: 13px; color: var(--tinta-2); }
+.entrada-rodape > span { display: flex; align-items: center; gap: 8px; }
+.entrada-rodape button { border: 0; background: none; padding: 0; color: var(--rosa); text-decoration: underline; font-weight: 600; min-height: 32px; }
+.entrada-login { grid-template-columns: 1fr; grid-template-rows: 1fr; place-items: center; }
+.caixa-login { width: 100%; max-width: 400px; background: #FFFDF6; border-radius: 20px; padding: 26px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 20px 50px rgba(0, 0, 0, .4); }
+.login-cabeca { display: flex; align-items: center; gap: 14px; }
+.login-cabeca .painel-icone { width: 52px; height: 52px; margin: 0; }
+.login-cabeca .painel-icone svg { width: 28px; height: 28px; }
+.voltar-paineis { font-size: 14px; font-weight: 600; color: var(--verde); text-decoration: none; }
+.manu-login { width: 90px; height: 112px; object-fit: cover; border-radius: 14px; }
+.caixa-login h1 { font-family: var(--display); font-weight: 800; font-size: 28px; color: var(--verde-escuro); }
 .caixa-login h1 span { color: var(--rosa); }
 .caixa-login p { margin: 0; color: var(--cinza); }
+.caixa-login .aviso-login { background: #FBEFD9; color: var(--tinta); border-radius: 10px; padding: 10px 12px; font-size: 14px; }
+.lateral .todos-paineis { min-height: 36px; font-size: 13px; color: var(--amarelo); margin-bottom: 6px; }
+@media (max-width: 1000px) { .paineis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 760px) {
+  .entrada { grid-template-columns: 1fr; background-attachment: scroll; align-items: start; }
+  .entrada-manu { flex-direction: row; align-items: flex-end; gap: 8px; justify-content: center; }
+  .entrada-manu img { width: 110px; order: -1; }
+  .balao::after { left: -7px; bottom: 30px; }
+  .balao b { font-size: 19px; }
+}
+@media (max-width: 520px) { .paineis { grid-template-columns: 1fr; } .painel-cartao b { font-size: 19px; } }
 
 /* campos e botões */
 .campo { display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600; color: var(--tinta-2); }

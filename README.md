@@ -9,7 +9,7 @@ administração. As mensagens de WhatsApp saem pelo n8n + Evolution API (número
 |---|---|---|
 | `/` | Cliente | Pede para **entrega** ou **retirada**, paga com Pix, cartão ou dinheiro e acompanha o pedido |
 | `/m/<código>` | Cliente na mesa | Abre pelo **QR code da mesa**. Pede sem chamar o garçom; vai para a conta da mesa |
-| `/equipe` | Equipe | Login de cada funcionário. Cada um só vê as seções liberadas para ele |
+| `/equipe` | Equipe | Entrada com os painéis da loja (Administração, Atendimento e caixa, Cozinha, Garçom, Entregador, Cardápio). Ao tocar num painel pede o login; cada um só entra nas seções liberadas para ele |
 
 Seções da área da equipe:
 
@@ -105,6 +105,7 @@ Se o n8n cair, os pedidos continuam funcionando normalmente; só as mensagens de
   marcado como pronto por engano.
 - **Som**: cada aparelho precisa clicar uma vez em *Ligar som* (o navegador exige).
 - **QR code fotografado**: se alguém estiver pedindo de fora com foto do QR, use *Trocar QR* na mesa e imprima de novo.
+- **Tablet da cozinha / celular do entregador**: salve como favorito `seudominio/equipe#/cozinha` (ou `#/entregador`) para abrir direto no painel.
 - **Senha esquecida**: o administrador define uma nova em Administração › Equipe.
 
 ## Impressora térmica
