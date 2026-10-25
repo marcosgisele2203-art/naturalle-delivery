@@ -90,7 +90,7 @@ function notificar(caminho, pedido) {
 // ---------------------------------------------------------------- pedidos
 
 const CAMPOS_PEDIDO = `p.id, p.codigo, p.criado_em, p.confirmado_em, p.pronto_em, p.origem, p.tipo, p.status,
-  p.cliente_nome, p.cliente_telefone, p.endereco, p.observacoes, p.itens, p.subtotal, p.taxa_entrega, p.total,
+  p.cliente_nome, p.cliente_telefone, p.endereco, p.observacoes, p.itens, p.subtotal, p.taxa_entrega, p.acrescimo_cartao, p.total,
   p.pagamento, p.troco_para, p.pix_status, p.mesa_id, p.conta_id, m.nome AS mesa_nome, u.nome AS criado_por_nome`;
 const FROM_PEDIDO = `FROM pedidos p LEFT JOIN mesas m ON m.id = p.mesa_id LEFT JOIN usuarios u ON u.id = p.criado_por`;
 
@@ -118,16 +118,17 @@ async function gravarPedido(d) {
       contaId = rows[0].id;
     }
     const subtotal = Calc.somar(d.itens);
-    const total = Math.round((subtotal + (d.taxa_entrega || 0)) * 100) / 100;
+    const acrescimo = d.pagamento === 'cartao' ? Number(d.taxa_cartao) || 0 : 0;
+    const total = Math.round((subtotal + (d.taxa_entrega || 0) + acrescimo) * 100) / 100;
     const { rows } = await cli.query(
       `INSERT INTO pedidos (codigo, origem, tipo, status, mesa_id, conta_id, criado_por, cliente_nome, cliente_telefone,
-         endereco, observacoes, itens, subtotal, taxa_entrega, total, pagamento, troco_para, pix_status, confirmado_em)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18, CASE WHEN $4 = 'preparo' THEN now() END)
+         endereco, observacoes, itens, subtotal, taxa_entrega, total, pagamento, troco_para, pix_status, confirmado_em, acrescimo_cartao)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18, CASE WHEN $4 = 'preparo' THEN now() END, $19)
        RETURNING id`,
       [codigoAleatorio(), d.origem, d.tipo, d.status, d.mesa_id || null, contaId, d.criado_por || null,
         d.cliente_nome || '', d.cliente_telefone || '', d.endereco || '', d.observacoes || '', JSON.stringify(d.itens),
         subtotal, d.taxa_entrega || 0, total, d.pagamento || null, d.troco_para || null,
-        d.pagamento === 'pix' ? 'aguardando' : null]);
+        d.pagamento === 'pix' ? 'aguardando' : null, acrescimo]);
     await cli.query('COMMIT');
     return buscarPedido(rows[0].id);
   } catch (e) {
@@ -222,6 +223,8 @@ function validarLoja(b, atual) {
   const bool = (v, padrao) => (typeof v === 'boolean' ? v : padrao);
   const taxa = Math.round(Number(String(b.taxa_entrega ?? atual.taxa_entrega).replace(',', '.')) * 100) / 100;
   if (!Number.isFinite(taxa) || taxa < 0 || taxa > 1000) throw new Erro(400, 'Taxa de entrega inválida');
+  const cartao = Math.round(Number(String(b.taxa_cartao ?? atual.taxa_cartao).replace(',', '.')) * 100) / 100;
+  if (!Number.isFinite(cartao) || cartao < 0 || cartao > 100) throw new Erro(400, 'Acréscimo do cartão inválido');
   return {
     nome: texto(b.nome, 80) || atual.nome,
     frase: texto(b.frase, 160),
@@ -231,6 +234,7 @@ function validarLoja(b, atual) {
     delivery: bool(b.delivery, atual.delivery),
     retirada: bool(b.retirada, atual.retirada),
     taxa_entrega: taxa,
+    taxa_cartao: cartao,
     mesa_auto_confirmar: bool(b.mesa_auto_confirmar, atual.mesa_auto_confirmar),
     url_publica: texto(b.url_publica, 200).replace(/\/+$/, ''),
     recado: texto(b.recado, 140),
@@ -238,7 +242,7 @@ function validarLoja(b, atual) {
 }
 
 const lojaPublica = (l) => ({ nome: l.nome, frase: l.frase, horario: l.horario, whatsapp: l.whatsapp, aberta: l.aberta,
-  delivery: l.delivery, retirada: l.retirada, taxa_entrega: l.taxa_entrega, recado: l.recado || '' });
+  delivery: l.delivery, retirada: l.retirada, taxa_entrega: l.taxa_entrega, taxa_cartao: Number(l.taxa_cartao) || 0, recado: l.recado || '' });
 
 function urlBase(req, loja) {
   if (loja.url_publica) return loja.url_publica;
@@ -281,7 +285,7 @@ rota('POST', '/api/publico/pedido', null, async ({ req, b }) => {
   const taxa = tipo === 'entrega' ? Number(loja.taxa_entrega) || 0 : 0;
   const pag = lerPagamento(b, Calc.somar(itens) + taxa, true);
   const pedido = await gravarPedido({ origem: 'site', tipo, status: 'novo', cliente_nome: nome, cliente_telefone: tel,
-    endereco: tipo === 'entrega' ? endereco : '', observacoes: texto(b.observacoes, 300), itens, taxa_entrega: taxa, ...pag });
+    endereco: tipo === 'entrega' ? endereco : '', observacoes: texto(b.observacoes, 300), itens, taxa_entrega: taxa, taxa_cartao: loja.taxa_cartao, ...pag });
   notificar('/pedido', pedido);
   return { ok: true, pedido_id: pedido.id, codigo: pedido.codigo, total: Number(pedido.total) };
 });
@@ -384,7 +388,7 @@ rota('POST', '/api/equipe/pedido', ['garcom', 'caixa', 'pedidos'], async ({ u, b
   const pag = tipo === 'mesa' ? {} : lerPagamento(b, Calc.somar(itens) + taxa, tipo === 'entrega');
   const pedido = await gravarPedido({ origem: tipo === 'mesa' ? 'garcom' : 'balcao', tipo, status: 'preparo', mesa_id: mesaId,
     criado_por: u.id, cliente_nome: nome, cliente_telefone: telefoneBR(b.cliente_telefone), endereco: tipo === 'entrega' ? endereco : '',
-    observacoes: texto(b.observacoes, 300), itens, taxa_entrega: taxa, ...pag });
+    observacoes: texto(b.observacoes, 300), itens, taxa_entrega: taxa, taxa_cartao: loja.taxa_cartao, ...pag });
   notificar('/pedido', pedido);
   return { ok: true, pedido };
 });
@@ -443,16 +447,36 @@ rota('GET', '/api/equipe/conta/:id', ['garcom', 'caixa', 'pedidos'], async ({ p 
 rota('POST', '/api/equipe/conta/:id/fechar', ['caixa'], async ({ u, p, b }) => {
   const pagamento = ['pix', 'cartao', 'dinheiro'].includes(b.pagamento) ? b.pagamento : null;
   if (!pagamento) throw new Erro(400, 'Escolha a forma de pagamento.');
-  const { rows } = await pool.query(
-    `UPDATE contas c SET fechada_em = now(), pagamento = $2, fechada_por = $3,
-        total = (SELECT COALESCE(sum(total), 0) FROM pedidos WHERE conta_id = c.id AND status <> 'cancelado')
-      WHERE c.id = $1 AND c.fechada_em IS NULL RETURNING c.total`, [Number(p.id), pagamento, u.id]);
-  if (!rows[0]) throw new Erro(409, 'Essa conta já foi fechada.');
-  // conta paga: o que já estava pronto foi servido
-  await pool.query(
-    `UPDATE pedidos SET pagamento = $2, atualizado_em = now(), status = CASE WHEN status = 'pronto' THEN 'entregue' ELSE status END
-      WHERE conta_id = $1 AND status <> 'cancelado'`, [Number(p.id), pagamento]);
-  return { ok: true, total: Number(rows[0].total) };
+  const id = Number(p.id);
+  const loja = await lerConfig('loja');
+  const cli = await pool.connect();
+  try {
+    await cli.query('BEGIN');
+    const { rows: aberta } = await cli.query('SELECT id FROM contas WHERE id = $1 AND fechada_em IS NULL FOR UPDATE', [id]);
+    if (!aberta[0]) throw new Erro(409, 'Essa conta já foi fechada.');
+    // conta paga: o que já estava pronto foi servido
+    await cli.query(
+      `UPDATE pedidos SET pagamento = $2, atualizado_em = now(), status = CASE WHEN status = 'pronto' THEN 'entregue' ELSE status END
+        WHERE conta_id = $1 AND status <> 'cancelado'`, [id, pagamento]);
+    // acréscimo da maquininha: uma vez por conta, lançado no último pedido
+    const acrescimo = pagamento === 'cartao' ? Number(loja.taxa_cartao) || 0 : 0;
+    if (acrescimo) {
+      await cli.query(
+        `UPDATE pedidos SET acrescimo_cartao = acrescimo_cartao + $2, total = total + $2
+          WHERE id = (SELECT id FROM pedidos WHERE conta_id = $1 AND status <> 'cancelado' ORDER BY criado_em DESC LIMIT 1)`, [id, acrescimo]);
+    }
+    const { rows } = await cli.query(
+      `UPDATE contas c SET fechada_em = now(), pagamento = $2, fechada_por = $3,
+          total = (SELECT COALESCE(sum(total), 0) FROM pedidos WHERE conta_id = c.id AND status <> 'cancelado')
+        WHERE c.id = $1 RETURNING c.total`, [id, pagamento, u.id]);
+    await cli.query('COMMIT');
+    return { ok: true, total: Number(rows[0].total) };
+  } catch (e) {
+    await cli.query('ROLLBACK');
+    throw e;
+  } finally {
+    cli.release();
+  }
 });
 
 rota('GET', '/api/equipe/caixa/resumo', ['caixa', 'pedidos'], async () => {

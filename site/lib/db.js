@@ -13,6 +13,7 @@ const LOJA_PADRAO = {
   delivery: true,          // aceita entrega
   retirada: true,          // aceita retirar no balcão
   taxa_entrega: 0,
+  taxa_cartao: 1,          // acréscimo da maquininha quando paga no cartão
   mesa_auto_confirmar: false, // pedido da mesa (QR) vai direto pra cozinha
 };
 
@@ -79,6 +80,7 @@ async function migrar() {
     ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS criado_por INT REFERENCES usuarios(id);
     ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS subtotal NUMERIC(10, 2);
     ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS taxa_entrega NUMERIC(10, 2) NOT NULL DEFAULT 0;
+    ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS acrescimo_cartao NUMERIC(10, 2) NOT NULL DEFAULT 0;
     ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS codigo TEXT;
     ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS observacoes TEXT NOT NULL DEFAULT '';
     ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS confirmado_em TIMESTAMPTZ;

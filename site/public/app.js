@@ -46,7 +46,9 @@
     return d;
   }
 
-  const total = () => window.Calc.somar(st.carrinho) + (taxa());
+  const total = () => window.Calc.somar(st.carrinho) + taxa() + acrescimoCartao();
+  // acréscimo da maquininha quando o pagamento é no cartão
+  const acrescimoCartao = () => (!tokenMesa && st.pagamento === 'cartao' ? Number(st.loja.taxa_cartao) || 0 : 0);
   const taxa = () => (!tokenMesa && st.tipo === 'entrega' ? Number(st.loja.taxa_entrega) || 0 : 0);
 
   function adicionar(escolha, calc) {
@@ -160,7 +162,8 @@
         <div class="campo"><span>Forma de pagamento</span><div class="pagamentos">${pags}</div>
           ${ajuda ? `<small style="font-weight:400;color:var(--cinza)">${ajuda}</small>` : ''}</div>
         ${st.pagamento === 'dinheiro' ? `<label class="campo">Troco para quanto? (opcional)<input name="troco" inputmode="decimal" placeholder="Ex.: 50,00" value="${esc(st.troco)}"></label>` : ''}
-        ${taxa() ? `<div class="linha-total"><span>Taxa de entrega</span><span>${brl(taxa())}</span></div>` : ''}`;
+        ${taxa() ? `<div class="linha-total"><span>Taxa de entrega</span><span>${brl(taxa())}</span></div>` : ''}
+        ${acrescimoCartao() ? `<div class="linha-total"><span>Acréscimo da maquininha</span><span>${brl(acrescimoCartao())}</span></div>` : ''}`;
     }
     const fechado = !tokenMesa && !l.aberta;
     $('#carrinho-corpo').innerHTML = `${st.carrinho.length ? `<div class="manu-card"><img src="${MANU('celular')}" alt="" width="84" height="105">

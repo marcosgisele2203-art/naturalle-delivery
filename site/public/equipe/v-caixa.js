@@ -1,5 +1,6 @@
 // Caixa: mesas com conta aberta, fechamento de conta e resumo do dia.
-App.fecharConta = function (mesa, aoFechar) {
+App.fecharConta = async function (mesa, aoFechar) {
+  if (!App.loja) { try { await App.carregarCardapio(); } catch { /* segue sem o valor */ } }
   const { esc, brl } = App;
   const pedidos = App.pedidos.filter((p) => p.conta_id === mesa.conta_id);
   const pendentes = pedidos.filter((p) => ['novo', 'preparo', 'pronto'].includes(p.status));
@@ -7,7 +8,8 @@ App.fecharConta = function (mesa, aoFechar) {
   const itens = ativos.flatMap((p) => p.itens);
   const j = App.janela('Fechar conta · ' + mesa.nome, `
     <div>${window.Montador.linhas(itens)}</div>
-    <div class="linha-total"><span>Total</span><span>${brl(mesa.total)}</span></div>
+    <div class="linha-total" data-acrescimo hidden style="font-size:14px;font-weight:600"><span>Acréscimo da maquininha</span><span>${brl(App.loja ? App.loja.taxa_cartao : 0)}</span></div>
+    <div class="linha-total"><span>Total</span><span data-total>${brl(mesa.total)}</span></div>
     ${pendentes.length ? `<p class="erro">Atenção: ${pendentes.length} pedido(s) desta mesa ainda não foram servidos.</p>` : ''}
     <div class="campo"><span>Forma de pagamento</span><div class="chips" id="pag-conta">
       ${[['pix', 'Pix'], ['cartao', 'Cartão'], ['dinheiro', 'Dinheiro']].map(([v, n]) => `<button class="chip" aria-pressed="false" data-v="${v}">${n}</button>`).join('')}</div></div>
@@ -21,6 +23,9 @@ App.fecharConta = function (mesa, aoFechar) {
       pag = b.dataset.v;
       j.querySelectorAll('#pag-conta .chip').forEach((c) => c.setAttribute('aria-pressed', c.dataset.v === pag));
       j.querySelector('[data-confirmar]').disabled = false;
+      const extra = pag === 'cartao' && App.loja ? Number(App.loja.taxa_cartao) || 0 : 0;
+      j.querySelector('[data-acrescimo]').hidden = !extra;
+      j.querySelector('[data-total]').textContent = brl(Number(mesa.total) + extra);
     } else if (b.hasAttribute('data-confirmar')) {
       b.disabled = true;
       try {

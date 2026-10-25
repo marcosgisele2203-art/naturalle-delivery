@@ -9,7 +9,8 @@ App.novoPedido = function (el, opts) {
   let montador;
 
   const taxa = () => (st.tipo === 'entrega' ? Number(App.loja.taxa_entrega) || 0 : 0);
-  const total = () => window.Calc.somar(st.itens) + taxa();
+  const acrescimoCartao = () => (st.tipo !== 'mesa' && st.pagamento === 'cartao' ? Number(App.loja.taxa_cartao) || 0 : 0);
+  const total = () => window.Calc.somar(st.itens) + taxa() + acrescimoCartao();
 
   function renderCarrinho() {
     const c = el.querySelector('#novo-carrinho');
@@ -28,6 +29,7 @@ App.novoPedido = function (el, opts) {
         `<button type="button" class="chip" aria-pressed="${st.pagamento === v}" data-pag="${v}">${n}</button>`).join('')}</div></div>` : ''}
       ${st.pagamento === 'dinheiro' && st.tipo !== 'mesa' ? `<label class="campo">Troco para<input name="troco" inputmode="decimal" value="${esc(st.troco)}"></label>` : ''}
       ${taxa() ? `<div class="linha-total" style="font-size:14px;font-weight:600"><span>Taxa de entrega</span><span>${brl(taxa())}</span></div>` : ''}
+      ${acrescimoCartao() ? `<div class="linha-total" style="font-size:14px;font-weight:600"><span>Acréscimo da maquininha</span><span>${brl(acrescimoCartao())}</span></div>` : ''}
       <div class="linha-total"><span>Total</span><span>${brl(total())}</span></div>
       ${st.erro ? `<p class="erro" role="alert">${esc(st.erro)}</p>` : ''}
       <button type="button" class="btn principal grande" data-enviar${st.enviando || !st.itens.length ? ' disabled' : ''}>${st.enviando ? 'Enviando…' : 'Enviar para a cozinha'}</button>

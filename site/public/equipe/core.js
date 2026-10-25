@@ -94,7 +94,7 @@
       ${p.cliente_nome || p.endereco ? `<div class="cliente">${p.cliente_nome ? `<strong>${esc(p.cliente_nome)}</strong>` : ''}${p.endereco ? `<span>${esc(p.endereco)}</span>` : ''}${p.cliente_telefone ? `<span>${App.fone(p.cliente_telefone)}</span>` : ''}</div>` : ''}
       <div>${itens}</div>
       ${p.observacoes ? `<div class="obs"><b>Obs.:</b> ${esc(p.observacoes)}</div>` : ''}
-      <div class="tags">${pag}${Number(p.taxa_entrega) ? `<span class="tag">Entrega ${brl(p.taxa_entrega)}</span>` : ''}<span class="tag forte">${brl(p.total)}</span></div>
+      <div class="tags">${pag}${Number(p.taxa_entrega) ? `<span class="tag">Entrega ${brl(p.taxa_entrega)}</span>` : ''}${Number(p.acrescimo_cartao) ? `<span class="tag">Maquininha ${brl(p.acrescimo_cartao)}</span>` : ''}<span class="tag forte">${brl(p.total)}</span></div>
       ${acoes.length ? `<div class="acoes">${acoes.map((a) => a.href
         ? `<a class="btn" href="${esc(a.href)}" target="_blank" rel="noopener">${a.rotulo}</a>`
         : `<button class="btn ${a.classe || ''}" data-acao="${a.acao}" data-id="${p.id}"${a.valor ? ` data-valor="${a.valor}"` : ''}>${a.rotulo}</button>`).join('')}</div>` : ''}
