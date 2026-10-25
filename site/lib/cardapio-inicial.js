@@ -24,17 +24,17 @@ module.exports = {
     { id: 'sobremesas', nome: 'Sobremesas e mais' },
   ],
   produtos: [
-    {
-      id: 'monte-seu-acai', categoria: 'acai', nome: 'Monte seu açaí', descricao: 'Escolha o copo e os adicionais do seu jeito.', preco: 0,
+    ...[['300 ml', 12], ['400 ml', 14], ['500 ml', 18], ['700 ml', 26], ['1 litro', 36]].map(([copo, preco]) => ({
+      id: 'acai-' + slug(copo), categoria: 'acai', nome: 'Açaí ' + copo, preco, foto: '/img/lanches/acai.webp',
+      descricao: 'Copo de ' + copo + '. Monte do seu jeito com frutas, cremes, chocolates e caldas.',
       grupos: [
-        grupo('Copo', 'unica', true, [['300 ml', 12], ['400 ml', 14], ['500 ml', 18], ['700 ml', 26], ['1 litro', 36]]),
         grupo('Frutas', 'multipla', false, frutas),
         grupo('Cremes', 'multipla', false, cremes),
         grupo('Diversos', 'multipla', false, diversos),
         grupo('Chocolates', 'multipla', false, chocolates),
         grupo('Caldas', 'multipla', false, caldas),
       ],
-    },
+    })),
     {
       id: 'marmita-trufada', categoria: 'acai', nome: 'Marmita Trufada', descricao: 'Açaí + 5 adicionais à sua escolha.', preco: 40,
       grupos: [grupo('Seus 5 adicionais', 'multipla', true,
