@@ -290,7 +290,9 @@
     montador = window.Montador.criar({
       el: $('#cardapio'), cardapio: st.cardapio, dia: st.dia, onAdicionar: adicionar,
       banners: { acai: `<div class="manu-card manu-acai"><img src="${MANU('acai')}" alt="" width="104" height="130">
-        <div><h2>Açaí cremoso</h2><p>Monte o seu com frutas, cremes, chocolates e caldas.</p></div></div>` },
+        <div><h2>Açaí cremoso</h2><p>Monte o seu com frutas, cremes, chocolates e caldas.</p></div></div>`,
+        mac: `<div class="manu-card manu-mac"><img src="${MANU('bandeja')}" alt="" width="104" height="130">
+        <div><h2>Aqui é Mac de 10!</h2><p>Escolha com 1, 2 ou 3 hambúrgueres. Vem com alface, tomate, cheddar ou mussarela e molho da casa.</p></div></div>` },
     });
     renderBarra();
     acompanhar();

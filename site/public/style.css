@@ -108,6 +108,8 @@ a:hover { color: var(--rosa-escuro); }
 .folha .manu-card img { width: 84px; height: 105px; }
 .manu-acai { margin-bottom: 10px; background: #F4E9F7; }
 .manu-acai h2 { color: #5B2A86; }
+.manu-mac { margin-bottom: 10px; background: #FFF3C4; }
+.manu-mac h2 { color: #7A2E0B; }
 .acompanhar { padding: 10px; }
 .acompanhar .manu-card { padding: 0; }
 .acompanhar h3 { margin: 6px 0 0; font-size: 14px; }
