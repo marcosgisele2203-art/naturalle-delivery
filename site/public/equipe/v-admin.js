@@ -2,7 +2,7 @@
 App.views.admin = {
   montar(el, params) {
     const { esc, brl } = App;
-    const ABAS = [['cardapio', 'Cardápio'], ['mesas', 'Mesas e QR code'], ['equipe', 'Equipe'], ['loja', 'Loja'], ['impressora', 'Impressora']];
+    const ABAS = [['cardapio', 'Cardápio'], ['equipe', 'Funcionários'], ['mesas', 'Mesas e QR code'], ['loja', 'Loja'], ['impressora', 'Impressora']];
     let aba = ABAS.some(([a]) => a === params[0]) ? params[0] : 'cardapio';
     let d = null; // { cardapio, loja, usuarios, mesas, permissoes }
     const copia = (o) => JSON.parse(JSON.stringify(o));
@@ -210,47 +210,83 @@ App.views.admin = {
       </section>`;
     }
 
-    // ---------------- equipe
+    // ---------------- funcionários
+    const SECOES = {
+      admin: 'Tudo: cardápio, mesas, funcionários, loja e relatórios.',
+      pedidos: 'Quadro de pedidos: confirmar os do site, saiu para entrega, confirmar Pix.',
+      caixa: 'Novo pedido de balcão/telefone, fechar conta das mesas, resumo do dia e relatórios.',
+      cozinha: 'Tela da cozinha com os pedidos confirmados e o botão Pronto.',
+      garcom: 'Mapa das mesas, lançar pedido na mesa, confirmar pedidos do QR, servido.',
+      entregador: 'Tela Entregas no celular: pega o pedido pronto, maquininha/troco e confirma o pagamento.',
+    };
+    // funções prontas: marcam as seções de uma vez
+    const FUNCOES = [['Administrador', ['admin']], ['Atendente / caixa', ['pedidos', 'caixa']], ['Cozinheiro', ['cozinha']], ['Garçom', ['garcom']], ['Entregador', ['entregador']]];
+    const fone = (t) => { const n = String(t || '').replace(/^55/, ''); return n.length >= 10 ? `(${n.slice(0, 2)}) ${n.slice(2, -4)}-${n.slice(-4)}` : n; };
+
     function abaEquipe() {
-      return `<section class="cartao"><div class="topo"><div><h2>Equipe</h2><p>Cada pessoa entra com o próprio login e só vê as seções liberadas.</p></div>
-          <button class="btn verde" data-usuario="">+ Funcionário</button></div>
-        <div class="rolagem"><table class="tabela"><thead><tr><th>Nome</th><th>Login</th><th>Seções</th><th></th></tr></thead><tbody>
-        ${d.usuarios.map((u) => `<tr><td><b>${esc(u.nome)}</b>${u.ativo ? '' : ' <span class="selo-off">desativado</span>'}</td><td>${esc(u.login)}</td>
-          <td>${u.permissoes.map((x) => esc(d.permissoes[x] || x)).join(', ')}</td>
-          <td><button class="btn" data-usuario="${u.id}">Editar</button></td></tr>`).join('')}
-        </tbody></table></div></section>
-        <section class="cartao"><h2>O que cada seção libera</h2><ul class="nota">
-          <li><b>Administrador</b>: tudo, inclusive cardápio, mesas, equipe e configurações.</li>
-          <li><b>Pedidos e delivery</b>: quadro de pedidos, confirmar pedidos do site, saiu para entrega, confirmar Pix, novo pedido.</li>
-          <li><b>Cozinha</b>: tela da cozinha com os pedidos confirmados e o botão Pronto.</li>
-          <li><b>Garçom</b>: mapa das mesas, lançar pedido na mesa, confirmar pedidos do QR, marcar servido.</li>
-          <li><b>Entregador</b>: tela Entregas no celular: pega os pedidos prontos, vê o que levar (maquininha, troco), abre o mapa e confirma o pagamento na entrega.</li>
-          <li><b>Caixa / balcão</b>: novo pedido de balcão/telefone/entrega, fechar conta das mesas, resumo do dia.</li></ul></section>`;
+      const ativos = d.usuarios.filter((u) => u.ativo);
+      const conta = (p) => ativos.filter((u) => u.permissoes.includes(p)).length;
+      return `<section class="cartao"><div class="topo"><div><h2>Funcionários</h2>
+            <p>${ativos.length} ativo(s) · ${conta('cozinha')} na cozinha · ${conta('garcom')} garçom · ${conta('entregador')} entregador · ${ativos.filter((u) => u.permissoes.some((p) => p === 'pedidos' || p === 'caixa')).length} no atendimento/caixa</p></div>
+          <button class="btn verde grande" data-usuario="">+ Cadastrar funcionário</button></div>
+        <div class="funcionarios">
+        ${d.usuarios.map((u) => `<article class="funcionario${u.ativo ? '' : ' inativo'}">
+          <span class="avatar" aria-hidden="true">${esc((u.nome.trim()[0] || '?').toUpperCase())}</span>
+          <div class="func-dados"><b>${esc(u.nome)}</b>${u.ativo ? '' : ' <span class="selo-off">desativado</span>'}${u.id === App.usuario.id ? ' <span class="selo-voce">você</span>' : ''}
+            <small>Login: <b>${esc(u.login)}</b>${u.telefone ? ` · ${esc(fone(u.telefone))}` : ''}</small>
+            <div class="func-secoes">${u.permissoes.map((x) => `<span>${esc(d.permissoes[x] || x)}</span>`).join('')}</div></div>
+          <div class="func-acoes"><button class="btn" data-usuario="${u.id}">Editar</button>
+            ${u.id === App.usuario.id ? '' : `<button class="btn fraco" data-ativar="${u.id}">${u.ativo ? 'Desativar' : 'Reativar'}</button>`}</div>
+        </article>`).join('') || '<p class="nota">Nenhum funcionário cadastrado.</p>'}
+        </div>
+        <p class="nota">Cada funcionário entra pela tela de painéis com o próprio login e só abre as seções marcadas para ele. Quando alguém sair da equipe, use <b>Desativar</b>: o acesso é cortado na hora e o histórico de pedidos continua.</p></section>`;
+    }
+
+    async function salvarUsuario(u, extra) {
+      await App.api('/api/admin/usuarios', { id: u.id || null, nome: u.nome, login: u.login, telefone: u.telefone || '', senha: '', permissoes: u.permissoes, ativo: u.ativo, ...extra });
     }
 
     function editarUsuario(id) {
-      const u = id ? d.usuarios.find((x) => x.id === Number(id)) : { nome: '', login: '', permissoes: [], ativo: true };
-      const j = App.janela(id ? 'Editar ' + u.nome : 'Novo funcionário', `<form style="display:flex;flex-direction:column;gap:12px">
+      const u = id ? d.usuarios.find((x) => x.id === Number(id)) : { nome: '', login: '', telefone: '', permissoes: [], ativo: true };
+      const j = App.janela(id ? 'Editar ' + u.nome : 'Cadastrar funcionário', `<form style="display:flex;flex-direction:column;gap:14px">
         <div class="grade-form">
-          <label class="campo">Nome<input name="nome" required value="${esc(u.nome)}"></label>
-          <label class="campo">Login<input name="login" required autocapitalize="none" value="${esc(u.login)}"><small>Sem espaços. Ex.: joao, maria.caixa</small></label>
-          <label class="campo">${id ? 'Nova senha (deixe vazio para manter)' : 'Senha'}<input name="senha" type="password" autocomplete="new-password"${id ? '' : ' required'} minlength="6"></label>
+          <label class="campo">Nome<input name="nome" required value="${esc(u.nome)}" autocomplete="off"></label>
+          <label class="campo">WhatsApp (opcional)<input name="telefone" inputmode="tel" value="${esc(fone(u.telefone))}" placeholder="(67) 99999-0000"></label>
+          <label class="campo">Login<input name="login" required autocapitalize="none" autocomplete="off" value="${esc(u.login)}"><small>Sem espaços. Ex.: joao, maria.caixa</small></label>
+          <label class="campo">${id ? 'Nova senha (deixe vazio para manter)' : 'Senha'}<input name="senha" type="password" autocomplete="new-password"${id ? '' : ' required'} minlength="6"><small>Pelo menos 6 caracteres.</small></label>
         </div>
-        <fieldset class="campo" style="border:0;padding:0;margin:0"><legend>Seções liberadas</legend>
-          ${Object.entries(d.permissoes).map(([k, n]) => `<label class="check"><input type="checkbox" name="perm" value="${k}"${u.permissoes.includes(k) ? ' checked' : ''}> ${esc(n)}</label>`).join('')}
+        <div class="campo"><span>Função</span><div class="chips">${FUNCOES.map(([n, ps], i) => `<button type="button" class="chip" data-funcao="${i}" aria-pressed="${ps.length === u.permissoes.length && ps.every((p) => u.permissoes.includes(p))}">${n}</button>`).join('')}</div>
+          <small>Escolha a função para marcar as seções, ou marque as seções uma a uma abaixo.</small></div>
+        <fieldset class="secoes-func"><legend>Seções liberadas</legend>
+          ${Object.entries(d.permissoes).map(([k, n]) => `<label class="secao-func"><input type="checkbox" name="perm" value="${k}"${u.permissoes.includes(k) ? ' checked' : ''}><span><b>${esc(n)}</b><small>${SECOES[k] || ''}</small></span></label>`).join('')}
         </fieldset>
         <label class="check"><input type="checkbox" name="ativo"${u.ativo ? ' checked' : ''}> Ativo (desmarque quando a pessoa sair da equipe)</label>
         <p class="erro" data-msg hidden></p>
-        <button class="btn verde grande">Salvar</button></form>`);
-      j.querySelector('form').addEventListener('submit', async (e) => {
+        <button class="btn verde grande">${id ? 'Salvar' : 'Cadastrar funcionário'}</button></form>`);
+      const f = j.querySelector('form');
+      const marcarFuncao = () => {
+        const marc = [...f.querySelectorAll('[name=perm]:checked')].map((x) => x.value);
+        f.querySelectorAll('[data-funcao]').forEach((c) => { const ps = FUNCOES[c.dataset.funcao][1]; c.setAttribute('aria-pressed', ps.length === marc.length && ps.every((p) => marc.includes(p))); });
+      };
+      f.addEventListener('click', (e) => {
+        const c = e.target.closest('[data-funcao]');
+        if (!c) return;
+        const ps = FUNCOES[c.dataset.funcao][1];
+        f.querySelectorAll('[name=perm]').forEach((x) => { x.checked = ps.includes(x.value); });
+        marcarFuncao();
+      });
+      f.addEventListener('change', marcarFuncao);
+      // login sugerido a partir do nome
+      if (!id) f.nome.addEventListener('input', () => { if (!f.login.dataset.mexeu) f.login.value = f.nome.value.trim().split(/\s+/)[0].normalize('NFD').replace(/[^\w.-]/g, '').toLowerCase(); });
+      f.login.addEventListener('input', () => { f.login.dataset.mexeu = '1'; });
+      f.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const f = e.target;
         try {
           await App.api('/api/admin/usuarios', {
-            id: id || null, nome: f.nome.value, login: f.login.value, senha: f.senha.value,
+            id: id || null, nome: f.nome.value, login: f.login.value, telefone: f.telefone.value, senha: f.senha.value,
             permissoes: [...f.querySelectorAll('[name=perm]:checked')].map((x) => x.value), ativo: f.ativo.checked,
           });
-          j.fechar(); App.toast('Funcionário salvo');
+          j.fechar(); App.toast(id ? 'Funcionário salvo' : 'Funcionário cadastrado. Ele já pode entrar com o login ' + f.login.value.trim().toLowerCase());
           await carregar(); render();
         } catch (err) { const p = j.querySelector('[data-msg]'); p.textContent = err.message; p.hidden = false; }
       });
@@ -318,6 +354,12 @@ App.views.admin = {
       } else if (b.dataset.novoProd) editarProduto(null, b.dataset.novoProd);
       else if (b.dataset.edita) editarProduto(b.dataset.edita);
       else if (b.dataset.usuario != null) editarUsuario(b.dataset.usuario);
+      else if (b.dataset.ativar) {
+        const u = d.usuarios.find((x) => x.id === Number(b.dataset.ativar));
+        if (u.ativo && !confirm('Desativar ' + u.nome + '? O acesso dele é cortado na hora.')) return;
+        try { await salvarUsuario(u, { ativo: !u.ativo }); App.toast(u.nome + (u.ativo ? ' desativado' : ' reativado')); await carregar(); render(); }
+        catch (err) { App.toast(err.message, true); }
+      }
       else if (b.dataset.mesaNome) {
         const m = d.mesas.find((x) => x.id === Number(b.dataset.mesaNome));
         const nome = prompt('Novo nome da mesa', m.nome);

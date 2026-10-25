@@ -21,7 +21,7 @@ Seções da área da equipe:
 | **Entregas** | Entregador | No celular: pega os pedidos prontos, vê o que levar (maquininha ou troco), abre o endereço no mapa e confirma **entregue e pago** (com a forma que o cliente usou) |
 | **Caixa** | Caixa / balcão | **Novo pedido** de balcão ou telefone (retirada, entrega ou mesa), contas abertas das mesas, **fechar conta**, resumo do dia e **acerto dos entregadores** |
 | **Relatórios** | Caixa / balcão | Vendas do dia, semana, mês, ano ou período escolhido; baixar planilha (Excel) e imprimir / PDF |
-| **Administração** | Administrador | Cardápio, mesas e QR codes, equipe e permissões, dados da loja |
+| **Administração** | Administrador | Cardápio, **funcionários** (cadastro, função, seções liberadas, desativar), mesas e QR codes, dados da loja |
 
 ### Caminho de um pedido
 
@@ -64,7 +64,7 @@ Em *Domains*, aponte o domínio para a porta **3000** e faça o deploy.
 Abra `https://seudominio/equipe`. Na primeira vez ele pede para **criar o administrador**. Depois, em Administração:
 1. **Loja**: confira nome, horário, WhatsApp, taxa de entrega e o **endereço do site** (vai nos QR codes).
 2. **Mesas e QR code**: crie as mesas (ex.: da 1 até a 10) e clique em **Imprimir QR codes**.
-3. **Equipe**: cadastre cada funcionário com login, senha e as seções dele.
+3. **Funcionários**: clique em *+ Cadastrar funcionário*, preencha nome, WhatsApp, login e senha e escolha a função (Administrador, Atendente / caixa, Cozinheiro, Garçom, Entregador).
 4. **Cardápio**: ajuste preços, marque o que acabou (Disponível), crie produtos e adicionais.
 
 ### 4. Evolution API (WhatsApp)

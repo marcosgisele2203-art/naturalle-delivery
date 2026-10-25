@@ -576,7 +576,7 @@ rota('GET', '/api/equipe/relatorio', ['caixa'], async ({ q }) => {
 rota('GET', '/api/admin/tudo', ['admin'], async () => {
   const [cardapio, loja, usuarios, mesas] = await Promise.all([
     lerConfig('cardapio'), lerConfig('loja'),
-    pool.query('SELECT id, nome, login, permissoes, ativo FROM usuarios ORDER BY ativo DESC, nome').then((r) => r.rows),
+    pool.query('SELECT id, nome, login, telefone, permissoes, ativo, criado_em FROM usuarios ORDER BY ativo DESC, nome').then((r) => r.rows),
     pool.query('SELECT id, nome, token, ativa, ordem FROM mesas ORDER BY ativa DESC, ordem, id').then((r) => r.rows),
   ]);
   return { cardapio, loja, usuarios, mesas, permissoes: auth.PERMISSOES };
@@ -601,6 +601,7 @@ rota('POST', '/api/admin/usuarios', ['admin'], async ({ u, b }) => {
   const permissoes = (Array.isArray(b.permissoes) ? b.permissoes : []).filter((x) => auth.PERMISSOES[x]);
   if (!permissoes.length) throw new Erro(400, 'Marque pelo menos uma seção.');
   const ativo = b.ativo !== false;
+  const telefone = String(b.telefone || '').replace(/\D/g, '').slice(0, 15);
   const senha = String(b.senha || '');
   if (senha && senha.length < 6) throw new Erro(400, 'A senha precisa ter pelo menos 6 caracteres.');
   try {
@@ -608,15 +609,15 @@ rota('POST', '/api/admin/usuarios', ['admin'], async ({ u, b }) => {
       const id = Number(b.id);
       if (id === u.id && (!ativo || !permissoes.includes('admin'))) throw new Erro(400, 'Você não pode tirar seu próprio acesso de administrador.');
       const { rows } = await pool.query(
-        `UPDATE usuarios SET nome = $2, login = $3, permissoes = $4, ativo = $5,
+        `UPDATE usuarios SET nome = $2, login = $3, permissoes = $4, ativo = $5, telefone = $7,
             senha_hash = COALESCE($6, senha_hash),
             versao = versao + CASE WHEN $6 IS NOT NULL OR NOT $5 THEN 1 ELSE 0 END
-          WHERE id = $1 RETURNING id`, [id, nome, login, permissoes, ativo, senha ? auth.hashSenha(senha) : null]);
+          WHERE id = $1 RETURNING id`, [id, nome, login, permissoes, ativo, senha ? auth.hashSenha(senha) : null, telefone]);
       if (!rows[0]) throw new Erro(404, 'Usuário não encontrado');
     } else {
       if (!senha) throw new Erro(400, 'Defina uma senha para o novo usuário.');
-      await pool.query('INSERT INTO usuarios (nome, login, senha_hash, permissoes, ativo) VALUES ($1, $2, $3, $4, $5)',
-        [nome, login, auth.hashSenha(senha), permissoes, ativo]);
+      await pool.query('INSERT INTO usuarios (nome, login, senha_hash, permissoes, ativo, telefone) VALUES ($1, $2, $3, $4, $5, $6)',
+        [nome, login, auth.hashSenha(senha), permissoes, ativo, telefone]);
     }
   } catch (e) {
     if (e.code === '23505') throw new Erro(400, 'Esse login já existe.');

@@ -246,3 +246,24 @@ h1, h2, h3 { margin: 0; }
 .levar.pago { background: var(--verde-claro); color: var(--verde); }
 .endereco { font-size: 15px; font-weight: 600; color: var(--azul); }
 .entrega-card details summary { cursor: pointer; font-weight: 600; min-height: 32px; }
+
+/* administração › funcionários */
+.funcionarios { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; margin: 14px 0; }
+.funcionario { display: grid; grid-template-columns: auto 1fr; gap: 10px 12px; align-items: start; border: 1px solid var(--linha); border-radius: 14px; padding: 14px; background: #fff; }
+.funcionario.inativo { opacity: .65; background: var(--fundo); }
+.funcionario .avatar { width: 44px; height: 44px; border-radius: 50%; background: var(--verde-claro); color: var(--verde); font: 800 20px var(--display); display: flex; align-items: center; justify-content: center; }
+.func-dados { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.func-dados > b { font-size: 16px; }
+.func-dados small { color: var(--cinza); font-size: 13px; }
+.func-secoes { display: flex; flex-wrap: wrap; gap: 4px; }
+.func-secoes span { font-size: 12px; font-weight: 600; background: var(--coluna); border-radius: 6px; padding: 2px 8px; }
+.func-acoes { grid-column: 1 / -1; display: flex; gap: 8px; }
+.selo-voce { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 6px; background: var(--verde-claro); color: var(--verde); }
+.secoes-func { border: 0; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
+.secoes-func legend { font-size: 13px; font-weight: 600; color: var(--tinta-2); margin-bottom: 6px; }
+.secao-func { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--linha); border-radius: 10px; padding: 10px 12px; cursor: pointer; }
+.secao-func:has(input:checked) { border-color: var(--verde); background: var(--verde-claro); }
+.secao-func input { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--verde); flex: none; }
+.secao-func span { display: flex; flex-direction: column; gap: 2px; }
+.secao-func small { font-size: 12px; color: var(--cinza); font-weight: 400; }
+.func-dados .selo-voce, .func-dados .selo-off { align-self: flex-start; }
