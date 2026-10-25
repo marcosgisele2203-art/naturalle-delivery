@@ -89,10 +89,9 @@
     const ativos = st.meus.map((m) => st.acompanhamento[m.codigo]).filter(Boolean)
       .filter((p) => tokenMesa || !['entregue', 'cancelado'].includes(p.status) || Date.now() - new Date(p.criado_em) < 3 * 3600_000);
     if (!ativos.length) { $('#acompanhar').innerHTML = ''; return; }
-    const [img, titulo, texto] = manuDaEtapa(ativos[0]);
+    const [, titulo, texto] = manuDaEtapa(ativos[0]);
     $('#acompanhar').innerHTML = `<section class="acompanhar" aria-live="polite">
-      <div class="manu-card"><img src="${MANU(img)}" alt="" width="104" height="130">
-        <div><span class="nota">Pedido #${ativos[0].id}</span><h2>${titulo}</h2><p>${texto}</p></div></div>
+      <div class="manu-card"><div><span class="nota">Pedido #${ativos[0].id}</span><h2>${titulo}</h2><p>${texto}</p></div></div>
       ${ativos.length > 1 ? `<h3>${tokenMesa ? 'Pedidos desta mesa' : 'Seus pedidos'}</h3>` : ''}
       ${ativos.length > 1 ? ativos.map((p) => `<div class="acomp-linha"><b>#${p.id}</b><span class="etapa etapa-${p.status}">${ETAPAS[p.status] || p.status}</span><span>${brl(p.total)}</span></div>`).join('') : ''}
     </section>`;
@@ -117,9 +116,6 @@
     }
     // o quadro da Manu é a primeira imagem do app
     $('#giz').innerHTML = quadro;
-    $('#destaques').innerHTML = `
-      <div class="manu-card manu-aponta"><img src="${MANU('apontando')}" alt="" width="104" height="130">
-        <div><h2>Escolha aqui embaixo!</h2><p>Toque no item para montar do seu jeito.</p></div></div>`;
   }
 
   function renderBarra() {
@@ -131,8 +127,7 @@
     const c = st.cliente, l = st.loja;
     if (st.enviado) {
       const p = st.enviado;
-      const [img] = manuDaEtapa({ status: p.status || 'novo', tipo: tokenMesa ? 'mesa' : st.tipo });
-      $('#carrinho-corpo').innerHTML = `<div class="sucesso"><img src="${MANU(img)}" alt="" width="104" height="130"><strong>Pedido #${esc(p.id)} enviado!</strong>
+      $('#carrinho-corpo').innerHTML = `<div class="sucesso"><strong>Pedido #${esc(p.id)} enviado!</strong>
         <span>${tokenMesa
           ? (p.status === 'preparo' ? 'Já foi para a cozinha. A gente leva na sua mesa.' : 'O garçom vai confirmar e mandar para a cozinha.') + ' Acompanhe aqui na página.'
           : (p.pix ? 'A chave Pix chegou no seu WhatsApp. Responda lá com a foto do comprovante. ' : 'A confirmação chegou no seu WhatsApp. ') + 'Você também acompanha aqui na página.'}</span></div>
