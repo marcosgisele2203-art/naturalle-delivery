@@ -115,6 +115,21 @@ async function migrar() {
   await pool.query(
     `INSERT INTO config (chave, valor) VALUES ('cardapio', $1), ('loja', $2) ON CONFLICT (chave) DO NOTHING`,
     [JSON.stringify(cardapioInicial), JSON.stringify(LOJA_PADRAO)]);
+  await ajustesDoCardapio();
+}
+
+// mudanças pedidas pela loja no cardápio já salvo; cada uma roda só uma vez
+async function ajustesDoCardapio() {
+  if (await lerConfig('ajuste_sem_shakes_sobremesas')) return;
+  const m = await lerConfig('cardapio');
+  if (m) {
+    m.produtos = m.produtos.filter((p) => !p.id.startsWith('milk-shake-') && p.categoria !== 'sobremesas');
+    m.categorias = m.categorias.filter((c) => c.id !== 'sobremesas');
+    const beb = m.categorias.find((c) => c.id === 'bebidas');
+    if (beb && beb.nome === 'Bebidas e shakes') beb.nome = 'Bebidas';
+    await salvarConfig('cardapio', m);
+  }
+  await salvarConfig('ajuste_sem_shakes_sobremesas', true);
 }
 
 async function lerConfig(chave) {
