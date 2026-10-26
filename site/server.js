@@ -290,6 +290,8 @@ function validarLoja(entrada, atual) {
     email: lerEmail(b.email),
     instagram: texto(b.instagram, 40).replace(/^@+/, ''),
     referencia: texto(b.referencia, 120),
+    pix_chave: texto(b.pix_chave, 80),
+    pix_nome: texto(b.pix_nome, 80),
   };
 }
 const enderecoLoja = (l) => [l.endereco, l.bairro, [l.cidade, l.uf].filter(Boolean).join('/'), l.cep ? 'CEP ' + l.cep : ''].filter(Boolean).join(', ');
@@ -313,7 +315,7 @@ const quadroDeHoje = (lista, dia) => (lista || []).filter((a) => a.ativo && (!a.
   .map(({ id, tipo, titulo, texto: t, preco, foto, produto }) => ({ id, tipo, titulo, texto: t, preco, foto, produto }));
 
 const lojaPublica = (l, e = estadoLoja(l)) => ({ manu: manu.ativa(), endereco_completo: enderecoLoja(l), referencia: l.referencia || '',
-  instagram: l.instagram || '', telefone: l.telefone || '', email: l.email || '', razao_social: l.razao_social || '', cnpj: l.cnpj || '', nome: l.nome, frase: l.frase, horario: e.texto, whatsapp: l.whatsapp, aberta: e.aberta,
+  instagram: l.instagram || '', pix_chave: l.pix_chave || '', pix_nome: l.pix_nome || '', telefone: l.telefone || '', email: l.email || '', razao_social: l.razao_social || '', cnpj: l.cnpj || '', nome: l.nome, frase: l.frase, horario: e.texto, whatsapp: l.whatsapp, aberta: e.aberta,
   delivery: l.delivery, retirada: l.retirada, taxa_entrega: l.taxa_entrega, taxa_cartao: Number(l.taxa_cartao) || 0, recado: l.recado || '' });
 
 function urlBase(req, loja) {
@@ -405,7 +407,8 @@ rota('POST', '/api/publico/pedido', null, async ({ req, b }) => {
   const pedido = await gravarPedido({ origem: 'site', tipo, status: 'novo', cliente_nome: nome, cliente_telefone: tel,
     endereco: tipo === 'entrega' ? endereco : '', observacoes: texto(b.observacoes, 300), itens, taxa_entrega: taxa, taxa_cartao: loja.taxa_cartao, ...pag });
   notificar('/pedido', pedido);
-  return { ok: true, pedido_id: pedido.id, codigo: pedido.codigo, total: Number(pedido.total) };
+  return { ok: true, pedido_id: pedido.id, codigo: pedido.codigo, total: Number(pedido.total),
+    ...(pedido.pagamento === 'pix' && loja.pix_chave ? { pix: { chave: loja.pix_chave, nome: loja.pix_nome || '' } } : {}) };
 });
 
 rota('POST', '/api/publico/mesa/:token/pedido', null, async ({ req, p, b }) => {

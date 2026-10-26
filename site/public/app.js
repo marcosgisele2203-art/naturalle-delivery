@@ -170,7 +170,9 @@
       $('#carrinho-corpo').innerHTML = `<div class="sucesso"><strong>Pedido #${esc(p.id)} enviado!</strong>
         <span>${tokenMesa
           ? (p.status === 'preparo' ? 'Já foi para a cozinha. A gente leva na sua mesa.' : 'O garçom vai confirmar e mandar para a cozinha.') + ' Acompanhe aqui na página.'
-          : (p.pix ? 'A chave Pix chegou no seu WhatsApp. Responda lá com a foto do comprovante. ' : 'A confirmação chegou no seu WhatsApp. ') + 'Você também acompanha aqui na página.'}</span></div>
+          : (p.pix ? (p.chavePix ? 'Pague pelo Pix abaixo e mande a foto do comprovante no nosso WhatsApp. ' : 'A chave Pix chegou no seu WhatsApp. Responda lá com a foto do comprovante. ') : 'A confirmação chegou no seu WhatsApp. ') + 'Você também acompanha aqui na página.'}</span>
+        ${p.chavePix ? `<div class="pix-box"><small>Chave Pix${p.chavePix.nome ? ' · ' + esc(p.chavePix.nome) : ''}</small><b>${esc(p.chavePix.chave)}</b>
+          <span>Valor: ${brl(p.total)}</span><button type="button" class="botao verde" data-acao="copiar-pix" data-v="${esc(p.chavePix.chave)}">Copiar chave Pix</button></div>` : ''}</div>
         <button class="botao verde" data-acao="fechar">${tokenMesa ? 'Pedir mais alguma coisa' : 'Voltar ao cardápio'}</button>`;
       return;
     }
@@ -251,6 +253,9 @@
         break;
       }
       case 'manu': abrirManu(); break;
+      case 'copiar-pix':
+        navigator.clipboard.writeText(b.dataset.v).then(() => avisar('Chave Pix copiada!'), () => avisar('Copie a chave: ' + b.dataset.v));
+        break;
       case 'slide': clearInterval(timerQuadro); mostrarSlide(Number(b.dataset.v)); break;
       case 'ampliar': {
         const z = document.createElement('div');
@@ -302,7 +307,7 @@
           tipo: st.tipo, cliente: { nome: c.nome, telefone: c.telefone }, endereco: c.endereco, observacoes: st.obs,
           pagamento: st.pagamento, troco_para: st.pagamento === 'dinheiro' && st.precisaTroco === 'sim' ? valorDigitado(st.troco) : null, itens,
         });
-      st.enviado = { id: d.pedido_id, pix: st.pagamento === 'pix', status: d.status };
+      st.enviado = { id: d.pedido_id, pix: st.pagamento === 'pix', chavePix: d.pix || null, total: d.total, status: d.status };
       st.meus = [{ codigo: d.codigo, id: d.pedido_id }, ...st.meus].slice(0, 10);
       guardar(chave('pedidos'), st.meus);
       st.carrinho = []; st.obs = ''; st.troco = ''; st.precisaTroco = '';

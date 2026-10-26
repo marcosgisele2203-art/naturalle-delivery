@@ -161,3 +161,7 @@ a:hover { color: var(--rosa-escuro); }
 .manu-form { display: flex; gap: 8px; }
 .manu-form input { flex: 1; min-height: 48px; border: 1px solid var(--linha); border-radius: 24px; padding: 0 16px; font-size: 16px; }
 .manu-form .botao { width: auto; padding: 0 20px; }
+
+.pix-box { margin-top: 10px; width: 100%; display: flex; flex-direction: column; gap: 4px; align-items: center; background: #fff; border: 2px dashed var(--verde); border-radius: 14px; padding: 12px; color: var(--tinta); }
+.pix-box b { font-size: 20px; word-break: break-all; }
+.pix-box .botao { width: 100%; justify-content: center; margin-top: 6px; }

@@ -175,7 +175,13 @@ function criar(s) {
       observacoes: s.texto(a.observacoes, 300), itens, taxa_entrega: taxa, taxa_cartao: loja.taxa_cartao, ...pag });
     s.notificar('/pedido', pedido);
     ctx.pedido = { id: pedido.id, codigo: pedido.codigo };
-    return { pedido: pedido.id, total: brl(pedido.total), situacao: 'aguardando a loja confirmar' };
+    const res = { pedido: pedido.id, total: brl(pedido.total), situacao: 'aguardando a loja confirmar' };
+    if (pedido.pagamento === 'pix') {
+      res.pix = loja.pix_chave
+        ? { chave: loja.pix_chave, nome: loja.pix_nome || '', instrucao: 'Mande a chave Pix ao cliente nesta resposta, sozinha numa linha para ele copiar fácil, com o nome do recebedor e o total, e peça a foto do comprovante aqui.' }
+        : { instrucao: 'A chave Pix vai por mensagem automática; peça a foto do comprovante aqui depois de pagar.' };
+    }
+    return res;
   }
 
   const ETAPA = { novo: 'aguardando a loja confirmar', preparo: 'preparando', pronto: 'pronto', saiu: 'saiu para entrega', entregue: 'entregue', cancelado: 'cancelado' };
