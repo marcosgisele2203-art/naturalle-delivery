@@ -441,7 +441,11 @@
       return rua ? rua + ', ' + (a.house_number || '') + (bairro ? ' - ' + bairro : '') : '';
     } catch { return ''; }
   }
-  const textoGps = (r, precisao) => (r.pos ? (precisao > 100 ? `⚠️ O GPS achou um ponto aproximado (${precisao} m). ` : '') + 'Arraste o alfinete até a sua casa, se precisar.' : AJUDA_GPS[r.erro]);
+  // acima de ~1 km quase sempre é o Android dando só a "localização aproximada" para o Chrome
+  const textoGps = (r, precisao) => (!r.pos ? AJUDA_GPS[r.erro]
+    : precisao >= 1000 ? `⚠️ O celular só deu a localização <b>aproximada</b> (${(precisao / 1000).toFixed(1).replace('.', ',')} km). Para o ponto exato: Configurações › Apps › Chrome › Permissões › Localização › ligue <b>“Usar local exato”</b>. Ou arraste o alfinete até a sua casa.`
+    : precisao > 50 ? `📍 Precisão do GPS: ${precisao} m (o círculo azul). Ficando parado uns segundos ele melhora sozinho. Confira e arraste o alfinete até a sua casa, se precisar.`
+    : `✅ GPS preciso (${precisao} m). Confira e confirme.`);
   async function marcarLocal() {
     st.buscandoLocal = true; renderCarrinho();
     const enderecoDigitado = String(st.cliente.endereco || '').trim();
@@ -469,19 +473,34 @@
     L.Icon.Default.imagePath = '/vendor/leaflet/images/';
     const alfinete = L.marker(inicio, { draggable: true, autoPan: true }).addTo(mapa);
     let mexeu = false, precisaoAtual = precisao, temGps = !!(st.local || gpsBom);
-    alfinete.on('dragend', () => { mexeu = true; });
-    mapa.on('click', (e) => { alfinete.setLatLng(e.latlng); mexeu = true; }); // tocar no mapa também move o alfinete
+    // círculo azul = margem de erro do GPS
+    const circulo = L.circle(inicio, { radius: pos && !pelaRua ? precisao : 0, color: '#2b6cb0', weight: 1, fillOpacity: 0.12, interactive: false }).addTo(mapa);
+    const ajuda = (html) => { z.querySelector('[data-ajuda]').innerHTML = html; };
+    const usarLeitura = (p) => {
+      const ll = [p.coords.latitude, p.coords.longitude];
+      precisaoAtual = Math.round(p.coords.accuracy); temGps = precisaoAtual <= 150;
+      alfinete.setLatLng(ll); circulo.setLatLng(ll).setRadius(precisaoAtual);
+      mapa.setView(ll, precisaoAtual <= 50 ? 18 : precisaoAtual <= 300 ? 17 : 15);
+      ajuda(textoGps({ pos: p }, precisaoAtual));
+    };
+    // com o mapa aberto o GPS continua ouvindo: se achar um ponto melhor e o cliente não mexeu, o alfinete vai sozinho
+    let vigia = null;
+    if (!st.local && navigator.geolocation && !r.erro) {
+      vigia = navigator.geolocation.watchPosition((p) => {
+        if (mexeu || p.coords.accuracy >= precisaoAtual - 5 && temGps) return;
+        if (!temGps && p.coords.accuracy > 150 && pelaRua) return; // não troca a rua achada por um GPS ruim
+        usarLeitura(p);
+      }, () => {}, { enableHighAccuracy: true, maximumAge: 0, timeout: 60000 });
+    }
+    alfinete.on('dragend', () => { mexeu = true; circulo.setRadius(0); });
+    mapa.on('click', (e) => { alfinete.setLatLng(e.latlng); mexeu = true; circulo.setRadius(0); }); // tocar no mapa também move o alfinete
     z.addEventListener('click', (e) => {
       const m = e.target.closest('[data-m]'); if (!m) return;
       if (m.dataset.m === 'gps') {
         m.disabled = true; m.textContent = 'Buscando o GPS…';
         melhorPosicao().then((r2) => {
           m.disabled = false; m.textContent = '📍 Usar meu GPS';
-          if (r2.pos) {
-            const ll = [r2.pos.coords.latitude, r2.pos.coords.longitude];
-            alfinete.setLatLng(ll); mapa.setView(ll, 18); mexeu = false; temGps = true; precisaoAtual = Math.round(r2.pos.coords.accuracy);
-          }
-          z.querySelector('[data-ajuda]').innerHTML = textoGps(r2, precisaoAtual);
+          if (r2.pos) { mexeu = false; usarLeitura(r2.pos); } else ajuda(textoGps(r2, precisaoAtual));
         });
         return;
       }
@@ -501,6 +520,7 @@
           });
         }
       }
+      if (vigia != null) navigator.geolocation.clearWatch(vigia);
       mapa.remove(); z.remove();
     });
   }
