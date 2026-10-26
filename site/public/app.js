@@ -311,7 +311,7 @@
       const tel = String(c.telefone || '').replace(/\D/g, '');
       if (!String(c.nome).trim()) st.erro = 'Informe seu nome.';
       else if (tel.length < 10 || tel.length > 13) st.erro = 'Informe seu WhatsApp com DDD.';
-      else if (st.tipo === 'entrega' && !String(c.endereco).trim()) st.erro = 'Informe o endereço de entrega.';
+      else if (st.tipo === 'entrega' && !String(c.endereco).trim() && !st.local) st.erro = 'Informe o endereço de entrega ou marque sua casa no mapa.';
       else if (st.pagamento === 'dinheiro' && !st.precisaTroco) st.erro = st.tipo === 'entrega' ? 'Diga se o entregador precisa levar troco.' : 'Diga se vai precisar de troco.';
       else if (st.pagamento === 'dinheiro' && st.precisaTroco === 'sim' && !(valorDigitado(st.troco) > total())) st.erro = 'Diga com quanto vai pagar: precisa ser mais que o total (' + brl(total()) + ').';
     }
@@ -429,6 +429,18 @@
       return d[0] ? [Number(d[0].lat), Number(d[0].lon)] : null;
     } catch { return null; }
   }
+  // do ponto no mapa para "Rua, número, bairro" (o cliente só completa o que faltar)
+  async function enderecoDoPonto(lat, lng) {
+    try {
+      const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&zoom=18&addressdetails=1&accept-language=pt-BR&lat=${lat}&lon=${lng}`,
+        { signal: AbortSignal.timeout(8000) });
+      const a = (await r.json()).address || {};
+      const rua = a.road || a.pedestrian || a.residential || '';
+      const bairro = a.suburb || a.neighbourhood || a.city_district || '';
+      // sem número: deixa "Rua X, " para o cliente digitar o número logo depois da vírgula
+      return rua ? rua + ', ' + (a.house_number || '') + (bairro ? ' - ' + bairro : '') : '';
+    } catch { return ''; }
+  }
   const textoGps = (r, precisao) => (r.pos ? (precisao > 100 ? `⚠️ O GPS achou um ponto aproximado (${precisao} m). ` : '') + 'Arraste o alfinete até a sua casa, se precisar.' : AJUDA_GPS[r.erro]);
   async function marcarLocal() {
     st.buscandoLocal = true; renderCarrinho();
@@ -478,6 +490,16 @@
         // o cliente conferiu no mapa: vale mais que a precisão do GPS
         st.local = { lat, lng, precisao: mexeu || !temGps ? 0 : precisaoAtual, conferido: true };
         renderCarrinho();
+        // endereço em branco: escreve a rua e o bairro do ponto marcado e pede o número
+        if (!String(st.cliente.endereco || '').trim()) {
+          enderecoDoPonto(lat, lng).then((txt) => {
+            if (!txt || String(st.cliente.endereco || '').trim()) return;
+            lerForm(); st.cliente.endereco = txt; guardar('nm-cliente', st.cliente); renderCarrinho();
+            const campo = $('[name=endereco]');
+            if (campo) { const pos = campo.value.indexOf(', ') + 2 || campo.value.length; campo.focus(); campo.setSelectionRange(pos, pos); }
+            avisar('Confira o endereço e coloque o número da casa.');
+          });
+        }
       }
       mapa.remove(); z.remove();
     });
