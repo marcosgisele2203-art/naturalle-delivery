@@ -445,6 +445,12 @@ App.views.admin = {
           <label class="campo">Chave Pix<input name="pix_chave" value="${esc(l.pix_chave || '')}" placeholder="CPF, CNPJ, celular, e-mail ou aleatória"><small>Aparece para o cliente logo depois do pedido e a Manu manda no WhatsApp.</small></label>
           <label class="campo">Nome do recebedor do Pix<input name="pix_nome" value="${esc(l.pix_nome || '')}" placeholder="O nome que o banco mostra"></label>
         </div>
+        <h2 style="margin-top:8px">Pix automático (Mercado Pago)</h2>
+        ${d.mp_configurado
+          ? `<p class="nota">✅ Mercado Pago conectado. O cliente recebe um QR Code / copia e cola com o valor certo e o pedido fica <b>Pix confirmado</b> sozinho quando o dinheiro cai.</p>
+            <label class="check"><input type="checkbox" name="mp_ativo"${l.mp_ativo !== false ? ' checked' : ''}> Usar o Pix do Mercado Pago nos pedidos</label>
+            <label class="check"><input type="checkbox" name="pix_pago_vai_cozinha"${l.pix_pago_vai_cozinha ? ' checked' : ''}> Pix pago vai direto para a cozinha (sem esperar alguém confirmar)</label>`
+          : `<p class="nota">Ainda não conectado. Coloque o Access Token do Mercado Pago na variável <b>MP_ACCESS_TOKEN</b> do Easypanel e clique em Implantar. Enquanto isso, o cliente recebe a chave Pix acima e manda o comprovante.</p>`}
         <h2 style="margin-top:8px">Funcionamento</h2>
         ${ch('delivery', 'Fazemos entrega')}
         ${ch('retirada', 'Cliente pode retirar no balcão')}
@@ -588,7 +594,7 @@ App.views.admin = {
           const fd = new FormData(f);
           const loja = Object.fromEntries(['nome', 'frase', 'whatsapp', 'url_publica', 'recado', 'razao_social', 'cnpj', 'responsavel', 'telefone', 'email',
             'instagram', 'endereco', 'bairro', 'cidade', 'uf', 'cep', 'referencia', 'pix_chave', 'pix_nome'].map((k) => [k, fd.get(k)]));
-          for (const k of ['delivery', 'retirada', 'mesa_auto_confirmar']) loja[k] = f[k].checked;
+          for (const k of ['delivery', 'retirada', 'mesa_auto_confirmar', 'mp_ativo', 'pix_pago_vai_cozinha']) if (f[k]) loja[k] = f[k].checked;
           Object.assign(d, await App.api('/api/admin/loja', { loja }, 'PUT'));
           App.toast('Loja salva'); render();
         } else if (f.dataset.form === 'horario') {

@@ -84,7 +84,8 @@
     const itens = window.Montador.linhas(p.itens || []);
     let pag = '';
     if (p.pagamento === 'pix') {
-      const s = { aguardando: ['alerta', 'Pix: aguardando comprovante'], comprovante_recebido: ['alerta', 'Pix: comprovante recebido, conferir'], confirmado: ['ok', 'Pix confirmado'] }[p.pix_status] || ['', 'Pix'];
+      const s = { aguardando: ['alerta', 'Pix: aguardando comprovante'], comprovante_recebido: ['alerta', 'Pix: comprovante recebido, conferir'], confirmado: ['ok', p.mp_pagamento_id ? 'Pix pago (Mercado Pago)' : 'Pix confirmado'], vencido: ['alerta', 'Pix venceu sem pagar'] }[p.pix_status] || ['', 'Pix'];
+      if (p.pix_status === 'aguardando' && p.mp_pagamento_id) s[1] = 'Pix: aguardando pagamento (automático)';
       pag = `<span class="tag ${s[0]}">${s[1]}</span>`;
       // o que a Manu leu no comprovante (só ajuda: confirmar é no extrato do banco)
       const c = p.pix_conferencia;

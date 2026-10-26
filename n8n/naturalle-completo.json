@@ -6,7 +6,7 @@
         "assignments": {
           "assignments": [
             {
-              "id": "3ced1953-8ea6-4a65-9c80-70fd73fa6509",
+              "id": "236be01b-a0e9-4c8a-9702-01d297cad295",
               "name": "site_url",
               "value": "https://pedidos.manudigital.tech",
               "type": "string"
@@ -58,7 +58,7 @@
         "includeOtherFields": true,
         "options": {}
       },
-      "id": "e5f5d8b5-8bf0-4d1a-834c-064affda58a3",
+      "id": "3b4d290e-7858-4b95-8bb1-5767a018ef2d",
       "name": "Config",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
@@ -73,7 +73,7 @@
         "path": "pedido",
         "options": {}
       },
-      "id": "ff429aaf-7d8d-4899-9e22-0db49f88cbec",
+      "id": "59ce760e-a128-40dc-b9dd-1a1ae7665cea",
       "name": "Webhook pedido",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
@@ -81,14 +81,14 @@
         0,
         80
       ],
-      "webhookId": "3b21ffc0-411b-4601-b551-d5e6ef1aa755"
+      "webhookId": "e8eca953-b5c7-4ec5-8bba-b647c12d40f7"
     },
     {
       "parameters": {
         "assignments": {
           "assignments": [
             {
-              "id": "43533d99-756d-47d8-94b4-a5cbe56d595c",
+              "id": "f6809ee2-f0a0-4220-82e6-dab85a10803c",
               "name": "rota",
               "value": "pedido",
               "type": "string"
@@ -98,7 +98,7 @@
         "includeOtherFields": true,
         "options": {}
       },
-      "id": "e803666a-7932-4f83-b324-7a3e57b8e46c",
+      "id": "ad035498-adcc-49d6-8562-a1f4731aeeec",
       "name": "Rota: pedido recebido",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
@@ -109,9 +109,9 @@
     },
     {
       "parameters": {
-        "jsCode": "// só segue se o aviso chegou pela entrada 'pedido'\nif ($input.first().json.rota !== 'pedido') return [];\nconst brl = (v) => 'R$ ' + Number(v).toFixed(2).replace('.', ',');\nconst b = $input.first().json.body || {};\nconst cfg = $('Config').first().json;\nif (!cfg.token || b.token !== cfg.token) throw new Error('Token inválido');\nconst p = b.pedido;\nif (!p || !p.id || !p.cliente_telefone) return [];\nconst lista = (p.itens || []).map((i) =>\n  `• ${i.qtd}× ${i.nome}${i.detalhe ? ' (' + i.detalhe + ')' : ''}${i.obs ? ' · obs: ' + i.obs : ''} — ${brl(i.preco)}`).join('\\n');\nconst pagto = {\n  pix: 'Pix (aguardando comprovante)',\n  cartao: p.tipo === 'entrega' ? 'Cartão na entrega' : 'Cartão',\n  dinheiro: 'Dinheiro' + (p.troco_para ? ` (paga com ${brl(p.troco_para)}, troco de ${brl(p.troco_para - p.total)})` : ' (sem troco)'),\n}[p.pagamento] || 'A combinar';\nconst recebe = p.tipo === 'entrega' ? `Entrega: ${p.endereco}` : 'Retirada no balcão';\nconst saida = [];\n\nif (['site', 'whatsapp', 'manu'].includes(p.origem) && cfg.numero_loja) {\n  saida.push({ numero: cfg.numero_loja, texto:\n    `*NOVO PEDIDO ${p.origem === 'site' ? 'PELO SITE' : 'PELA MANU'} #${p.id}*\\nCliente: ${p.cliente_nome} (${p.cliente_telefone})\\n${recebe}\\n\\n${lista}\\n\\n` +\n    (p.observacoes ? `Obs.: ${p.observacoes}\\n\\n` : '') +\n    `*Total: ${brl(p.total)}*\\nPagamento: ${pagto}\\n\\nConfirme no painel de pedidos.` });\n}\n\nlet cli = `Olá, ${p.cliente_nome}! Recebemos seu pedido *#${p.id}* na Naturalle Mania.\\n\\n${lista}\\n\\n`;\nif (Number(p.taxa_entrega)) cli += `Taxa de entrega: ${brl(p.taxa_entrega)}\\n`;\nif (Number(p.acrescimo_cartao)) cli += `Acréscimo da maquininha: ${brl(p.acrescimo_cartao)}\\n`;\ncli += `*Total: ${brl(p.total)}*\\n${recebe}\\n\\n`;\nif (p.pagamento === 'pix') {\n  cli += `Para pagar via Pix, use a chave:\\n*${cfg.pix_chave}*\\n(${cfg.pix_nome})\\n\\nDepois é só responder aqui com a foto do comprovante.`;\n} else if (p.pagamento === 'cartao') {\n  cli += p.tipo === 'entrega' ? 'Pagamento no cartão na entrega: o entregador leva a maquininha.' : 'Pagamento no cartão na retirada.';\n} else if (p.pagamento === 'dinheiro') {\n  cli += 'Pagamento em dinheiro' + (p.troco_para ? `: você paga com ${brl(p.troco_para)} e recebe ${brl(p.troco_para - p.total)} de troco.` : ', valor certo (sem troco).');\n}\ncli += p.status === 'novo' ? '\\n\\nJá já confirmamos e avisamos por aqui!' : '\\n\\nJá está sendo preparado. Avisamos por aqui a cada etapa!';\nsaida.push({ numero: p.cliente_telefone, texto: cli });\n\nreturn saida.map((json) => ({ json }));\n"
+        "jsCode": "// só segue se o aviso chegou pela entrada 'pedido'\nif ($input.first().json.rota !== 'pedido') return [];\nconst brl = (v) => 'R$ ' + Number(v).toFixed(2).replace('.', ',');\nconst b = $input.first().json.body || {};\nconst cfg = $('Config').first().json;\nif (!cfg.token || b.token !== cfg.token) throw new Error('Token inválido');\nconst p = b.pedido;\nif (!p || !p.id || !p.cliente_telefone) return [];\nconst lista = (p.itens || []).map((i) =>\n  `• ${i.qtd}× ${i.nome}${i.detalhe ? ' (' + i.detalhe + ')' : ''}${i.obs ? ' · obs: ' + i.obs : ''} — ${brl(i.preco)}`).join('\\n');\nconst pagto = {\n  pix: p.pix_copia_cola ? 'Pix (confirma sozinho pelo Mercado Pago)' : 'Pix (aguardando comprovante)',\n  cartao: p.tipo === 'entrega' ? 'Cartão na entrega' : 'Cartão',\n  dinheiro: 'Dinheiro' + (p.troco_para ? ` (paga com ${brl(p.troco_para)}, troco de ${brl(p.troco_para - p.total)})` : ' (sem troco)'),\n}[p.pagamento] || 'A combinar';\nconst recebe = p.tipo === 'entrega' ? `Entrega: ${p.endereco}` : 'Retirada no balcão';\nconst saida = [];\n\nif (['site', 'whatsapp', 'manu'].includes(p.origem) && cfg.numero_loja) {\n  saida.push({ numero: cfg.numero_loja, texto:\n    `*NOVO PEDIDO ${p.origem === 'site' ? 'PELO SITE' : 'PELA MANU'} #${p.id}*\\nCliente: ${p.cliente_nome} (${p.cliente_telefone})\\n${recebe}\\n\\n${lista}\\n\\n` +\n    (p.observacoes ? `Obs.: ${p.observacoes}\\n\\n` : '') +\n    `*Total: ${brl(p.total)}*\\nPagamento: ${pagto}\\n\\nConfirme no painel de pedidos.` });\n}\n\nlet cli = `Olá, ${p.cliente_nome}! Recebemos seu pedido *#${p.id}* na Naturalle Mania.\\n\\n${lista}\\n\\n`;\nif (Number(p.taxa_entrega)) cli += `Taxa de entrega: ${brl(p.taxa_entrega)}\\n`;\nif (Number(p.acrescimo_cartao)) cli += `Acréscimo da maquininha: ${brl(p.acrescimo_cartao)}\\n`;\ncli += `*Total: ${brl(p.total)}*\\n${recebe}\\n\\n`;\nconst loja = b.loja || {};\nconst chave = loja.pix_chave || cfg.pix_chave, nomePix = loja.pix_nome || cfg.pix_nome;\nlet codigoPix = '';\nif (p.pagamento === 'pix' && p.pix_copia_cola) {\n  // Pix do Mercado Pago: o código vai numa mensagem separada para copiar fácil (a Manu já mandou nos pedidos dela)\n  if (p.origem === 'whatsapp') cli += 'Pague com o código Pix copia e cola que mandei acima. A confirmação é automática!';\n  else { cli += 'Para pagar, copie o código da próxima mensagem e cole no app do banco em *Pix > Pix Copia e Cola*. Vale por 30 minutos e a confirmação é automática, não precisa mandar comprovante.'; codigoPix = p.pix_copia_cola; }\n} else if (p.pagamento === 'pix' && chave) {\n  cli += `Para pagar via Pix, use a chave:\\n*${chave}*${nomePix ? `\\n(${nomePix})` : ''}\\n\\nDepois é só responder aqui com a foto do comprovante.`;\n} else if (p.pagamento === 'pix') {\n  cli += 'Já já mandamos a chave Pix por aqui.';\n} else if (p.pagamento === 'cartao') {\n  cli += p.tipo === 'entrega' ? 'Pagamento no cartão na entrega: o entregador leva a maquininha.' : 'Pagamento no cartão na retirada.';\n} else if (p.pagamento === 'dinheiro') {\n  cli += 'Pagamento em dinheiro' + (p.troco_para ? `: você paga com ${brl(p.troco_para)} e recebe ${brl(p.troco_para - p.total)} de troco.` : ', valor certo (sem troco).');\n}\ncli += p.status === 'novo' ? '\\n\\nJá já confirmamos e avisamos por aqui!' : '\\n\\nJá está sendo preparado. Avisamos por aqui a cada etapa!';\nsaida.push({ numero: p.cliente_telefone, texto: cli });\nif (codigoPix) saida.push({ numero: p.cliente_telefone, texto: codigoPix });\n\nreturn saida.map((json) => ({ json }));\n"
       },
-      "id": "6d8225c4-cd5e-4900-ae25-865fee6470cc",
+      "id": "5bd1dca0-8d4f-4d45-a656-4dff149a6811",
       "name": "Montar mensagens",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -138,7 +138,7 @@
         "jsonBody": "={{ JSON.stringify({ number: $json.numero, text: $json.texto }) }}",
         "options": {}
       },
-      "id": "ecb03e12-99ee-49f4-9061-a367f1732313",
+      "id": "e3f761ee-ee28-4c27-b176-990cf8c30a24",
       "name": "Enviar WhatsApp (pedido recebido)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -153,7 +153,7 @@
         "path": "status",
         "options": {}
       },
-      "id": "5a52e29c-7a0f-473a-85ca-c697772ebdf3",
+      "id": "72e6ffe2-4179-4c22-8fc0-88e263c75e7d",
       "name": "Webhook status",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
@@ -161,14 +161,14 @@
         0,
         340
       ],
-      "webhookId": "91109121-fe73-48e2-aacf-1faf1ab144c5"
+      "webhookId": "df4d6ca2-4dd9-4625-87ce-ac77d72da88d"
     },
     {
       "parameters": {
         "assignments": {
           "assignments": [
             {
-              "id": "7e8c8643-898c-4d0c-9d03-09bae3121cf9",
+              "id": "32d73b03-94f7-4c5c-9f92-e8eb6b96260b",
               "name": "rota",
               "value": "status",
               "type": "string"
@@ -178,7 +178,7 @@
         "includeOtherFields": true,
         "options": {}
       },
-      "id": "345b7bfa-99d3-4b6f-9305-c6234f5e965e",
+      "id": "4b7f167e-a047-44d5-bfd8-e9437539a546",
       "name": "Rota: status",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
@@ -191,7 +191,7 @@
       "parameters": {
         "jsCode": "// só segue se o aviso chegou pela entrada 'status'\nif ($input.first().json.rota !== 'status') return [];\nconst brl = (v) => 'R$ ' + Number(v).toFixed(2).replace('.', ',');\nconst b = $input.first().json.body || {};\nconst cfg = $('Config').first().json;\nif (!cfg.token || b.token !== cfg.token) throw new Error('Token inválido');\nconst p = b.pedido;\nif (!p || !p.id || !p.cliente_telefone) return [];\nconst lista = (p.itens || []).map((i) =>\n  `• ${i.qtd}× ${i.nome}${i.detalhe ? ' (' + i.detalhe + ')' : ''}${i.obs ? ' · obs: ' + i.obs : ''} — ${brl(i.preco)}`).join('\\n');\nconst textos = {\n  preparo: `Seu pedido *#${p.id}* foi confirmado e já está sendo preparado!`,\n  pronto: `Seu pedido *#${p.id}* está pronto! Pode vir buscar no balcão.`,\n  saiu: `Seu pedido *#${p.id}* saiu para entrega${p.entregador_nome ? ' com ' + p.entregador_nome : ''}! Já já chega aí.` +\n    (p.pagamento === 'cartao' ? ' O entregador está levando a maquininha.' : p.pagamento === 'dinheiro' && p.troco_para ? ` Ele leva ${brl(p.troco_para - p.total)} de troco.` : ''),\n  entregue: `Pedido *#${p.id}* entregue. Obrigado, ${p.cliente_nome}! Bom apetite e volte sempre à Naturalle Mania.`,\n  cancelado: `Seu pedido *#${p.id}* foi cancelado. Qualquer dúvida, é só responder aqui.`,\n};\nif (!textos[p.status]) return [];\nreturn [{ json: { numero: p.cliente_telefone, texto: textos[p.status] } }];\n"
       },
-      "id": "68bca617-f496-479c-b252-0a27d3fe9c80",
+      "id": "4f08ca86-3ab1-4d7a-a9a8-3c7e3b14a565",
       "name": "Mensagem do status",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -218,7 +218,7 @@
         "jsonBody": "={{ JSON.stringify({ number: $json.numero, text: $json.texto }) }}",
         "options": {}
       },
-      "id": "e06f58ef-eae8-448a-a07e-90b41c5c326a",
+      "id": "f5c10488-1a2a-4996-926f-b648cdc93ae4",
       "name": "Enviar WhatsApp (status)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -233,7 +233,7 @@
         "path": "evolution",
         "options": {}
       },
-      "id": "bb2185d5-fb7b-4a3f-94a9-b8a6dd1fa97c",
+      "id": "942e7327-eac6-45e6-86b6-ae840d4b5ff6",
       "name": "Webhook Evolution",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
@@ -241,14 +241,14 @@
         0,
         600
       ],
-      "webhookId": "3c3bcaed-5173-4285-870b-efd01f3387d2"
+      "webhookId": "8ffab8ea-35be-4e3e-8cb6-4db92b11ccfb"
     },
     {
       "parameters": {
         "assignments": {
           "assignments": [
             {
-              "id": "9aba975a-e67a-42c9-9b40-7d83b0cca4ab",
+              "id": "a86e80d5-9e54-4346-9002-b3e3a1189675",
               "name": "rota",
               "value": "evolution",
               "type": "string"
@@ -258,7 +258,7 @@
         "includeOtherFields": true,
         "options": {}
       },
-      "id": "9b854ced-c11c-4434-85ea-43c170f00d88",
+      "id": "c49ffefc-537c-4638-b27a-fd80c1051ad9",
       "name": "Rota: Manu",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
@@ -271,7 +271,7 @@
       "parameters": {
         "jsCode": "// só segue se o aviso chegou pela entrada 'evolution'\nif ($input.first().json.rota !== 'evolution') return [];\nconst b = $input.first().json.body || {};\nconst cfg = $('Config').first().json;\nconst d = b.data || {};\nconst key = d.key || {};\nconst jid = key.remoteJid || '';\n// só conversa individual, e nunca as mensagens que a própria loja mandou\nif (b.event !== 'messages.upsert' || key.fromMe || !jid.endsWith('@s.whatsapp.net')) return [];\nconst m = d.message || {};\nconst tipo = d.messageType || Object.keys(m)[0] || '';\nlet texto = m.conversation || (m.extendedTextMessage && m.extendedTextMessage.text) || '';\nlet midia = null;\nif (['imageMessage', 'audioMessage', 'documentMessage'].includes(tipo)) {\n  const info = m[tipo] || {};\n  texto = texto || info.caption || '';\n  let base64 = m.base64 || d.base64 || '';\n  let mime = info.mimetype || '';\n  if (!base64) {\n    // sem \"Webhook Base64\" ligado na Evolution: busca o arquivo nela\n    try {\n      const r = await this.helpers.httpRequest({ method: 'POST', json: true,\n        url: `${cfg.evolution_url}/chat/getBase64FromMediaMessage/${cfg.evolution_instance}`,\n        headers: { apikey: cfg.evolution_apikey }, body: { message: { key }, convertToMp4: false } });\n      base64 = r.base64 || ''; mime = r.mimetype || mime;\n    } catch (e) { /* segue sem o arquivo */ }\n  }\n  if (base64) midia = { tipo: tipo === 'audioMessage' ? 'audio' : 'imagem', mime, base64 };\n}\nif (!texto && !midia) return [];\nreturn [{ json: { token: cfg.token, telefone: jid.split('@')[0], nome: d.pushName || '', texto, ...(midia || {}) } }];\n"
       },
-      "id": "589914eb-63b7-49a1-a589-3a0279869024",
+      "id": "7beff88c-7f58-4418-a4e1-15adcd7dded4",
       "name": "Preparar mensagem",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -291,7 +291,7 @@
           "timeout": 120000
         }
       },
-      "id": "305a3d81-ded6-4dd8-99c1-de946bc78ece",
+      "id": "92a14847-430b-42cf-aaf1-d2cc9a2151cd",
       "name": "Perguntar à Manu",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -304,7 +304,7 @@
       "parameters": {
         "jsCode": "return ($input.first().json.mensagens || []).filter((m) => m.texto).map((json) => ({ json }));"
       },
-      "id": "9aa87f6c-afe1-4c38-b233-1ea21a6476bf",
+      "id": "25c2ad2c-64bc-4fdf-92c9-ba82fe6eb4ce",
       "name": "Separar respostas",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -331,7 +331,7 @@
         "jsonBody": "={{ JSON.stringify({ number: $json.numero, text: $json.texto }) }}",
         "options": {}
       },
-      "id": "96f8a738-0174-4dc3-9858-48d84859fa2e",
+      "id": "0dcc3483-214f-4f79-8214-5ddc2e242b00",
       "name": "Enviar WhatsApp (Manu)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,

@@ -190,11 +190,15 @@ function criar(s) {
     const pedido = await s.gravarPedido({ origem: ctx.canal === 'whatsapp' ? 'whatsapp' : 'manu', tipo, status: 'novo',
       cliente_nome: nome, cliente_telefone: tel, endereco: tipo === 'entrega' ? endereco : '',
       observacoes: s.texto(a.observacoes, 300), itens, taxa_entrega: taxa, taxa_cartao: loja.taxa_cartao, ...pag });
+    const mp = pedido.pagamento === 'pix' && s.prepararPixMP ? await s.prepararPixMP(pedido, loja) : null;
     s.notificar('/pedido', pedido);
     ctx.pedido = { id: pedido.id, codigo: pedido.codigo };
+    if (mp) ctx.pixCopiaCola = mp.copia_cola;
     const res = { pedido: pedido.id, total: brl(pedido.total), situacao: 'aguardando a loja confirmar' };
     if (pedido.pagamento === 'pix') {
-      res.pix = loja.pix_chave
+      res.pix = mp
+        ? { pix_gerado: true, valido_por: '30 minutos', instrucao: 'NÃO escreva código Pix nem chave: o código copia e cola vai sozinho numa mensagem logo depois da sua. Diga o total, que é só copiar a próxima mensagem e colar no app do banco em Pix > Pix Copia e Cola, que vale por 30 minutos e que o pagamento é confirmado automaticamente (não precisa mandar comprovante).' }
+        : loja.pix_chave
         ? { chave: loja.pix_chave, nome: loja.pix_nome || '', instrucao: 'Mande a chave Pix ao cliente nesta resposta, sozinha numa linha para ele copiar fácil, com o nome do recebedor e o total, e peça a foto do comprovante aqui.' }
         : { instrucao: 'A chave Pix vai por mensagem automática; peça a foto do comprovante aqui depois de pagar.' };
     }
@@ -345,7 +349,7 @@ function criar(s) {
     await guardar(entrada.canal, entrada.chave, [...conv.mensagens,
       { role: 'user', parts: [{ text: lembranca }] },
       { role: 'model', parts: [{ text: resposta + (ctx.pedido ? `\n[pedido #${ctx.pedido.id} lançado]` : '') }] }], ctx.dados);
-    return { resposta, pedido: ctx.pedido, avisos: ctx.avisos };
+    return { resposta, pedido: ctx.pedido, avisos: ctx.avisos, pix: ctx.pixCopiaCola || null };
   }
 
   // sem chave do Gemini: comprovante continua funcionando e o resto recebe o link do cardápio

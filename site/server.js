@@ -15,6 +15,7 @@ const QRCode = require('qrcode');
 const Calc = require('./public/shared/calc.js');
 const Relatorio = require('./public/shared/relatorio.js');
 const Horario = require('./public/shared/horario.js');
+const MP = require('./lib/mercadopago');
 const { pool, migrar, lerConfig, salvarConfig } = require('./lib/db');
 const auth = require('./lib/auth');
 const { slug } = require('./lib/cardapio-inicial');
@@ -94,12 +95,13 @@ setInterval(() => { const agora = Date.now(); for (const [k, l] of tentativas) i
 
 function notificar(caminho, pedido) {
   if (!N8N_URL || !pedido.cliente_telefone || pedido.tipo === 'mesa') return;
-  fetch(N8N_URL + caminho, {
+  // vai junto a chave Pix cadastrada na loja (o n8n usa no lugar da que está no nó Config)
+  lerConfig('loja').catch(() => ({})).then((loja) => fetch(N8N_URL + caminho, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token: N8N_TOKEN, pedido }),
+    body: JSON.stringify({ token: N8N_TOKEN, pedido, loja: { pix_chave: loja.pix_chave || '', pix_nome: loja.pix_nome || '' } }),
     signal: AbortSignal.timeout(15000),
-  }).then((r) => { if (!r.ok) console.error('n8n', caminho, 'respondeu', r.status); })
+  })).then((r) => { if (!r.ok) console.error('n8n', caminho, 'respondeu', r.status); })
     .catch((e) => console.error('n8n', caminho, e.message));
 }
 
@@ -107,7 +109,7 @@ function notificar(caminho, pedido) {
 
 const CAMPOS_PEDIDO = `p.id, p.codigo, p.criado_em, p.confirmado_em, p.pronto_em, p.origem, p.tipo, p.status,
   p.cliente_nome, p.cliente_telefone, p.endereco, p.observacoes, p.itens, p.subtotal, p.taxa_entrega, p.acrescimo_cartao, p.total,
-  p.pagamento, p.troco_para, p.pix_status, p.pix_conferencia, p.mesa_id, p.conta_id, m.nome AS mesa_nome, u.nome AS criado_por_nome,
+  p.pagamento, p.troco_para, p.pix_status, p.pix_conferencia, p.pix_copia_cola, p.pix_expira, p.mp_pagamento_id, p.mesa_id, p.conta_id, m.nome AS mesa_nome, u.nome AS criado_por_nome,
   p.entregador_id, e.nome AS entregador_nome, p.saiu_em, p.pago_em,
   CASE WHEN length(p.cliente_telefone) >= 10 THEN (SELECT count(*)::int FROM pedidos q
     WHERE right(q.cliente_telefone, 8) = right(p.cliente_telefone, 8) AND q.id <= p.id AND q.status <> 'cancelado') END AS n_pedido_cliente`;
@@ -291,6 +293,8 @@ function validarLoja(entrada, atual) {
     instagram: texto(b.instagram, 40).replace(/^@+/, ''),
     referencia: texto(b.referencia, 120),
     pix_chave: texto(b.pix_chave, 80),
+    mp_ativo: bool(b.mp_ativo, atual.mp_ativo !== false),
+    pix_pago_vai_cozinha: bool(b.pix_pago_vai_cozinha, !!atual.pix_pago_vai_cozinha),
     pix_nome: texto(b.pix_nome, 80),
   };
 }
@@ -318,10 +322,13 @@ const lojaPublica = (l, e = estadoLoja(l)) => ({ manu: manu.ativa(), endereco_co
   instagram: l.instagram || '', pix_chave: l.pix_chave || '', pix_nome: l.pix_nome || '', telefone: l.telefone || '', email: l.email || '', razao_social: l.razao_social || '', cnpj: l.cnpj || '', nome: l.nome, frase: l.frase, horario: e.texto, whatsapp: l.whatsapp, aberta: e.aberta,
   delivery: l.delivery, retirada: l.retirada, taxa_entrega: l.taxa_entrega, taxa_cartao: Number(l.taxa_cartao) || 0, recado: l.recado || '' });
 
+let baseConhecida = ''; // último endereço https visto (serve para a Manu, que não tem a requisição do cliente)
 function urlBase(req, loja) {
   if (loja.url_publica) return loja.url_publica;
   const proto = (req.headers['x-forwarded-proto'] || 'http').split(',')[0];
-  return proto + '://' + (req.headers['x-forwarded-host'] || req.headers.host);
+  const base = proto + '://' + (req.headers['x-forwarded-host'] || req.headers.host);
+  if (proto === 'https') baseConhecida = base;
+  return base;
 }
 
 // ---------------------------------------------------------------- rotas
@@ -329,9 +336,76 @@ function urlBase(req, loja) {
 const rotas = [];
 const rota = (metodo, padrao, perms, fn) => rotas.push({ metodo, re: new RegExp('^' + padrao.replace(/:(\w+)/g, '(?<$1>[^/]+)') + '$'), perms, fn });
 
+// --- Pix pelo Mercado Pago (confirmação automática)
+
+const usaMP = (loja) => MP.configurado() && loja.mp_ativo !== false;
+// cria o Pix do pedido no Mercado Pago e guarda no pedido; se der erro, o pedido segue com a chave Pix normal
+async function prepararPixMP(pedido, loja, req) {
+  if (pedido.pagamento !== 'pix' || !usaMP(loja)) return null;
+  const base = req ? urlBase(req, loja) : (loja.url_publica || baseConhecida);
+  try {
+    const pix = await MP.criarPix(pedido, { email: loja.email || 'pagamentos@naturallemania.com.br',
+      notificacao: /^https:\/\//.test(base) ? base + '/api/mp/webhook' : '' });
+    await pool.query('UPDATE pedidos SET mp_pagamento_id = $2, pix_copia_cola = $3, pix_qr = $4, pix_expira = $5 WHERE id = $1',
+      [pedido.id, pix.id, pix.copia_cola, pix.qr_base64, pix.expira]);
+    Object.assign(pedido, { mp_pagamento_id: pix.id, pix_copia_cola: pix.copia_cola, pix_expira: pix.expira });
+    return pix;
+  } catch (e) {
+    console.error('mercado pago', pedido.id, e.message);
+    return null;
+  }
+}
+
+// confere o pagamento no Mercado Pago e atualiza o pedido (vem do webhook ou da página do cliente)
+async function processarPagamentoMP(mpId) {
+  const pg = await MP.consultar(mpId);
+  // o pagamento tem que ser o mesmo que guardamos no pedido que ele diz pagar
+  const { rows } = await pool.query('SELECT id, status, total, pix_status FROM pedidos WHERE mp_pagamento_id = $1 AND id = $2', [pg.id, pg.pedido || 0]);
+  const ped = rows[0];
+  await pool.query('UPDATE pedidos SET mp_checado_em = now() WHERE mp_pagamento_id = $1', [pg.id]);
+  if (!ped || ped.pix_status === 'confirmado') return;
+  if (pg.status === 'approved' && pg.valor + 0.009 >= Number(ped.total)) {
+    const loja = await lerConfig('loja');
+    const vaiCozinha = loja.pix_pago_vai_cozinha && ped.status === 'novo';
+    await pool.query(
+      `UPDATE pedidos SET pix_status = 'confirmado', pago_em = now(), atualizado_em = now(),
+          pix_conferencia = jsonb_build_object('mercado_pago', true, 'id_transacao', $2::text, 'alertas', '[]'::jsonb),
+          status = CASE WHEN $3 THEN 'preparo' ELSE status END,
+          confirmado_em = CASE WHEN $3 THEN COALESCE(confirmado_em, now()) ELSE confirmado_em END
+        WHERE id = $1`, [ped.id, pg.id, vaiCozinha]);
+    const pedido = await buscarPedido(ped.id);
+    if (vaiCozinha) notificar('/status', pedido);
+    if (EVO.url && EVO.chave && pedido.cliente_telefone && loja.whatsapp !== pedido.cliente_telefone) {
+      enviarWhatsApp(pedido.cliente_telefone, `✅ Recebemos o seu Pix de ${brlServ(pedido.total)} do pedido *#${pedido.id}*. Obrigado!`).catch(() => {});
+    }
+  } else if (['cancelled', 'rejected', 'expired'].includes(pg.status) && ped.pix_status === 'aguardando') {
+    await pool.query(`UPDATE pedidos SET pix_status = 'vencido', atualizado_em = now() WHERE id = $1`, [ped.id]);
+  }
+}
+// rede de segurança caso o aviso do Mercado Pago não chegue: confere os Pix em aberto a cada minuto
+setInterval(async () => {
+  if (!MP.configurado()) return;
+  try {
+    const { rows } = await pool.query(`SELECT mp_pagamento_id FROM pedidos
+      WHERE mp_pagamento_id IS NOT NULL AND pix_status = 'aguardando' AND criado_em > now() - interval '50 minutes'
+        AND (mp_checado_em IS NULL OR mp_checado_em < now() - interval '50 seconds') LIMIT 20`);
+    for (const r of rows) await processarPagamentoMP(r.mp_pagamento_id).catch((e) => console.error('mp consulta', e.message));
+  } catch (e) { console.error('mp ronda', e.message); }
+}, 60_000).unref();
+const brlServ = (v) => 'R$ ' + Number(v).toFixed(2).replace('.', ',');
+
+// aviso do Mercado Pago: só traz o número do pagamento; a situação é sempre conferida na API deles
+rota('POST', '/api/mp/webhook', null, async ({ req, b, q }) => {
+  limitar('mp:' + ipDe(req), 120, 60_000);
+  const id = String((b && b.data && b.data.id) || q.get('data.id') || q.get('id') || '').replace(/\D/g, '');
+  const tipo = (b && (b.type || b.topic)) || q.get('type') || q.get('topic') || '';
+  if (id && /payment/.test(tipo) && MP.configurado()) await processarPagamentoMP(id).catch((e) => console.error('mp webhook', e.message));
+  return { ok: true };
+});
+
 // --- Manu IA (garçonete online)
 
-const manu = require('./lib/manu').criar({ clienteDoTelefone: (t) => clienteDoTelefone(t), pool, lerConfig, Calc, diaDaSemana, estadoLoja, calcularItens, gravarPedido, lerPagamento,
+const manu = require('./lib/manu').criar({ clienteDoTelefone: (t) => clienteDoTelefone(t), prepararPixMP: (p, l) => prepararPixMP(p, l, null), pool, lerConfig, Calc, diaDaSemana, estadoLoja, calcularItens, gravarPedido, lerPagamento,
   telefoneBR, notificar, Erro, texto });
 
 // mensagem que chegou no WhatsApp (o n8n repassa da Evolution e manda de volta o que vier em "mensagens")
@@ -352,7 +426,7 @@ rota('POST', '/api/manu/whatsapp', null, async ({ req, b }) => {
     console.error('manu', e.message);
     r = { resposta: 'Ops, tive um probleminha aqui 😅 Tenta de novo daqui a pouco ou faça o pedido pelo cardápio: ' + urlBase(req, loja), avisos: [] };
   }
-  return { mensagens: [{ numero: telefone, texto: r.resposta }, ...(r.avisos || [])] };
+  return { mensagens: [{ numero: telefone, texto: r.resposta }, ...(r.pix ? [{ numero: telefone, texto: r.pix }] : []), ...(r.avisos || [])] };
 });
 
 // chat da Manu dentro do cardápio
@@ -366,7 +440,7 @@ rota('POST', '/api/publico/manu', null, async ({ req, b }) => {
   if (!msg) throw new Erro(400, 'Escreva sua mensagem.');
   try {
     const r = await manu.responder({ canal: 'site', chave: sessao, texto: msg });
-    return { resposta: r.resposta, pedido: r.pedido };
+    return { resposta: r.resposta, pedido: r.pedido, pix: r.pix };
   } catch (e) {
     console.error('manu site', e.message);
     throw new Erro(502, 'A Manu não conseguiu responder agora. Tente de novo ou peça pelo cardápio.');
@@ -406,9 +480,11 @@ rota('POST', '/api/publico/pedido', null, async ({ req, b }) => {
   const pag = lerPagamento(b, Calc.somar(itens) + taxa, true);
   const pedido = await gravarPedido({ origem: 'site', tipo, status: 'novo', cliente_nome: nome, cliente_telefone: tel,
     endereco: tipo === 'entrega' ? endereco : '', observacoes: texto(b.observacoes, 300), itens, taxa_entrega: taxa, taxa_cartao: loja.taxa_cartao, ...pag });
+  const mp = await prepararPixMP(pedido, loja, req);
   notificar('/pedido', pedido);
   return { ok: true, pedido_id: pedido.id, codigo: pedido.codigo, total: Number(pedido.total),
-    ...(pedido.pagamento === 'pix' && loja.pix_chave ? { pix: { chave: loja.pix_chave, nome: loja.pix_nome || '' } } : {}) };
+    ...(mp ? { pix: { copia_cola: mp.copia_cola, qr: mp.qr_base64, expira: mp.expira, nome: loja.pix_nome || '' } }
+      : pedido.pagamento === 'pix' && loja.pix_chave ? { pix: { chave: loja.pix_chave, nome: loja.pix_nome || '' } } : {}) };
 });
 
 rota('POST', '/api/publico/mesa/:token/pedido', null, async ({ req, p, b }) => {
@@ -425,10 +501,19 @@ rota('POST', '/api/publico/mesa/:token/pedido', null, async ({ req, p, b }) => {
 
 rota('GET', '/api/publico/acompanhar/:codigo', null, async ({ p }) => {
   const { rows } = await pool.query(
-    `SELECT p.id, p.status, p.tipo, p.itens, p.total, p.criado_em, m.nome AS mesa_nome
+    `SELECT p.id, p.status, p.tipo, p.itens, p.total, p.criado_em, p.pagamento, p.pix_status, p.mp_pagamento_id, p.mp_checado_em, m.nome AS mesa_nome
        FROM pedidos p LEFT JOIN mesas m ON m.id = p.mesa_id WHERE p.codigo = $1`, [p.codigo]);
   if (!rows[0]) throw new Erro(404, 'Pedido não encontrado');
-  return { pedido: rows[0] };
+  const ped = rows[0];
+  // sem esperar o webhook: quem está com a página aberta já vê o Pix confirmado
+  if (ped.mp_pagamento_id && ped.pix_status === 'aguardando' && MP.configurado()
+      && (!ped.mp_checado_em || Date.now() - new Date(ped.mp_checado_em) > 8000)) {
+    await processarPagamentoMP(ped.mp_pagamento_id).catch((e) => console.error('mp consulta', e.message));
+    const { rows: r2 } = await pool.query('SELECT status, pix_status FROM pedidos WHERE id = $1', [ped.id]);
+    Object.assign(ped, r2[0]);
+  }
+  delete ped.mp_pagamento_id; delete ped.mp_checado_em;
+  return { pedido: ped };
 });
 
 // --- login da equipe
@@ -750,7 +835,7 @@ rota('GET', '/api/admin/tudo', ['admin'], async () => {
     pool.query('SELECT id, nome, login, telefone, email, permissoes, ativo, criado_em FROM usuarios ORDER BY ativo DESC, nome').then((r) => r.rows),
     pool.query('SELECT id, nome, token, ativa, ordem FROM mesas ORDER BY ativa DESC, ordem, id').then((r) => r.rows),
   ]);
-  return { cardapio, loja, agora: estadoLoja(loja), quadro: quadro || [], usuarios, mesas, permissoes: auth.PERMISSOES };
+  return { cardapio, loja, agora: estadoLoja(loja), mp_configurado: MP.configurado(), quadro: quadro || [], usuarios, mesas, permissoes: auth.PERMISSOES };
 });
 
 rota('PUT', '/api/admin/cardapio', ['admin'], async ({ b }) => {

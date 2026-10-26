@@ -12,8 +12,8 @@
   function frasesDaEtapa(p) {
     const mesa = p.tipo === 'mesa';
     switch (p.status) {
-      case 'novo': return ['Pedido recebido!', mesa ? 'O garçom já vai confirmar.' : 'Já já a gente confirma por aqui e no WhatsApp.'];
-      case 'preparo': return ['Pedido confirmado!', 'Já está sendo preparado com carinho.'];
+      case 'novo': return ['Pedido recebido!', mesa ? 'O garçom já vai confirmar.' : (p.pix_status === 'confirmado' ? 'Pix recebido ✅ ' : '') + 'Já já a gente confirma por aqui e no WhatsApp.'];
+      case 'preparo': return ['Pedido confirmado!', (p.pix_status === 'confirmado' ? 'Pix recebido ✅ ' : '') + 'Já está sendo preparado com carinho.'];
       case 'pronto':
         if (mesa) return ['Prontinho!', 'Já está indo para a sua mesa.'];
         if (p.tipo === 'retirada') return ['Pronto para retirar!', 'Pode vir buscar no balcão.'];
@@ -167,11 +167,20 @@
     const c = st.cliente, l = st.loja;
     if (st.enviado) {
       const p = st.enviado;
+      const qr = p.chavePix && p.chavePix.copia_cola ? p.chavePix : null;
+      const situacao = (st.acompanhamento[p.codigo] || {}).pix_status;
+      const pago = situacao === 'confirmado', vencido = situacao === 'vencido';
       $('#carrinho-corpo').innerHTML = `<div class="sucesso"><strong>Pedido #${esc(p.id)} enviado!</strong>
         <span>${tokenMesa
           ? (p.status === 'preparo' ? 'Já foi para a cozinha. A gente leva na sua mesa.' : 'O garçom vai confirmar e mandar para a cozinha.') + ' Acompanhe aqui na página.'
-          : (p.pix ? (p.chavePix ? 'Pague pelo Pix abaixo e mande a foto do comprovante no nosso WhatsApp. ' : 'A chave Pix chegou no seu WhatsApp. Responda lá com a foto do comprovante. ') : 'A confirmação chegou no seu WhatsApp. ') + 'Você também acompanha aqui na página.'}</span>
-        ${p.chavePix ? `<div class="pix-box"><small>Chave Pix${p.chavePix.nome ? ' · ' + esc(p.chavePix.nome) : ''}</small><b>${esc(p.chavePix.chave)}</b>
+          : (p.pix ? (qr ? (pago ? '' : 'Pague com o Pix abaixo: a confirmação é automática, não precisa mandar comprovante. ') : p.chavePix ? 'Pague pelo Pix abaixo e mande a foto do comprovante no nosso WhatsApp. ' : 'A chave Pix chegou no seu WhatsApp. Responda lá com a foto do comprovante. ') : 'A confirmação chegou no seu WhatsApp. ') + 'Você também acompanha aqui na página.'}</span>
+        ${qr ? (pago ? '<div class="pix-box pix-pago"><b>Pagamento confirmado ✅</b><span>Recebemos o seu Pix. Obrigado!</span></div>'
+          : vencido ? '<div class="pix-box"><b>O Pix venceu</b><span>Fale com a gente no WhatsApp para pagar de outro jeito.</span></div>'
+          : `<div class="pix-box">${qr.qr ? `<img class="pix-qr" src="data:image/png;base64,${esc(qr.qr)}" alt="QR Code do Pix">` : ''}
+          <small>Pix copia e cola · ${brl(p.total)}${qr.nome ? ' · ' + esc(qr.nome) : ''}</small><code class="pix-codigo">${esc(qr.copia_cola)}</code>
+          <button type="button" class="botao verde" data-acao="copiar-pix" data-v="${esc(qr.copia_cola)}">Copiar código Pix</button>
+          <span class="pix-espera">Aguardando o pagamento… vale por 30 minutos.</span></div>`) : ''}
+        ${!qr && p.chavePix ? `<div class="pix-box"><small>Chave Pix${p.chavePix.nome ? ' · ' + esc(p.chavePix.nome) : ''}</small><b>${esc(p.chavePix.chave)}</b>
           <span>Valor: ${brl(p.total)}</span><button type="button" class="botao verde" data-acao="copiar-pix" data-v="${esc(p.chavePix.chave)}">Copiar chave Pix</button></div>` : ''}</div>
         <button class="botao verde" data-acao="fechar">${tokenMesa ? 'Pedir mais alguma coisa' : 'Voltar ao cardápio'}</button>`;
       return;
@@ -254,7 +263,7 @@
       }
       case 'manu': abrirManu(); break;
       case 'copiar-pix':
-        navigator.clipboard.writeText(b.dataset.v).then(() => avisar('Chave Pix copiada!'), () => avisar('Copie a chave: ' + b.dataset.v));
+        navigator.clipboard.writeText(b.dataset.v).then(() => avisar('Copiado! Agora cole no app do seu banco.'), () => avisar('Copie: ' + b.dataset.v));
         break;
       case 'slide': clearInterval(timerQuadro); mostrarSlide(Number(b.dataset.v)); break;
       case 'ampliar': {
@@ -307,7 +316,7 @@
           tipo: st.tipo, cliente: { nome: c.nome, telefone: c.telefone }, endereco: c.endereco, observacoes: st.obs,
           pagamento: st.pagamento, troco_para: st.pagamento === 'dinheiro' && st.precisaTroco === 'sim' ? valorDigitado(st.troco) : null, itens,
         });
-      st.enviado = { id: d.pedido_id, pix: st.pagamento === 'pix', chavePix: d.pix || null, total: d.total, status: d.status };
+      st.enviado = { id: d.pedido_id, codigo: d.codigo, pix: st.pagamento === 'pix', chavePix: d.pix || null, total: d.total, status: d.status };
       st.meus = [{ codigo: d.codigo, id: d.pedido_id }, ...st.meus].slice(0, 10);
       guardar(chave('pedidos'), st.meus);
       st.carrinho = []; st.obs = ''; st.troco = ''; st.precisaTroco = '';
@@ -346,7 +355,9 @@
     const box = $('#manu-chat .manu-msgs');
     if (!box) return;
     const msgs = [{ de: 'manu', texto: 'Oi! Eu sou a Manu 😊 Me diga o que você quer pedir que eu monto tudo para você. Pode perguntar dos sabores, tamanhos e preços!' }, ...manuChat.msgs];
-    box.innerHTML = msgs.map((m) => `<p class="manu-msg ${m.de}">${esc(m.texto).replace(/\n/g, '<br>').replace(/\*([^*\n]+)\*/g, '<b>$1</b>')}</p>`).join('')
+    box.innerHTML = msgs.map((m) => (m.pix
+      ? `<p class="manu-msg manu"><code class="pix-codigo">${esc(m.texto)}</code><button type="button" class="botao verde" data-acao="copiar-pix" data-v="${esc(m.texto)}">Copiar código Pix</button></p>`
+      : `<p class="manu-msg ${m.de}">${esc(m.texto).replace(/\n/g, '<br>').replace(/\*([^*\n]+)\*/g, '<b>$1</b>')}</p>`)).join('')
       + (manuChat.enviando ? '<p class="manu-msg manu digitando">Manu está digitando…</p>' : '');
     box.scrollTop = box.scrollHeight;
   }
@@ -357,6 +368,7 @@
     try {
       const d = await api('/api/publico/manu', { sessao: manuChat.sessao, texto });
       manuChat.msgs.push({ de: 'manu', texto: d.resposta });
+      if (d.pix) manuChat.msgs.push({ de: 'manu', texto: d.pix, pix: true });
       if (d.pedido) { st.meus = [{ codigo: d.pedido.codigo, id: d.pedido.id }, ...st.meus].slice(0, 10); guardar(chave('pedidos'), st.meus); acompanhar(); }
     } catch (err) {
       manuChat.msgs.push({ de: 'manu', texto: err.message });
@@ -372,6 +384,13 @@
       try { st.acompanhamento[m.codigo] = (await api('/api/publico/acompanhar/' + m.codigo)).pedido; } catch { /* sumiu */ }
     }));
     renderAcompanhar();
+    if (st.enviado && st.enviado.chavePix && st.enviado.chavePix.copia_cola) {
+      const s = (st.acompanhamento[st.enviado.codigo] || {}).pix_status;
+      if (s !== st.enviado.pixVisto) { st.enviado.pixVisto = s; renderCarrinho(); }
+      // Pix em aberto na tela: confere mais rápido para mostrar o "pago" logo
+      clearTimeout(st.timerPix);
+      if (s === 'aguardando') st.timerPix = setTimeout(acompanhar, 5000);
+    }
   }
 
   let timer;

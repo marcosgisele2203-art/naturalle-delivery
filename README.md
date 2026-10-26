@@ -61,6 +61,7 @@ GEMINI_API_KEY=chave-do-google-ai-studio   (opcional: liga a Manu IA)
 EVOLUTION_URL=https://sua-evolution          (opcional: recuperar senha pelo WhatsApp)
 EVOLUTION_INSTANCE=nome-da-instancia
 EVOLUTION_APIKEY=apikey-da-evolution
+MP_ACCESS_TOKEN=APP_USR-...                  (opcional: Pix automático pelo Mercado Pago)
 ```
 
 Em *Domains*, aponte o domínio para a porta **3000** e faça o deploy.
@@ -111,6 +112,21 @@ sistema, calcula com as mesmas regras do site, lança o pedido no painel (origem
 
 Sem a chave, o botão da Manu some do cardápio e, no WhatsApp, ela responde com o link do cardápio (a foto do comprovante Pix
 continua sendo registrada).
+
+### 7. Pix automático (Mercado Pago)
+Cada pedido no Pix ganha um **QR Code / copia e cola com o valor exato**, que vale 30 minutos. Quando o dinheiro cai, o
+Mercado Pago avisa o sistema (`/api/mp/webhook`), o sistema confere direto na API deles e o pedido fica **Pix pago** sozinho,
+sem comprovante. O site mostra "Pagamento confirmado ✅" na hora e a Manu manda o código numa mensagem separada.
+
+1. Crie a conta no Mercado Pago (pode ser a da loja) e cadastre uma chave Pix nela.
+2. Entre em **https://www.mercadopago.com.br/developers/panel/app** → *Criar aplicação* (pagamentos on-line / Checkout API).
+3. Em *Credenciais de produção*, copie o **Access Token** (começa com `APP_USR-`). Não mande essa chave para ninguém.
+4. No Easypanel, em *Environment* do site, acrescente `MP_ACCESS_TOKEN=APP_USR-...` e clique em **Implantar**.
+5. Em Administração › *Loja* aparece "Mercado Pago conectado". Lá dá para desligar e escolher se o Pix pago já vai direto
+   para a cozinha.
+
+Sem o token (ou se o Mercado Pago falhar), o cliente recebe a chave Pix da loja e manda o comprovante, como antes.
+O Mercado Pago cobra uma taxa por Pix recebido (veja no painel deles).
 
 Os arquivos `01`, `02` e `03` são o mesmo fluxo separado em três; use **ou** o completo **ou** os três, nunca os dois juntos
 (os endereços de webhook iriam se repetir).
