@@ -113,7 +113,7 @@ function notificar(caminho, pedido) {
 // ---------------------------------------------------------------- pedidos
 
 const CAMPOS_PEDIDO = `p.id, p.codigo, p.criado_em, p.confirmado_em, p.pronto_em, p.origem, p.tipo, p.status,
-  p.cliente_nome, p.cliente_telefone, p.endereco, p.observacoes, p.itens, p.subtotal, p.taxa_entrega, p.acrescimo_cartao, p.total,
+  p.cliente_nome, p.cliente_telefone, p.endereco, p.localizacao, p.observacoes, p.itens, p.subtotal, p.taxa_entrega, p.acrescimo_cartao, p.total,
   p.pagamento, p.troco_para, p.pix_status, p.pix_conferencia, p.pix_copia_cola, p.pix_expira, p.mp_pagamento_id, p.mesa_id, p.conta_id, m.nome AS mesa_nome, u.nome AS criado_por_nome,
   p.entregador_id, e.nome AS entregador_nome, p.saiu_em, p.pago_em,
   CASE WHEN length(p.cliente_telefone) >= 10 THEN (SELECT count(*)::int FROM pedidos q
@@ -149,13 +149,13 @@ async function gravarPedido(d) {
     const total = Math.round((subtotal + (d.taxa_entrega || 0) + acrescimo) * 100) / 100;
     const { rows } = await cli.query(
       `INSERT INTO pedidos (codigo, origem, tipo, status, mesa_id, conta_id, criado_por, cliente_nome, cliente_telefone,
-         endereco, observacoes, itens, subtotal, taxa_entrega, total, pagamento, troco_para, pix_status, confirmado_em, acrescimo_cartao)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18, CASE WHEN $4 = 'preparo' THEN now() END, $19)
+         endereco, observacoes, itens, subtotal, taxa_entrega, total, pagamento, troco_para, pix_status, confirmado_em, acrescimo_cartao, localizacao)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18, CASE WHEN $4 = 'preparo' THEN now() END, $19, $20)
        RETURNING id`,
       [codigoAleatorio(), d.origem, d.tipo, d.status, d.mesa_id || null, contaId, d.criado_por || null,
         d.cliente_nome || '', d.cliente_telefone || '', d.endereco || '', d.observacoes || '', JSON.stringify(d.itens),
         subtotal, d.taxa_entrega || 0, total, d.pagamento || null, d.troco_para || null,
-        d.pagamento === 'pix' ? 'aguardando' : null, acrescimo]);
+        d.pagamento === 'pix' ? 'aguardando' : null, acrescimo, d.localizacao ? JSON.stringify(d.localizacao) : null]);
     // cadastro automático do cliente pelo WhatsApp (nome e endereço mais recentes)
     if (String(d.cliente_telefone || '').length >= 10) {
       await cli.query(
@@ -178,6 +178,14 @@ async function gravarPedido(d) {
 async function buscarPedido(id) {
   const { rows } = await pool.query(`SELECT ${CAMPOS_PEDIDO} ${FROM_PEDIDO} WHERE p.id = $1`, [id]);
   return rows[0];
+}
+
+// localização do GPS do celular do cliente (opcional): só aceita números de verdade
+function lerLocalizacao(v) {
+  if (!v || typeof v !== 'object') return null;
+  const lat = Number(v.lat), lng = Number(v.lng), precisao = Math.round(Number(v.precisao) || 0);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+  return { lat: Math.round(lat * 1e6) / 1e6, lng: Math.round(lng * 1e6) / 1e6, precisao: Math.min(Math.max(precisao, 0), 100000) };
 }
 
 function lerPagamento(b, total, obrigatorio) {
@@ -325,7 +333,7 @@ const quadroDeHoje = (lista, dia) => (lista || []).filter((a) => a.ativo && (!a.
 
 const lojaPublica = (l, e = estadoLoja(l)) => ({ manu: manu.ativa(), endereco_completo: enderecoLoja(l), referencia: l.referencia || '',
   instagram: l.instagram || '', pix_chave: l.pix_chave || '', pix_nome: l.pix_nome || '', telefone: l.telefone || '', email: l.email || '', razao_social: l.razao_social || '', cnpj: l.cnpj || '', nome: l.nome, frase: l.frase, horario: e.texto, whatsapp: l.whatsapp, aberta: e.aberta,
-  delivery: l.delivery, retirada: l.retirada, taxa_entrega: l.taxa_entrega, taxa_cartao: Number(l.taxa_cartao) || 0, recado: l.recado || '' });
+  pix_auto: usaMP(l), delivery: l.delivery, retirada: l.retirada, taxa_entrega: l.taxa_entrega, taxa_cartao: Number(l.taxa_cartao) || 0, recado: l.recado || '' });
 
 function urlBase(req, loja) {
   if (loja.url_publica) return loja.url_publica;
@@ -489,7 +497,8 @@ rota('POST', '/api/publico/pedido', null, async ({ req, b }) => {
   const taxa = tipo === 'entrega' ? Number(loja.taxa_entrega) || 0 : 0;
   const pag = lerPagamento(b, Calc.somar(itens) + taxa, true);
   const pedido = await gravarPedido({ origem: 'site', tipo, status: 'novo', cliente_nome: nome, cliente_telefone: tel,
-    endereco: tipo === 'entrega' ? endereco : '', observacoes: texto(b.observacoes, 300), itens, taxa_entrega: taxa, taxa_cartao: loja.taxa_cartao, ...pag });
+    endereco: tipo === 'entrega' ? endereco : '', localizacao: tipo === 'entrega' ? lerLocalizacao(b.localizacao) : null,
+    observacoes: texto(b.observacoes, 300), itens, taxa_entrega: taxa, taxa_cartao: loja.taxa_cartao, ...pag });
   const mp = await prepararPixMP(pedido, loja);
   notificar('/pedido', pedido);
   return { ok: true, pedido_id: pedido.id, codigo: pedido.codigo, total: Number(pedido.total),

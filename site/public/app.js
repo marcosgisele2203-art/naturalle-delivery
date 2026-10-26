@@ -199,12 +199,15 @@
       if (!tipos.some(([v]) => v === st.tipo) && tipos[0]) st.tipo = tipos[0][0];
       const pags = [['pix', 'Pix'], ['cartao', 'Cartão'], ['dinheiro', 'Dinheiro']].map(([v, n]) =>
         `<button type="button" class="chip" aria-pressed="${st.pagamento === v}" data-acao="pagamento" data-v="${v}">${n}</button>`).join('');
-      const ajuda = { pix: 'A chave Pix chega no seu WhatsApp. Responda com o comprovante.', cartao: st.tipo === 'entrega' ? 'O entregador leva a maquininha.' : 'Pague no cartão na retirada.', dinheiro: '' }[st.pagamento];
+      const ajuda = { pix: l.pix_auto ? 'Você recebe o QR Code e o código Pix na hora. A confirmação é automática.' : 'A chave Pix chega no seu WhatsApp. Responda com o comprovante.', cartao: st.tipo === 'entrega' ? 'O entregador leva a maquininha.' : 'Pague no cartão na retirada.', dinheiro: '' }[st.pagamento];
       campos = `${tipos.length > 1 ? `<div class="campo"><span>Como você quer receber?</span><div class="pagamentos" style="grid-template-columns:repeat(2,minmax(0,1fr))">${tipos.map(([v, n]) =>
           `<button type="button" class="chip" aria-pressed="${st.tipo === v}" data-acao="tipo" data-v="${v}">${n}</button>`).join('')}</div></div>` : ''}
         <label class="campo">Seu nome<input name="nome" autocomplete="name" required value="${esc(c.nome)}"></label>
         <label class="campo">WhatsApp com DDD<input name="telefone" type="tel" inputmode="tel" autocomplete="tel" placeholder="(67) 99999-9999" required value="${esc(c.telefone)}"></label>
-        ${st.tipo === 'entrega' ? `<label class="campo">Endereço de entrega<input name="endereco" autocomplete="street-address" placeholder="Rua, número, bairro, referência" required value="${esc(c.endereco)}"></label>` : ''}
+        ${st.tipo === 'entrega' ? `<label class="campo">Endereço de entrega<input name="endereco" autocomplete="street-address" placeholder="Rua, número, bairro, referência" required value="${esc(c.endereco)}"></label>
+          <div class="campo local">${st.local
+            ? `<span class="local-ok">📍 Localização anexada ao pedido${st.local.precisao ? ` (precisão de ${st.local.precisao} m)` : ''}</span><button type="button" class="link" data-acao="local-tirar">tirar</button>`
+            : `<button type="button" class="chip" data-acao="local"${st.buscandoLocal ? ' disabled' : ''}>${st.buscandoLocal ? 'Buscando sua localização…' : '📍 Usar minha localização (ajuda o entregador)'}</button>`}</div>` : ''}
         <label class="campo">Observações (opcional)<textarea name="obs">${esc(st.obs)}</textarea></label>
         <div class="campo"><span>Forma de pagamento</span><div class="pagamentos">${pags}</div>
           ${ajuda ? `<small style="font-weight:400;color:var(--cinza)">${ajuda}</small>` : ''}</div>
@@ -258,6 +261,20 @@
       case 'abrir': abrir(); break;
       case 'fechar': fechar(); break;
       case 'pagamento': lerForm(); st.pagamento = b.dataset.v; renderCarrinho(); break;
+      case 'local':
+        lerForm();
+        if (!navigator.geolocation) { avisar('Seu celular não deixou pegar a localização. Escreva o endereço.'); break; }
+        st.buscandoLocal = true; renderCarrinho();
+        navigator.geolocation.getCurrentPosition((pos) => {
+          st.buscandoLocal = false;
+          st.local = { lat: pos.coords.latitude, lng: pos.coords.longitude, precisao: Math.round(pos.coords.accuracy || 0) };
+          lerForm(); renderCarrinho();
+        }, () => {
+          st.buscandoLocal = false; lerForm(); renderCarrinho();
+          avisar('Não deu para pegar a localização. Libere a localização para o site ou escreva o endereço.');
+        }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
+        break;
+      case 'local-tirar': lerForm(); st.local = null; renderCarrinho(); break;
       case 'tipo': lerForm(); st.tipo = b.dataset.v; renderCarrinho(); break;
       case 'troco': {
         lerForm(); st.precisaTroco = b.dataset.v; if (st.precisaTroco === 'nao') st.troco = ''; st.erro = '';
@@ -317,7 +334,7 @@
       const d = tokenMesa
         ? await api('/api/publico/mesa/' + tokenMesa + '/pedido', { nome: c.nome, observacoes: st.obs, itens })
         : await api('/api/publico/pedido', {
-          tipo: st.tipo, cliente: { nome: c.nome, telefone: c.telefone }, endereco: c.endereco, observacoes: st.obs,
+          tipo: st.tipo, cliente: { nome: c.nome, telefone: c.telefone }, endereco: c.endereco, localizacao: st.tipo === 'entrega' ? st.local : null, observacoes: st.obs,
           pagamento: st.pagamento, troco_para: st.pagamento === 'dinheiro' && st.precisaTroco === 'sim' ? valorDigitado(st.troco) : null, itens,
         });
       st.enviado = { id: d.pedido_id, codigo: d.codigo, pix: st.pagamento === 'pix', chavePix: d.pix || null, total: d.total, status: d.status };

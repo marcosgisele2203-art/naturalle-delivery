@@ -108,6 +108,7 @@ async function migrar() {
     );
     ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS pix_conferencia JSONB;
     ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS mp_pagamento_id TEXT;
+    ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS localizacao JSONB;
     ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS pix_copia_cola TEXT;
     ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS pix_qr TEXT;
     ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS pix_expira TIMESTAMPTZ;

@@ -75,18 +75,20 @@
     montar(el) {
       if (!App.loja) App.carregarCardapio().catch(() => {});
       function cartao(p, minha) {
-        const mapa = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(p.endereco || '');
+        // com a localização do GPS do cliente o mapa vai no ponto exato; sem ela, procura pelo endereço
+        const mapa = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(p.localizacao ? p.localizacao.lat + ',' + p.localizacao.lng : p.endereco || '');
         return `<article class="pedido entrega-card">
           <div class="pedido-topo"><b>#${p.id}</b><span>${App.tempo(p.pronto_em || p.criado_em)}</span></div>
           <div class="cliente"><strong>${esc(p.cliente_nome || 'Cliente')}</strong>
-            ${p.endereco ? `<a class="endereco" href="${mapa}" target="_blank" rel="noopener">${esc(p.endereco)}</a>` : ''}</div>
+            ${p.endereco ? `<a class="endereco" href="${mapa}" target="_blank" rel="noopener">${esc(p.endereco)}</a>` : ''}
+            ${p.localizacao ? '<span class="selo-cliente">📍 Com localização do GPS</span>' : ''}</div>
           ${levar(p)}
           <details><summary>${((n) => n + (n === 1 ? ' item' : ' itens'))((p.itens || []).reduce((s, i) => s + i.qtd, 0))} · ${brl(p.total)}</summary>${window.Montador.linhas(p.itens || [])}</details>
           ${p.observacoes ? `<div class="obs"><b>Obs.:</b> ${esc(p.observacoes)}</div>` : ''}
           <div class="acoes">
             ${minha
               ? `<button class="btn verde grande" data-entregar="${p.id}">Entregue e pago</button>
-                 ${p.endereco ? `<a class="btn" href="${mapa}" target="_blank" rel="noopener">Abrir no mapa</a>` : ''}
+                 ${p.endereco || p.localizacao ? `<a class="btn" href="${mapa}" target="_blank" rel="noopener">Abrir no mapa</a>` : ''}
                  ${p.cliente_telefone ? `<a class="btn" href="https://wa.me/${esc(p.cliente_telefone)}" target="_blank" rel="noopener">WhatsApp</a>` : ''}`
               : '<p class="nota">Aguardando o atendente liberar a saída pelo painel de pedidos.</p>'}
           </div></article>`;
