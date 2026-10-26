@@ -491,10 +491,10 @@ rota('POST', '/api/publico/pedido', null, async ({ req, b }) => {
   if (!nome) throw new Erro(400, 'Informe seu nome.');
   const tel = telefoneBR(b.cliente && b.cliente.telefone);
   if (!tel) throw new Erro(400, 'Informe seu WhatsApp com DDD.');
-  // com o local marcado no mapa, o endereço escrito pode ficar em branco
+  // o endereço escrito é obrigatório (é ele que garante a rua certa); o ponto do mapa é um extra para o entregador
   const local = tipo === 'entrega' ? lerLocalizacao(b.localizacao) : null;
-  const endereco = texto(b.endereco, 300) || (local ? 'Local marcado no mapa (ver localização)' : '');
-  if (tipo === 'entrega' && !endereco) throw new Erro(400, 'Informe o endereço de entrega ou marque sua casa no mapa.');
+  const endereco = texto(b.endereco, 300);
+  if (tipo === 'entrega' && !endereco) throw new Erro(400, 'Informe o endereço de entrega (rua e número).');
   const itens = await calcularItens(b.itens);
   const taxa = tipo === 'entrega' ? Number(loja.taxa_entrega) || 0 : 0;
   const pag = lerPagamento(b, Calc.somar(itens) + taxa, true);
