@@ -17,6 +17,9 @@
     return nomes.length > 1 ? nomes.slice(0, -1).join(', ') + ' e ' + nomes[nomes.length - 1] : nomes[0];
   }
 
+  // pedido que tem pelo menos um item da cozinha (pedidos antigos, sem a marcação, contam como cozinha)
+  const temCozinha = (itens) => (itens || []).some((i) => i.cozinha !== false);
+
   function disponivelHoje(p, weekday) {
     return !(Array.isArray(p.dias) && p.dias.length && !p.dias.includes(weekday));
   }
@@ -48,9 +51,11 @@
       }
     }
     const obs = String(escolha.obs || '').trim().slice(0, 200);
+    const cat = (menu.categorias || []).find((c) => c.id === p.categoria);
     return {
       produto: p.id,
       nome: p.nome,
+      cozinha: !!(cat && cat.cozinha), // vai para a tela da cozinha (lanches); açaí e bebidas saem do balcão
       detalhe: partes.join(', '),
       obs,
       qtd,
@@ -76,7 +81,7 @@
 
   const brl = (v) => 'R$ ' + Number(v || 0).toFixed(2).replace('.', ',');
 
-  const Calc = { calcular, precoMinimo, somar, brl, disponivelHoje, diasTexto, DIAS };
+  const Calc = { calcular, precoMinimo, somar, brl, disponivelHoje, diasTexto, temCozinha, DIAS };
   if (typeof module !== 'undefined' && module.exports) module.exports = Calc;
   else root.Calc = Calc;
 })(this);

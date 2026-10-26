@@ -304,7 +304,7 @@
   function atualizarContagens() {
     const conta = {
       pedidos: App.pedidos.filter((p) => p.status === 'novo').length,
-      cozinha: App.pedidos.filter((p) => p.status === 'preparo').length,
+      cozinha: App.pedidos.filter((p) => p.status === 'preparo' && window.Calc.temCozinha(p.itens)).length,
       garcom: App.pedidos.filter((p) => p.tipo === 'mesa' && (p.status === 'novo' || p.status === 'pronto')).length,
       entregas: App.pedidos.filter((p) => p.tipo === 'entrega' && p.status === 'pronto').length,
     };

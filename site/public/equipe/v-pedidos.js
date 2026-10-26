@@ -6,7 +6,7 @@ App.views.pedidos = {
     let filtro = 'todos';
     const COLUNAS = [
       { status: 'novo', nome: 'Aguardando confirmação', cor: '#A3134A' },
-      { status: 'preparo', nome: 'Preparando (cozinha)', cor: '#8A5A0B' },
+      { status: 'preparo', nome: 'Preparando', cor: '#8A5A0B' },
       { status: 'pronto', nome: 'Prontos', cor: '#1E5B2B' },
       { status: 'saiu', nome: 'Saiu para entrega', cor: '#1D5FA8' },
       { status: 'fim', nome: 'Finalizados hoje', cor: '#5A615B' },
@@ -14,7 +14,10 @@ App.views.pedidos = {
 
     function acoes(p) {
       const a = [];
-      if (p.status === 'novo') a.push({ rotulo: 'Confirmar e mandar p/ cozinha', classe: 'principal', acao: 'status', valor: 'preparo' });
+      const cozinha = window.Calc.temCozinha(p.itens);
+      if (p.status === 'novo') a.push({ rotulo: cozinha ? 'Confirmar e mandar p/ cozinha' : 'Confirmar pedido', classe: 'principal', acao: 'status', valor: 'preparo' });
+      // sem lanche não passa pela cozinha: o balcão prepara e marca pronto aqui
+      if (p.status === 'preparo' && !cozinha) a.push({ rotulo: 'Pronto (balcão)', classe: 'verde', acao: 'status', valor: 'pronto' });
       if (p.status === 'pronto' && p.tipo === 'entrega') a.push({ rotulo: 'Saiu para entrega', classe: 'azul', acao: 'status', valor: 'saiu' });
       if (p.status === 'pronto' && p.tipo === 'retirada') a.push({ rotulo: 'Cliente retirou', classe: 'verde', acao: 'status', valor: 'entregue' });
       if (p.status === 'pronto' && p.tipo === 'mesa') a.push({ rotulo: 'Servido na mesa', classe: 'verde', acao: 'status', valor: 'entregue' });

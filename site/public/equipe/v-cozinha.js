@@ -5,10 +5,12 @@ App.views.cozinha = {
     const recentes = []; // prontos nos últimos minutos, para desfazer
 
     function render(mudaram) {
-      if (mudaram && mudaram.some((m) => m.para === 'preparo' && m.de !== 'pronto')) App.bip(4);
-      const fila = App.pedidos.filter((p) => p.status === 'preparo')
+      const daCozinha = (p) => window.Calc.temCozinha(p.itens);
+      if (mudaram && mudaram.some((m) => m.para === 'preparo' && m.de !== 'pronto' && daCozinha(App.pedidos.find((p) => p.id === m.id) || {}))) App.bip(4);
+      // só pedidos com lanche; açaí e bebidas saem do balcão
+      const fila = App.pedidos.filter((p) => p.status === 'preparo' && daCozinha(p))
         .sort((a, b) => new Date(a.confirmado_em || a.criado_em) - new Date(b.confirmado_em || b.criado_em));
-      const prontos = App.pedidos.filter((p) => p.status === 'pronto' && App.minutos(p.pronto_em || p.criado_em) < 10);
+      const prontos = App.pedidos.filter((p) => p.status === 'pronto' && daCozinha(p) && App.minutos(p.pronto_em || p.criado_em) < 10);
       el.innerHTML = `<div class="cozinha-tela">
         <div class="cozinha-topo">
           <h1>Cozinha · ${fila.length} ${fila.length === 1 ? 'pedido' : 'pedidos'}</h1>
@@ -27,7 +29,8 @@ App.views.cozinha = {
           return `<article class="comanda${classe}">
             <header><b>#${p.id}</b><span class="tempo">${min} min</span></header>
             <div class="onde">${onde}${p.cliente_nome ? ' · ' + esc(p.cliente_nome) : ''}</div>
-            <ul>${(p.itens || []).map((i) => `<li><b>${i.qtd}× ${esc(i.nome)}</b>${i.detalhe ? `<small>${esc(i.detalhe)}</small>` : ''}${i.obs ? `<small class="obs-item">Obs.: ${esc(i.obs)}</small>` : ''}</li>`).join('')}</ul>
+            <ul>${(p.itens || []).filter((i) => i.cozinha !== false).map((i) => `<li><b>${i.qtd}× ${esc(i.nome)}</b>${i.detalhe ? `<small>${esc(i.detalhe)}</small>` : ''}${i.obs ? `<small class="obs-item">Obs.: ${esc(i.obs)}</small>` : ''}</li>`).join('')}</ul>
+            ${((n) => (n ? `<p class="nota" style="color:#C9CBD1">+ ${n} ${n === 1 ? 'item' : 'itens'} do balcão (açaí/bebidas)</p>` : ''))((p.itens || []).filter((i) => i.cozinha === false).reduce((s, i) => s + i.qtd, 0))}
             ${p.observacoes ? `<p class="obs-geral">${esc(p.observacoes)}</p>` : ''}
             <button class="btn verde" data-pronto="${p.id}">Pronto</button>
             <button class="btn fraco" data-imprimir="${p.id}" style="margin-top:-8px;min-height:40px;font-size:14px">Imprimir comanda</button>

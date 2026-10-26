@@ -178,6 +178,18 @@ async function migrar() {
   await combosNoAcai();
   await trocarCartazMac();
   await cidadeMiranda();
+  await cozinhaSoLanches();
+}
+
+// só os lanches (Mac de 10) vão para a cozinha; açaí e bebidas saem do balcão
+async function cozinhaSoLanches() {
+  if (await lerConfig('ajuste_cozinha_lanches')) return;
+  const m = await lerConfig('cardapio');
+  if (m && Array.isArray(m.categorias)) {
+    m.categorias = m.categorias.map((c) => (c.id === 'mac' ? { ...c, cozinha: true } : c));
+    await salvarConfig('cardapio', m);
+  }
+  await salvarConfig('ajuste_cozinha_lanches', true);
 }
 
 // a loja fica em Miranda/MS: o padrão antigo do formulário salvava "Campo Grande"

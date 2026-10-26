@@ -13,6 +13,7 @@ App.views.garcom = {
     function acoesPedido(p) {
       const a = [];
       if (p.status === 'novo') a.push({ rotulo: 'Confirmar', classe: 'principal', acao: 'status', valor: 'preparo' }, { rotulo: 'Recusar', classe: 'fraco', acao: 'status', valor: 'cancelado' });
+      if (p.status === 'preparo' && !window.Calc.temCozinha(p.itens)) a.push({ rotulo: 'Pronto (balcão)', classe: 'verde', acao: 'status', valor: 'pronto' });
       if (p.status === 'pronto') a.push({ rotulo: 'Servido', classe: 'verde', acao: 'status', valor: 'entregue' });
       return a;
     }

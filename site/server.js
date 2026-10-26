@@ -205,7 +205,7 @@ function lerPagamento(b, total, obrigatorio) {
 const TRANSICOES = {
   'novo>preparo': ['pedidos', 'garcom', 'caixa'],
   'novo>cancelado': ['pedidos', 'garcom', 'caixa'],
-  'preparo>pronto': ['cozinha'],
+  'preparo>pronto': ['cozinha', 'pedidos', 'caixa', 'garcom'], // sem lanche só a cozinha não marca (conferido na rota)
   'pronto>preparo': ['cozinha'],
   'preparo>cancelado': ['pedidos', 'caixa'],
   'pronto>saiu': ['pedidos'], // só o painel de pedidos libera a saída (e escolhe o entregador)
@@ -231,7 +231,7 @@ function validarCardapio(m) {
   const categorias = m.categorias.slice(0, 50).map((c) => {
     const nome = nomeOk(c.nome, 'categoria');
     const id = c.id && !catIds.has(c.id) && /^[a-z0-9-]{1,60}$/.test(c.id) ? (catIds.add(c.id), c.id) : idUnico(catIds, nome);
-    return { id, nome };
+    return { id, nome, ...(c.cozinha ? { cozinha: true } : {}) };
   });
   const prodIds = new Set();
   const produtos = m.produtos.slice(0, 500).map((p) => {
@@ -653,12 +653,21 @@ rota('GET', '/api/equipe/cardapio', ['pedidos', 'garcom', 'caixa', 'cozinha', 'e
   return { cardapio: menu, loja: lojaPublica(loja), dia: diaDaSemana() };
 });
 
+// pedidos feitos antes da marcação "cozinha" nos itens: descobre pela categoria do produto no cardápio atual
+function marcarCozinha(pedidos, menu) {
+  const cats = new Map((menu.categorias || []).map((c) => [c.id, !!c.cozinha]));
+  const prod = new Map((menu.produtos || []).map((p) => [p.id, cats.get(p.categoria)]));
+  for (const p of pedidos) for (const i of p.itens || []) if (i.cozinha === undefined && prod.has(i.produto)) i.cozinha = !!prod.get(i.produto);
+  return pedidos;
+}
+
 rota('GET', '/api/equipe/pedidos', ['pedidos', 'garcom', 'caixa', 'cozinha', 'entregador'], async () => {
+  const menu = await lerConfig('cardapio');
   const { rows } = await pool.query(
     `SELECT ${CAMPOS_PEDIDO} ${FROM_PEDIDO}
       WHERE p.status IN ('novo', 'preparo', 'pronto', 'saiu') OR p.atualizado_em > now() - interval '14 hours'
       ORDER BY p.criado_em ASC LIMIT 400`);
-  return { pedidos: rows, agora: new Date().toISOString() };
+  return { pedidos: marcarCozinha(rows, menu || {}), agora: new Date().toISOString() };
 });
 
 rota('POST', '/api/equipe/pedido', ['garcom', 'caixa', 'pedidos'], async ({ u, b }) => {
@@ -695,6 +704,8 @@ rota('POST', '/api/equipe/pedido/:id/status', ['pedidos', 'garcom', 'caixa', 'co
   if (!perms) throw new Erro(409, 'O pedido já mudou de etapa. A tela foi atualizada.');
   if (!auth.pode(u, ...perms)) throw new Erro(403, 'Seu usuário não pode fazer isso.');
   if (b.status === 'saiu' && atual.tipo !== 'entrega') throw new Erro(400, 'Só pedidos de entrega saem para entrega.');
+  // pedido com lanche: quem diz que ficou pronto é a cozinha; só açaí/bebidas: o balcão (pedidos, caixa, garçom)
+  if (chave === 'preparo>pronto' && Calc.temCozinha(marcarCozinha([atual], (await lerConfig('cardapio')) || {})[0].itens) && !auth.pode(u, 'cozinha')) throw new Erro(403, 'Esse pedido tem lanche: quem marca pronto é a cozinha.');
   // ao sair para entrega, o painel pode dizer qual entregador levou
   let entregador = null;
   if (b.status === 'saiu' && b.entregador_id) {

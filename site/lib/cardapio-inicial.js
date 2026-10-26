@@ -16,7 +16,7 @@ const combo = (dia, weekday, desc, promo, normal) => ({
 
 module.exports = {
   categorias: [
-    { id: 'mac', nome: 'Mac de 10' },
+    { id: 'mac', nome: 'Mac de 10', cozinha: true },
     { id: 'acai', nome: 'Açaí' },
     { id: 'bebidas', nome: 'Bebidas' },
   ],

@@ -24,7 +24,7 @@ App.views.admin = {
       const m = d.cardapio;
       return `<section class="cartao"><div class="topo"><div><h2>Categorias</h2><p>A ordem aqui é a ordem das abas no app.</p></div>
           <button class="btn verde" data-nova-cat>+ Categoria</button></div>
-        <div class="chips">${m.categorias.map((c, i) => `<span class="chip" style="display:inline-flex;align-items:center;gap:4px;padding-right:4px">${esc(c.nome)}
+        <div class="chips">${m.categorias.map((c, i) => `<span class="chip" style="display:inline-flex;align-items:center;gap:4px;padding-right:4px">${esc(c.nome)}${c.cozinha ? ' 🍳' : ''}
           <button class="btn fraco" data-cat-sobe="${i}" aria-label="Mover ${esc(c.nome)} para antes"${i ? '' : ' disabled'}>←</button>
           <button class="btn fraco" data-cat-edita="${i}">editar</button></span>`).join('')}</div></section>
         ${m.categorias.map((c) => {
@@ -47,12 +47,14 @@ App.views.admin = {
       const usada = i != null && m.produtos.some((p) => p.categoria === c.id);
       const j = App.janela(i == null ? 'Nova categoria' : 'Editar categoria', `<form class="grade-form" style="grid-template-columns:1fr">
         <label class="campo">Nome<input name="nome" required value="${esc(c.nome)}"></label>
+        <label class="check"><input type="checkbox" name="cozinha"${c.cozinha ? ' checked' : ''}> Vai para a cozinha (lanches). Desmarcado: sai do balcão, sem passar pela tela da cozinha.</label>
         <button class="btn verde grande">Salvar</button>
         ${i != null ? `<button type="button" class="btn fraco" data-apagar${usada ? ' disabled title="Tire os produtos dela antes"' : ''}>Apagar categoria${usada ? ' (tem produtos)' : ''}</button>` : ''}
       </form>`);
       j.querySelector('form').addEventListener('submit', async (e) => {
         e.preventDefault();
         c.nome = e.target.nome.value;
+        c.cozinha = e.target.cozinha.checked;
         if (i == null) m.categorias.push(c);
         if (await salvarCardapio(m)) { j.fechar(); render(); }
       });
