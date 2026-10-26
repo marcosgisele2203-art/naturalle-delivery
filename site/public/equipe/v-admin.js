@@ -438,7 +438,7 @@ App.views.admin = {
           <label class="campo">Instagram<input name="instagram" value="${esc(l.instagram ? '@' + l.instagram : '')}" placeholder="@naturallemania"></label>
           <label class="campo">Endereço (rua e número)<input name="endereco" value="${esc(l.endereco || '')}" placeholder="Rua Exemplo, 123"></label>
           <label class="campo">Bairro<input name="bairro" value="${esc(l.bairro || '')}"></label>
-          <label class="campo">Cidade<input name="cidade" value="${esc(l.cidade || 'Campo Grande')}"></label>
+          <label class="campo">Cidade<input name="cidade" value="${esc(l.cidade || 'Miranda')}"></label>
           <label class="campo">UF<input name="uf" maxlength="2" value="${esc(l.uf || 'MS')}"></label>
           <label class="campo">CEP<input name="cep" inputmode="numeric" value="${esc(l.cep || '')}"></label>
           <label class="campo">Ponto de referência<input name="referencia" value="${esc(l.referencia || '')}" placeholder="Ex.: em frente à praça"></label>

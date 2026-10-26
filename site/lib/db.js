@@ -177,6 +177,16 @@ async function migrar() {
   await ajustesDoCardapio();
   await combosNoAcai();
   await trocarCartazMac();
+  await cidadeMiranda();
+}
+
+// a loja fica em Miranda/MS: o padrão antigo do formulário salvava "Campo Grande"
+async function cidadeMiranda() {
+  if (await lerConfig('ajuste_cidade_miranda')) return;
+  const { rows } = await pool.query(`SELECT valor FROM config WHERE chave = 'loja'`);
+  const loja = rows[0] && rows[0].valor;
+  if (loja && (!loja.cidade || loja.cidade === 'Campo Grande')) await salvarConfig('loja', { ...loja, cidade: 'Miranda', uf: loja.uf || 'MS' });
+  await salvarConfig('ajuste_cidade_miranda', true);
 }
 
 // mudanças pedidas pela loja no cardápio já salvo; cada uma roda só uma vez

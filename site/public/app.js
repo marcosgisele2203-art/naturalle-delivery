@@ -388,7 +388,7 @@
   }
 
   // ---------------- localização da entrega: GPS + mapa para o cliente conferir e arrastar o alfinete
-  const CENTRO_LOJA = [-20.4697, -54.6201]; // Campo Grande, quando o GPS não responde
+  const CENTRO_LOJA = [-20.2410, -56.3790]; // centro de Miranda/MS, quando o GPS não responde
   let leaflet;
   function carregarMapa() {
     if (window.L) return Promise.resolve();
@@ -421,7 +421,7 @@
   // procura no mapa o endereço que o cliente digitou (OpenStreetMap), na cidade da loja
   async function acharEndereco(endereco) {
     const l = st.loja || {};
-    const busca = [endereco, l.cidade || 'Campo Grande', l.uf || 'MS', 'Brasil'].filter(Boolean).join(', ');
+    const busca = [endereco, l.cidade || 'Miranda', l.uf || 'MS', 'Brasil'].filter(Boolean).join(', ');
     try {
       const r = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=br&accept-language=pt-BR&q=' + encodeURIComponent(busca),
         { signal: AbortSignal.timeout(8000) });
