@@ -136,7 +136,14 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ number: $json.numero, text: $json.texto }) }}",
-        "options": {}
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 1500
+            }
+          }
+        }
       },
       "id": "e3f761ee-ee28-4c27-b176-990cf8c30a24",
       "name": "Enviar WhatsApp (pedido recebido)",
@@ -216,7 +223,14 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ number: $json.numero, text: $json.texto }) }}",
-        "options": {}
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 1500
+            }
+          }
+        }
       },
       "id": "f5c10488-1a2a-4996-926f-b648cdc93ae4",
       "name": "Enviar WhatsApp (status)",
@@ -329,7 +343,14 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ number: $json.numero, text: $json.texto }) }}",
-        "options": {}
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 1500
+            }
+          }
+        }
       },
       "id": "0dcc3483-214f-4f79-8214-5ddc2e242b00",
       "name": "Enviar WhatsApp (Manu)",

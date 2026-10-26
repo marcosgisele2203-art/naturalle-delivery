@@ -136,7 +136,14 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ number: $json.numero, text: $json.texto }) }}",
-        "options": {}
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 1500
+            }
+          }
+        }
       },
       "id": "54ba89a3-7b20-4794-bd72-bc688169e49c",
       "name": "Enviar WhatsApp",
