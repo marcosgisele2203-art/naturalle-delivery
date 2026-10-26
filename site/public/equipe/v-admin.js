@@ -377,7 +377,7 @@ App.views.admin = {
           <label class="campo">Nome<input name="nome" required value="${esc(u.nome)}" autocomplete="off"></label>
           <label class="campo">WhatsApp (opcional)<input name="telefone" inputmode="tel" value="${esc(fone(u.telefone))}" placeholder="(67) 99999-0000"></label>
           <label class="campo">Login<input name="login" required autocapitalize="none" autocomplete="off" value="${esc(u.login)}"><small>Sem espaços. Ex.: joao, maria.caixa</small></label>
-          <label class="campo">${id ? 'Nova senha (deixe vazio para manter)' : 'Senha'}<input name="senha" type="password" autocomplete="new-password"${id ? '' : ' required'} minlength="6"><small>Pelo menos 6 caracteres.</small></label>
+          <label class="campo">${id ? 'Nova senha (deixe vazio para manter)' : 'Senha'}<input name="senha" type="password" autocomplete="new-password"${id ? '' : ' required'} minlength="8"><small>Pelo menos 8 caracteres.</small></label>
         </div>
         <div class="campo"><span>Função</span><div class="chips">${FUNCOES.map(([n, ps], i) => `<button type="button" class="chip" data-funcao="${i}" aria-pressed="${ps.length === u.permissoes.length && ps.every((p) => u.permissoes.includes(p))}">${n}</button>`).join('')}</div>
           <small>Escolha a função para marcar as seções, ou marque as seções uma a uma abaixo.</small></div>

@@ -440,4 +440,31 @@
     if (App.usuario) await App.atualizarPedidos();
     mostrar();
   };
+
+  // botão 👁 em todo campo de senha: mostra o que foi digitado para conferir
+  function colocarOlhos(raiz) {
+    for (const campo of raiz.querySelectorAll('input[type=password]:not([data-olho])')) {
+      campo.dataset.olho = '1';
+      // com a senha à mostra o teclado do celular não pode pôr maiúscula nem corrigir palavras
+      campo.setAttribute('autocapitalize', 'off'); campo.setAttribute('autocorrect', 'off'); campo.spellcheck = false;
+      const caixa = document.createElement('span');
+      caixa.className = 'senha-caixa';
+      campo.replaceWith(caixa);
+      const botao = document.createElement('button');
+      botao.type = 'button'; botao.className = 'olho'; botao.setAttribute('aria-label', 'Mostrar a senha'); botao.textContent = '👁';
+      caixa.append(campo, botao);
+    }
+  }
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('.olho');
+    if (!b) return;
+    e.preventDefault();
+    const campo = b.previousElementSibling, ver = campo.type === 'password';
+    campo.type = ver ? 'text' : 'password';
+    b.textContent = ver ? '🙈' : '👁';
+    b.setAttribute('aria-label', ver ? 'Esconder a senha' : 'Mostrar a senha');
+    campo.focus();
+  });
+  new MutationObserver(() => colocarOlhos(document.body)).observe(document.body, { childList: true, subtree: true });
+  colocarOlhos(document.body);
 })();

@@ -297,3 +297,9 @@ h1, h2, h3 { margin: 0; }
 .pix-conf { width: 100%; font-size: 13px; border-radius: 8px; padding: 6px 10px; margin-top: 4px; }
 .pix-conf.alerta { background: #FDECEA; color: var(--erro); }
 .pix-conf.ok { background: var(--verde-claro); color: var(--verde); }
+
+/* campo de senha com o botão de mostrar */
+.senha-caixa { position: relative; display: block; }
+.senha-caixa input { width: 100%; padding-right: 52px; }
+.senha-caixa .olho { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 44px; height: 40px; border: 0; background: none; font-size: 20px; cursor: pointer; border-radius: 8px; }
+.senha-caixa .olho:focus-visible { outline: 2px solid currentColor; }
