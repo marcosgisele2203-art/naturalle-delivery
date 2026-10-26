@@ -107,7 +107,7 @@ function notificar(caminho, pedido) {
 
 const CAMPOS_PEDIDO = `p.id, p.codigo, p.criado_em, p.confirmado_em, p.pronto_em, p.origem, p.tipo, p.status,
   p.cliente_nome, p.cliente_telefone, p.endereco, p.observacoes, p.itens, p.subtotal, p.taxa_entrega, p.acrescimo_cartao, p.total,
-  p.pagamento, p.troco_para, p.pix_status, p.mesa_id, p.conta_id, m.nome AS mesa_nome, u.nome AS criado_por_nome,
+  p.pagamento, p.troco_para, p.pix_status, p.pix_conferencia, p.mesa_id, p.conta_id, m.nome AS mesa_nome, u.nome AS criado_por_nome,
   p.entregador_id, e.nome AS entregador_nome, p.saiu_em, p.pago_em,
   CASE WHEN length(p.cliente_telefone) >= 10 THEN (SELECT count(*)::int FROM pedidos q
     WHERE right(q.cliente_telefone, 8) = right(p.cliente_telefone, 8) AND q.id <= p.id AND q.status <> 'cancelado') END AS n_pedido_cliente`;

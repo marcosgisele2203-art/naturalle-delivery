@@ -86,6 +86,13 @@
     if (p.pagamento === 'pix') {
       const s = { aguardando: ['alerta', 'Pix: aguardando comprovante'], comprovante_recebido: ['alerta', 'Pix: comprovante recebido, conferir'], confirmado: ['ok', 'Pix confirmado'] }[p.pix_status] || ['', 'Pix'];
       pag = `<span class="tag ${s[0]}">${s[1]}</span>`;
+      // o que a Manu leu no comprovante (só ajuda: confirmar é no extrato do banco)
+      const c = p.pix_conferencia;
+      if (c && p.pix_status !== 'confirmado') {
+        pag += c.alertas && c.alertas.length
+          ? `<div class="pix-conf alerta"><b>⚠️ Conferir com cuidado:</b> ${c.alertas.map(esc).join('; ')}.</div>`
+          : `<div class="pix-conf ok">✅ Comprovante lido pela Manu: ${c.valor ? brl(c.valor) : ''}${c.recebedor ? ' para ' + esc(c.recebedor) : ''}. Confira no banco.</div>`;
+      }
     } else if (p.pagamento === 'cartao') pag = '<span class="tag">Cartão</span>';
     else if (p.pagamento === 'dinheiro') pag = `<span class="tag">Dinheiro${p.troco_para ? ' · paga com ' + brl(p.troco_para) + ' · troco ' + brl(Number(p.troco_para) - Number(p.total)) : ''}</span>`;
     else if (p.tipo === 'mesa') pag = '<span class="tag">Paga na conta da mesa</span>';

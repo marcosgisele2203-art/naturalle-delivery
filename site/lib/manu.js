@@ -29,7 +29,8 @@ Como atender:
 - Pergunte o que faltar: entrega ou retirada no balcão; endereço completo (se for entrega); forma de pagamento (Pix, cartão ou dinheiro); se for dinheiro, se precisa de troco e com quanto vai pagar; e o nome.
 - Só use fazer_pedido depois que o cliente confirmar o resumo ("pode mandar", "confirmo", "sim"...). Depois de lançar, diga o número do pedido. Se for Pix, avise que a chave Pix chega em seguida por mensagem e que ele pode mandar a foto do comprovante aqui.
 - Se a loja estiver fechada, avise quando abre e não lance pedido.
-- Se o cliente mandar a foto de um comprovante de pagamento Pix, use registrar_comprovante_pix. Se mandar outra foto, comente o que viu e ajude.
+- Se o cliente mandar foto ou PDF de um comprovante de pagamento Pix, leia com atenção e use registrar_comprovante_pix preenchendo o que estiver escrito nele (valor, nome e chave de quem recebeu, data e hora, ID da transação/E2E, se é agendamento). Não invente nada que não esteja legível. Diga ao cliente que recebeu e que a equipe confere o pagamento no banco; NUNCA diga que o pagamento está confirmado. Se a ferramenta apontar divergência, explique com educação o que não bateu (ex.: valor diferente) e peça para conferir, sem acusar de golpe.
+- Se mandar outra foto, comente o que viu e ajude.
 - Se o cliente mandar áudio, responda ao que ele falou normalmente.
 - Para saber como está um pedido, use meus_pedidos.
 - Reclamação, cancelamento ou assunto que você não resolve: peça para ele aguardar que a equipe responde por aqui, sem prometer nada.
@@ -70,7 +71,23 @@ const FERRAMENTAS = [{
       },
     },
     { name: 'meus_pedidos', description: 'Situação dos pedidos recentes deste cliente.' },
-    { name: 'registrar_comprovante_pix', description: 'Marca que o cliente mandou o comprovante do Pix do pedido dele que está aguardando pagamento.' },
+    {
+      name: 'registrar_comprovante_pix',
+      description: 'Registra o comprovante Pix que o cliente mandou (foto ou PDF) no pedido dele que aguarda pagamento, com o que você leu no comprovante. O sistema confere com o pedido e avisa a equipe.',
+      parameters: {
+        type: 'OBJECT',
+        properties: {
+          valor: { type: 'NUMBER', description: 'Valor pago, em reais' },
+          recebedor_nome: { type: 'STRING', description: 'Nome de quem recebeu' },
+          recebedor_chave: { type: 'STRING', description: 'Chave Pix ou documento de quem recebeu, se aparecer' },
+          data_hora: { type: 'STRING', description: 'Data e hora do pagamento como aparecem' },
+          id_transacao: { type: 'STRING', description: 'ID da transação / código E2E / autenticação' },
+          agendado: { type: 'BOOLEAN', description: 'true se for agendamento e não pagamento concluído' },
+          parece_comprovante: { type: 'BOOLEAN', description: 'false se a imagem não parece um comprovante de banco' },
+          observacao: { type: 'STRING', description: 'Algo estranho que você notou (edição, cortes, fonte diferente...)' },
+        },
+      },
+    },
   ],
 }];
 // o Gemini não aceita $ref: troca pelo esquema do item
@@ -196,18 +213,47 @@ function criar(s) {
     return { pedidos: rows.map((p) => `#${p.id}: ${ETAPA[p.status] || p.status}, ${p.tipo}, ${brl(p.total)}, ${p.pagamento || ''}${p.pagamento === 'pix' ? ' (pix ' + p.pix_status + ')' : ''}`) };
   }
 
-  async function registrarComprovante(ctx) {
+  // confere o que a IA leu no comprovante com o pedido. Só aponta sinais: quem confirma é a equipe, olhando o banco.
+  const soLetras = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z ]/g, ' ').split(/\s+/).filter((w) => w.length > 2);
+  async function registrarComprovante(ctx, a = {}) {
     const tel = s.telefoneBR(ctx.telefone);
     if (!tel) return { erro: 'só funciona pelo WhatsApp' };
-    const { rows } = await s.pool.query(
-      `UPDATE pedidos SET pix_status = 'comprovante_recebido', atualizado_em = now()
-        WHERE id = (SELECT id FROM pedidos WHERE right(cliente_telefone, 8) = right($1, 8) AND pagamento = 'pix' AND pix_status = 'aguardando'
-                    ORDER BY criado_em DESC LIMIT 1)
-        RETURNING id, cliente_nome, total`, [tel]);
-    if (!rows[0]) return { resultado: 'não há pedido Pix aguardando pagamento deste número' };
-    const p = rows[0], loja = await s.lerConfig('loja');
-    if (loja.whatsapp) ctx.avisos.push({ numero: loja.whatsapp, texto: `*Comprovante Pix recebido* do pedido #${p.id} (${p.cliente_nome}, ${brl(p.total)}). Confira e clique em "Confirmar Pix" no painel.` });
-    return { resultado: `comprovante do pedido #${p.id} registrado; a equipe vai conferir` };
+    const { rows: ps } = await s.pool.query(
+      `SELECT id, cliente_nome, total, criado_em FROM pedidos WHERE right(cliente_telefone, 8) = right($1, 8) AND pagamento = 'pix'
+          AND pix_status IN ('aguardando', 'comprovante_recebido') ORDER BY criado_em DESC LIMIT 1`, [tel]);
+    if (!ps[0]) return { resultado: 'não há pedido Pix aguardando pagamento deste número' };
+    const p = ps[0], loja = await s.lerConfig('loja');
+    const alertas = [];
+    if (a.parece_comprovante === false) alertas.push('não parece um comprovante de banco');
+    if (a.agendado) alertas.push('é AGENDAMENTO, não pagamento feito');
+    const valor = Number(a.valor);
+    if (!Number.isFinite(valor) || !valor) alertas.push('valor não encontrado no comprovante');
+    else if (Math.abs(valor - Number(p.total)) > 0.009) alertas.push(`valor ${brl(valor)} diferente do pedido (${brl(p.total)})`);
+    const chaveLoja = String(loja.pix_chave || '').replace(/\D/g, ''), chaveLida = String(a.recebedor_chave || '').replace(/\D/g, '');
+    if (chaveLoja.length >= 6 && chaveLida.length >= 3) {
+      // bancos mostram CPF mascarado (***.405.581-**): confere os números visíveis
+      const visiveis = String(a.recebedor_chave).replace(/[^0-9*]/g, '');
+      const ok = visiveis.length === chaveLoja.length ? [...visiveis].every((c, i) => c === '*' || c === chaveLoja[i]) : chaveLoja.includes(chaveLida);
+      if (!ok) alertas.push('chave de quem recebeu diferente da chave da loja');
+    }
+    const nomeLoja = soLetras(loja.pix_nome), nomeLido = soLetras(a.recebedor_nome);
+    if (nomeLoja.length && nomeLido.length && !nomeLido.some((w) => nomeLoja.includes(w))) alertas.push(`recebedor "${a.recebedor_nome}" diferente do nome do Pix da loja`);
+    if (!a.recebedor_nome && !a.recebedor_chave) alertas.push('não dá para ver quem recebeu');
+    const idTx = String(a.id_transacao || '').replace(/\s/g, '').slice(0, 80);
+    if (!idTx) alertas.push('sem ID da transação');
+    else {
+      const { rows: dup } = await s.pool.query('SELECT id FROM pedidos WHERE pix_id_transacao = $1 AND id <> $2 LIMIT 1', [idTx, p.id]);
+      if (dup[0]) alertas.push(`MESMO comprovante já usado no pedido #${dup[0].id}`);
+    }
+    if (a.observacao) alertas.push('observação: ' + String(a.observacao).slice(0, 150));
+    const conferencia = { valor: Number.isFinite(valor) ? valor : null, recebedor: a.recebedor_nome || a.recebedor_chave || '', data_hora: a.data_hora || '',
+      id_transacao: idTx, alertas, em: new Date().toISOString() };
+    await s.pool.query(`UPDATE pedidos SET pix_status = 'comprovante_recebido', pix_conferencia = $2, pix_id_transacao = NULLIF($3, ''), atualizado_em = now() WHERE id = $1`,
+      [p.id, JSON.stringify(conferencia), idTx]);
+    if (loja.whatsapp) ctx.avisos.push({ numero: loja.whatsapp, texto: `*Comprovante Pix recebido* do pedido #${p.id} (${p.cliente_nome}, ${brl(p.total)}).\n`
+      + (alertas.length ? '⚠️ Atenção: ' + alertas.join('; ') + '.\n' : '✅ Valor e recebedor batem com o pedido.\n')
+      + 'Confira no extrato do banco antes de clicar em "Confirmar Pix" no painel.' });
+    return { resultado: `comprovante do pedido #${p.id} registrado; a equipe confere no banco`, divergencias: alertas };
   }
 
   async function rodarFerramenta(nome, args, ctx) {
@@ -216,7 +262,7 @@ function criar(s) {
       if (nome === 'calcular_pedido') return await calcular(args || {});
       if (nome === 'fazer_pedido') return await fazerPedido(args || {}, ctx);
       if (nome === 'meus_pedidos') return await meusPedidos(ctx);
-      if (nome === 'registrar_comprovante_pix') return await registrarComprovante(ctx);
+      if (nome === 'registrar_comprovante_pix') return await registrarComprovante(ctx, args || {});
       return { erro: 'ferramenta desconhecida' };
     } catch (e) {
       return { erro: e.message };

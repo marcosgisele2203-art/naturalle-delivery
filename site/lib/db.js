@@ -106,6 +106,8 @@ async function migrar() {
       expira_em   TIMESTAMPTZ NOT NULL,
       tentativas  INT NOT NULL DEFAULT 0
     );
+    ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS pix_conferencia JSONB;
+    ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS pix_id_transacao TEXT;
     ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS codigo TEXT;
     ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS observacoes TEXT NOT NULL DEFAULT '';
     ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS confirmado_em TIMESTAMPTZ;
