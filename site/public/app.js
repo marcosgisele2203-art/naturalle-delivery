@@ -206,8 +206,8 @@
         <label class="campo">WhatsApp com DDD<input name="telefone" type="tel" inputmode="tel" autocomplete="tel" placeholder="(67) 99999-9999" required value="${esc(c.telefone)}"></label>
         ${st.tipo === 'entrega' ? `<label class="campo">Endereço de entrega<input name="endereco" autocomplete="street-address" placeholder="Rua, número, bairro, referência" required value="${esc(c.endereco)}"></label>
           <div class="campo local">${st.local
-            ? `<span class="local-ok">📍 Localização anexada ao pedido${st.local.precisao ? ` (precisão de ${st.local.precisao} m)` : ''}</span><button type="button" class="link" data-acao="local-tirar">tirar</button>`
-            : `<button type="button" class="chip" data-acao="local"${st.buscandoLocal ? ' disabled' : ''}>${st.buscandoLocal ? 'Buscando sua localização…' : '📍 Usar minha localização (ajuda o entregador)'}</button>`}</div>` : ''}
+            ? `<span class="local-ok">📍 Local marcado no mapa</span><button type="button" class="link" data-acao="local">ver / ajustar</button><button type="button" class="link" data-acao="local-tirar">tirar</button>`
+            : `<button type="button" class="chip" data-acao="local"${st.buscandoLocal ? ' disabled' : ''}>${st.buscandoLocal ? 'Buscando sua localização…' : '📍 Marcar minha casa no mapa (ajuda o entregador)'}</button>`}</div>` : ''}
         <label class="campo">Observações (opcional)<textarea name="obs">${esc(st.obs)}</textarea></label>
         <div class="campo"><span>Forma de pagamento</span><div class="pagamentos">${pags}</div>
           ${ajuda ? `<small style="font-weight:400;color:var(--cinza)">${ajuda}</small>` : ''}</div>
@@ -261,19 +261,7 @@
       case 'abrir': abrir(); break;
       case 'fechar': fechar(); break;
       case 'pagamento': lerForm(); st.pagamento = b.dataset.v; renderCarrinho(); break;
-      case 'local':
-        lerForm();
-        if (!navigator.geolocation) { avisar('Seu celular não deixou pegar a localização. Escreva o endereço.'); break; }
-        st.buscandoLocal = true; renderCarrinho();
-        navigator.geolocation.getCurrentPosition((pos) => {
-          st.buscandoLocal = false;
-          st.local = { lat: pos.coords.latitude, lng: pos.coords.longitude, precisao: Math.round(pos.coords.accuracy || 0) };
-          lerForm(); renderCarrinho();
-        }, () => {
-          st.buscandoLocal = false; lerForm(); renderCarrinho();
-          avisar('Não deu para pegar a localização. Libere a localização para o site ou escreva o endereço.');
-        }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
-        break;
+      case 'local': lerForm(); marcarLocal(); break;
       case 'local-tirar': lerForm(); st.local = null; renderCarrinho(); break;
       case 'tipo': lerForm(); st.tipo = b.dataset.v; renderCarrinho(); break;
       case 'troco': {
@@ -397,6 +385,64 @@
     manuChat.enviando = false;
     manuChat.msgs = manuChat.msgs.slice(-40); guardar('nm-manu-msgs', manuChat.msgs);
     desenharManu();
+  }
+
+  // ---------------- localização da entrega: GPS + mapa para o cliente conferir e arrastar o alfinete
+  const CENTRO_LOJA = [-20.4697, -54.6201]; // Campo Grande, quando o GPS não responde
+  let leaflet;
+  function carregarMapa() {
+    if (window.L) return Promise.resolve();
+    if (leaflet) return leaflet;
+    leaflet = new Promise((ok, erro) => {
+      const css = document.createElement('link'); css.rel = 'stylesheet'; css.href = '/vendor/leaflet/leaflet.css'; document.head.append(css);
+      const js = document.createElement('script'); js.src = '/vendor/leaflet/leaflet.js'; js.onload = ok; js.onerror = erro; document.head.append(js);
+    });
+    return leaflet;
+  }
+  // o primeiro ponto do GPS costuma ser grosseiro: escuta por alguns segundos e fica com o mais preciso
+  function melhorPosicao() {
+    return new Promise((ok) => {
+      if (!navigator.geolocation) return ok(null);
+      let melhor = null, fim;
+      const terminar = () => { clearTimeout(fim); navigator.geolocation.clearWatch(id); ok(melhor); };
+      const id = navigator.geolocation.watchPosition((pos) => {
+        if (!melhor || pos.coords.accuracy < melhor.coords.accuracy) melhor = pos;
+        if (pos.coords.accuracy <= 25) terminar();
+      }, () => terminar(), { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
+      fim = setTimeout(terminar, 12000);
+    });
+  }
+  async function marcarLocal() {
+    st.buscandoLocal = true; renderCarrinho();
+    const [pos] = await Promise.all([st.local ? null : melhorPosicao(), carregarMapa().catch(() => null)]);
+    st.buscandoLocal = false; renderCarrinho();
+    if (!window.L) { avisar('Não deu para abrir o mapa agora. Escreva o endereço com um ponto de referência.'); return; }
+    const inicio = st.local ? [st.local.lat, st.local.lng] : pos ? [pos.coords.latitude, pos.coords.longitude] : CENTRO_LOJA;
+    const precisao = st.local ? st.local.precisao : pos ? Math.round(pos.coords.accuracy) : 0;
+    const z = document.createElement('div');
+    z.className = 'mapa-local'; z.setAttribute('role', 'dialog'); z.setAttribute('aria-label', 'Confirme o local da entrega');
+    z.innerHTML = `<div class="mapa-caixa"><h2>Onde entregar?</h2>
+      <p>${pos || st.local ? (precisao > 100 ? `⚠️ O GPS achou um ponto aproximado (${precisao} m). ` : '') + 'Arraste o alfinete até a sua casa, se precisar.' : 'Não conseguimos o GPS. Arraste o alfinete até a sua casa.'}</p>
+      <div class="mapa" id="mapa-entrega"></div>
+      <div class="mapa-botoes"><button type="button" class="botao" data-m="cancelar">Cancelar</button><button type="button" class="botao verde" data-m="ok">Confirmar este local</button></div></div>`;
+    document.body.append(z);
+    const mapa = L.map('mapa-entrega', { zoomControl: true }).setView(inicio, pos || st.local ? 18 : 13);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(mapa);
+    L.Icon.Default.imagePath = '/vendor/leaflet/images/';
+    const alfinete = L.marker(inicio, { draggable: true, autoPan: true }).addTo(mapa);
+    let mexeu = false;
+    alfinete.on('dragend', () => { mexeu = true; });
+    mapa.on('click', (e) => { alfinete.setLatLng(e.latlng); mexeu = true; }); // tocar no mapa também move o alfinete
+    z.addEventListener('click', (e) => {
+      const m = e.target.closest('[data-m]'); if (!m) return;
+      if (m.dataset.m === 'ok') {
+        const { lat, lng } = alfinete.getLatLng();
+        // o cliente conferiu no mapa: vale mais que a precisão do GPS
+        st.local = { lat, lng, precisao: mexeu || !(pos || st.local) ? 0 : precisao, conferido: true };
+        renderCarrinho();
+      }
+      mapa.remove(); z.remove();
+    });
   }
 
   // ---------------- acompanhamento
