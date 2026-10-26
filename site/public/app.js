@@ -43,7 +43,7 @@
   async function api(url, corpo) {
     const r = await fetch(url, corpo ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) } : {});
     const d = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(d.erro || 'Não foi possível concluir. Tente de novo.');
+    if (!r.ok) throw new Error(d.erro || (r.status >= 500 ? 'O sistema está reiniciando ou demorou para responder. Espere um minutinho e tente de novo.' : 'Não foi possível concluir. Tente de novo.'));
     return d;
   }
 

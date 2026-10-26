@@ -287,7 +287,7 @@ function criar(s) {
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': CHAVE },
       body: JSON.stringify({ systemInstruction: { parts: [{ text: INSTRUCOES + '\n\n# CARDÁPIO DE HOJE (atualizado agora)\n' + await cardapioTexto() }] }, contents, tools: FERRAMENTAS,
         generationConfig: { temperature: 0.6, maxOutputTokens: 2048 } }),
-      signal: AbortSignal.timeout(60_000),
+      signal: AbortSignal.timeout(30_000),
     });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) {
@@ -300,7 +300,8 @@ function criar(s) {
   async function geminiComRetry(contents) {
     for (let tentativa = 0; ; tentativa++) {
       try { return await gemini(contents); } catch (e) {
-        if (tentativa >= 2 || ![429, 500, 503].includes(e.status)) throw e;
+        // limite do DIA acabou: não adianta esperar (e esperar faz a página dar erro por demora)
+        if (tentativa >= 2 || ![429, 500, 503].includes(e.status) || /per ?day|PerDay/i.test(e.message)) throw e;
         console.error('manu: ' + e.message.slice(0, 120) + ' (tentando de novo)');
         await new Promise((ok) => setTimeout(ok, (tentativa + 1) * 6000));
       }
