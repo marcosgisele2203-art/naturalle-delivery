@@ -440,6 +440,10 @@ rota('POST', '/api/mp/webhook', null, async ({ req, b, q }) => {
 const manu = require('./lib/manu').criar({ clienteDoTelefone: (t) => clienteDoTelefone(t), prepararPixMP, pool, lerConfig, Calc, diaDaSemana, estadoLoja, calcularItens, gravarPedido, lerPagamento,
   telefoneBR, notificar, Erro, texto });
 
+// a Manu tem no máximo 40 s para responder: depois disso o proxy do Easypanel corta a página
+const comPrazo = (promessa, ms = 40_000) => (promessa.catch(() => {}), Promise.race([promessa,
+  new Promise((_, falha) => setTimeout(() => falha(new Error('Gemini demorou mais de ' + ms / 1000 + ' s')), ms))]));
+
 // mensagem que chegou no WhatsApp (o n8n repassa da Evolution e manda de volta o que vier em "mensagens")
 rota('POST', '/api/manu/whatsapp', null, async ({ req, b }) => {
   if (!N8N_TOKEN || b.token !== N8N_TOKEN) throw new Erro(401, 'Token inválido');
@@ -453,7 +457,7 @@ rota('POST', '/api/manu/whatsapp', null, async ({ req, b }) => {
   const loja = await lerConfig('loja');
   let r;
   try {
-    r = manu.ativa() ? await manu.responder(entrada) : await manu.semIA(entrada, urlBase(req, loja));
+    r = manu.ativa() ? await comPrazo(manu.responder(entrada)) : await manu.semIA(entrada, urlBase(req, loja));
   } catch (e) {
     console.error('manu', e.message);
     r = { resposta: 'Ops, tive um probleminha aqui 😅 Tenta de novo daqui a pouco ou faça o pedido pelo cardápio: ' + urlBase(req, loja), avisos: [] };
@@ -471,7 +475,7 @@ rota('POST', '/api/publico/manu', null, async ({ req, b }) => {
   const msg = texto(b.texto, 1000);
   if (!msg) throw new Erro(400, 'Escreva sua mensagem.');
   try {
-    const r = await manu.responder({ canal: 'site', chave: sessao, texto: msg });
+    const r = await comPrazo(manu.responder({ canal: 'site', chave: sessao, texto: msg }));
     return { resposta: r.resposta, pedido: r.pedido, pix: r.pix };
   } catch (e) {
     console.error('manu site', e.message);
@@ -1125,6 +1129,9 @@ const server = http.createServer(async (req, res) => {
     if (!res.headersSent) json(res, 500, { erro: 'Erro no servidor. Tente de novo.' });
   }
 });
+
+// um erro esquecido em segundo plano não pode derrubar o servidor (senão a página dá erro para todo mundo)
+process.on('unhandledRejection', (e) => console.error('erro em segundo plano:', e && e.message ? e.message : e));
 
 (async () => {
   for (let tentativa = 1; ; tentativa++) {
