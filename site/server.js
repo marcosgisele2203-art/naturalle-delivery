@@ -444,11 +444,39 @@ const manu = require('./lib/manu').criar({ clienteDoTelefone: (t) => clienteDoTe
 const comPrazo = (promessa, ms = 40_000) => (promessa.catch(() => {}), Promise.race([promessa,
   new Promise((_, falha) => setTimeout(() => falha(new Error('Gemini demorou mais de ' + ms / 1000 + ' s')), ms))]));
 
+// proteção contra loop: outro robô (ex.: uma central de corridas ou outra loja) respondendo a Manu sem parar.
+// Número que manda mais de 6 mensagens em 30 s fica 30 min sem resposta e a loja recebe um aviso.
+const LOOP = { limite: 6, janela: 30_000, silencio: 30 * 60_000 };
+const loopRecentes = new Map(), loopSilenciados = new Map();
+function pareceRobo(telefone) {
+  const agora = Date.now();
+  if ((loopSilenciados.get(telefone) || 0) > agora) return 'silenciado';
+  const lista = (loopRecentes.get(telefone) || []).filter((t) => agora - t < LOOP.janela);
+  lista.push(agora);
+  loopRecentes.set(telefone, lista);
+  if (lista.length <= LOOP.limite) return null;
+  loopSilenciados.set(telefone, agora + LOOP.silencio);
+  loopRecentes.delete(telefone);
+  console.log(`Proteção contra loop: ${telefone} mandou ${lista.length} mensagens em ${LOOP.janela / 1000}s. A Manu fica ${LOOP.silencio / 60_000} min sem responder.`);
+  return 'novo';
+}
+setInterval(() => {
+  const agora = Date.now();
+  for (const [t, ate] of loopSilenciados) if (ate < agora) loopSilenciados.delete(t);
+  for (const [t, l] of loopRecentes) if (!l.some((x) => agora - x < LOOP.janela)) loopRecentes.delete(t);
+}, 5 * 60_000).unref();
+
 // mensagem que chegou no WhatsApp (o n8n repassa da Evolution e manda de volta o que vier em "mensagens")
 rota('POST', '/api/manu/whatsapp', null, async ({ req, b }) => {
   if (!N8N_TOKEN || b.token !== N8N_TOKEN) throw new Erro(401, 'Token inválido');
   const telefone = soDigitos(b.telefone).slice(0, 15);
   if (telefone.length < 10) throw new Erro(400, 'Telefone inválido');
+  const robo = pareceRobo(telefone);
+  if (robo) {
+    const loja = robo === 'novo' ? await lerConfig('loja') : null;
+    const avisar = loja && loja.whatsapp && soDigitos(loja.whatsapp) !== telefone;
+    return { mensagens: avisar ? [{ numero: soDigitos(loja.whatsapp), texto: `⚠️ *Proteção contra loop*\nO número wa.me/${telefone} mandou muitas mensagens seguidas (parece outro robô respondendo a Manu).\nA Manu parou de responder a ele por ${LOOP.silencio / 60_000} minutos.` }] : [] };
+  }
   const midia = b.base64 && ['imagem', 'audio'].includes(b.tipo)
     ? { tipo: b.tipo, mime: texto(b.mime, 80).split(';')[0].trim() || (b.tipo === 'audio' ? 'audio/ogg' : 'image/jpeg'), base64: String(b.base64).replace(/^data:[^,]*,/, '') }
     : null;

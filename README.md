@@ -137,6 +137,10 @@ Os arquivos `01`, `02` e `03` são o mesmo fluxo separado em três; use **ou** o
 
 Se o n8n cair, os pedidos continuam funcionando normalmente; só as mensagens de WhatsApp param.
 
+**Proteção contra loop:** se outro robô ficar respondendo a Manu (ex.: o número de uma central de corridas ou de outra
+loja), depois de 6 mensagens em 30 segundos ela para de responder àquele número por 30 minutos e o WhatsApp da loja
+recebe um aviso.
+
 ## Dia a dia
 
 - **Porção de batata**: R$ 25 (cheddar ou catupiry, com bacon ou calabresa).
