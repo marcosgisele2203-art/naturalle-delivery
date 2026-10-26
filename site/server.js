@@ -592,7 +592,18 @@ rota('POST', '/api/equipe/sair', null, async ({ res }) => { res.setHeader('Set-C
 rota('POST', '/api/equipe/meu-cadastro', [], async ({ u, b }) => {
   const nome = texto(b.nome, 80);
   if (!nome) throw new Erro(400, 'Informe o nome.');
-  await pool.query('UPDATE usuarios SET nome = $2, telefone = $3, email = $4 WHERE id = $1', [u.id, nome, telefoneBR(b.telefone), lerEmail(b.email)]);
+  // administrador pode trocar o próprio login aqui; os outros pedem a um administrador
+  let login = u.login;
+  if (b.login != null && auth.pode(u, 'admin')) {
+    login = texto(b.login, 40).toLowerCase();
+    if (!/^[a-z0-9._-]{3,40}$/.test(login)) throw new Erro(400, 'Login: de 3 a 40 letras, números, ponto ou hífen (sem espaços nem acentos).');
+  }
+  try {
+    await pool.query('UPDATE usuarios SET nome = $2, telefone = $3, email = $4, login = $5 WHERE id = $1', [u.id, nome, telefoneBR(b.telefone), lerEmail(b.email), login]);
+  } catch (e) {
+    if (e.code === '23505') throw new Erro(400, 'Esse login já existe.');
+    throw e;
+  }
   return { ok: true };
 });
 

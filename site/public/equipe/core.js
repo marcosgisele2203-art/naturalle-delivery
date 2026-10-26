@@ -343,7 +343,9 @@
     const u = App.usuario;
     const j = App.janela('Meu cadastro', `<form class="grade-form" id="f-cad" style="grid-template-columns:1fr">
       <label class="campo">Nome<input name="nome" required value="${esc(u.nome)}" autocomplete="name"></label>
-      <label class="campo">Login<input value="${esc(u.login)}" disabled><small>O login só o administrador muda, em Funcionários.</small></label>
+      ${App.pode('admin')
+        ? `<label class="campo">Login<input name="login" required autocapitalize="none" autocomplete="username" value="${esc(u.login)}"><small>É com ele que você entra. Sem espaços nem acentos. Ex.: emilly</small></label>`
+        : `<label class="campo">Login<input value="${esc(u.login)}" disabled><small>O login só o administrador muda, em Funcionários.</small></label>`}
       <label class="campo">WhatsApp com DDD<input name="telefone" type="tel" inputmode="tel" value="${esc(App.fone(u.telefone || ''))}" placeholder="(67) 99999-9999"><small>Para receber o código se esquecer a senha.</small></label>
       <label class="campo">E-mail<input name="email" type="email" value="${esc(u.email || '')}" autocomplete="email"></label>
       <p class="erro" hidden></p><button class="btn verde grande">Salvar</button></form>`);
@@ -352,7 +354,7 @@
       const d = Object.fromEntries(new FormData(e.target));
       try {
         await App.api('/api/equipe/meu-cadastro', d);
-        Object.assign(App.usuario, { nome: d.nome, telefone: d.telefone.replace(/\D/g, ''), email: d.email });
+        Object.assign(App.usuario, { nome: d.nome, telefone: d.telefone.replace(/\D/g, ''), email: d.email }, d.login ? { login: d.login.trim().toLowerCase() } : {});
         j.fechar(); App.toast('Cadastro salvo');
         const q = document.querySelector('.lateral .quem span'); if (q) q.textContent = d.nome;
       } catch (err) { const p = $('.erro', j); p.textContent = err.message; p.hidden = false; }
