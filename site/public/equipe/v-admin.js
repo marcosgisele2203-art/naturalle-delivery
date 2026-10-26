@@ -212,7 +212,7 @@ App.views.admin = {
           <div class="acoes"><button class="btn" data-aviso="${i}">Editar</button>
             <button class="btn fraco" data-aviso-ativo="${i}">${a.ativo ? 'Pausar' : 'Mostrar'}</button>
             <button class="btn fraco" data-aviso-sobe="${i}" aria-label="Mostrar antes"${i ? '' : ' disabled'}>↑</button></div>
-        </article>`).join('') || '<p class="nota">Nenhum aviso ainda. Sem avisos, o quadro mostra o combo do dia ou o recado da aba Loja.</p>'}
+        </article>`).join('') || '<p class="nota">Nenhum aviso ainda. Sem avisos, o quadro mostra o recado da aba Loja.</p>'}
         </div>
         <p class="nota">Com foto, o cartaz ocupa o quadro-negro inteiro e o cliente toca nele para pedir o produto escolhido (sem produto, o toque mostra a foto grande). Sem foto, o quadro mostra o título, o texto e o preço escritos a giz. Cartaz em pé fica melhor. Os combos do dia entram sozinhos, no dia deles.</p></section>`;
     }
@@ -426,7 +426,7 @@ App.views.admin = {
           <label class="campo">Nome<input name="nome" value="${esc(l.nome)}"></label>
           <label class="campo">Frase do topo<input name="frase" value="${esc(l.frase || '')}"></label>
           <label class="campo">WhatsApp da loja<input name="whatsapp" value="${esc(l.whatsapp || '')}" inputmode="tel"></label>
-          <label class="campo">Recado no quadro da Manu<input name="recado" maxlength="140" value="${esc(l.recado || '')}" placeholder="Ex.: Hoje tem açaí em dobro!"><small>Aparece quando não tem combo do dia nem aviso na aba Quadro da Manu.</small></label>
+          <label class="campo">Recado no quadro da Manu<input name="recado" maxlength="140" value="${esc(l.recado || '')}" placeholder="Ex.: Hoje tem açaí em dobro!"><small>Aparece quando não tem nenhum aviso na aba Quadro da Manu.</small></label>
           <label class="campo">Endereço do site<input name="url_publica" value="${esc(l.url_publica || '')}" placeholder="https://pedidos.naturallemania.com.br"><small>Usado nos QR codes. Vazio = o endereço atual.</small></label>
         </div>
         <h2 style="margin-top:8px">Cadastro da loja</h2>

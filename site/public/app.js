@@ -120,10 +120,7 @@
     if (!tokenMesa && !st.loja.aberta) {
       slides.push(`<span class="giz-titulo">Fechados agora</span><span class="giz-texto">${esc(st.loja.horario || 'Volte mais tarde!')}</span>`);
     } else {
-      for (const p of st.cardapio.produtos.filter((x) => Array.isArray(x.dias) && x.dias.includes(st.dia) && x.disponivel !== false)) {
-        slides.push(p.foto ? cartaz(p.foto, p.nome, p.id) : `<span class="giz-pequeno">Hoje é dia de</span><span class="giz-titulo">${esc(p.nome)}</span>
-          <span class="giz-texto">${esc(p.descricao || '')}</span><span class="giz-preco">a partir de ${brl(window.Calc.precoMinimo(p))}</span>${botao(p.id)}`);
-      }
+      // só o que a loja cadastrou na aba "Quadro da Manu" (promoções e novidades)
       for (const a of st.quadro) {
         slides.push(a.foto ? cartaz(a.foto, a.titulo, a.produto) : `<span class="giz-pequeno">${a.tipo === 'novidade' ? 'Novidade!' : 'Promoção!'}</span>
           <span class="giz-titulo">${esc(a.titulo)}</span>${a.texto ? `<span class="giz-texto">${esc(a.texto)}</span>` : ''}
