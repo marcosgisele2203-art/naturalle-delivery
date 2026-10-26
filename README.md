@@ -108,7 +108,7 @@ sistema, calcula com as mesmas regras do site, lança o pedido no painel (origem
 
 1. Crie uma chave grátis em **https://aistudio.google.com/apikey** (Google AI Studio).
 2. No Easypanel, em *Environment* do site, acrescente `GEMINI_API_KEY=sua-chave` e clique em **Implantar**.
-   Opcional: `MANU_MODELO` (padrão `gemini-2.5-flash`).
+   Opcional: `MANU_MODELO` (padrão `gemini-3.5-flash-lite`; se o Google aposentar o modelo, a Manu troca sozinha pelo que ele indicar).
 
 Sem a chave, o botão da Manu some do cardápio e, no WhatsApp, ela responde com o link do cardápio (a foto do comprovante Pix
 continua sendo registrada).

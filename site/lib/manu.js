@@ -3,9 +3,12 @@
 // Entende texto, foto (inclusive comprovante Pix) e áudio.
 //
 //   GEMINI_API_KEY   chave do Google AI Studio (sem ela, a Manu responde só com o link do cardápio)
-//   MANU_MODELO      modelo do Gemini (padrão gemini-2.5-flash)
+//   MANU_MODELO      modelo do Gemini (padrão gemini-3.5-flash-lite)
 
-const MODELO = process.env.MANU_MODELO || 'gemini-2.5-flash';
+const MODELO = process.env.MANU_MODELO || 'gemini-3.5-flash-lite';
+// se o Google aposentar o modelo, tenta estes (e o que a própria mensagem de erro sugerir)
+const RESERVAS = ['gemini-3.5-flash-lite', 'gemini-3.5-flash'];
+let modeloAtual = MODELO;
 const CHAVE = process.env.GEMINI_API_KEY || '';
 const BASE = process.env.GEMINI_BASE || 'https://generativelanguage.googleapis.com'; // trocado só em teste
 const HISTORICO = 24;              // mensagens guardadas por conversa
@@ -281,17 +284,28 @@ function criar(s) {
     .replace(/^#+\s*/gm, '')
     .trim();
 
-  async function gemini(contents) {
-    const r = await fetch(`${BASE}/v1beta/models/${encodeURIComponent(MODELO)}:generateContent`, {
+  async function gemini(contents, modelo = modeloAtual) {
+    const r = await fetch(`${BASE}/v1beta/models/${encodeURIComponent(modelo)}:generateContent`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': CHAVE },
       body: JSON.stringify({ systemInstruction: { parts: [{ text: INSTRUCOES + '\n\n# CARDÁPIO DE HOJE (atualizado agora)\n' + await cardapioTexto() }] }, contents, tools: FERRAMENTAS,
-        generationConfig: { temperature: 0.6, maxOutputTokens: 2048 } }),
+        generationConfig: { temperature: 0.6, maxOutputTokens: 8192 } }),
       signal: AbortSignal.timeout(30_000),
     });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) {
-      const e = new Error('Gemini ' + r.status + ': ' + ((d.error && d.error.message) || ''));
+      const msg = (d.error && d.error.message) || '';
+      // modelo aposentado/inexistente: passa para o sugerido pelo Google ou para a reserva, e lembra
+      if (r.status === 404 && modelo === modeloAtual) {
+        const sugerido = (/use models\/([\w.-]+)/.exec(msg) || [])[1];
+        const proximo = [sugerido, ...RESERVAS].find((m) => m && m !== modelo);
+        if (proximo) {
+          console.error(`manu: modelo ${modelo} indisponível, usando ${proximo}`);
+          modeloAtual = proximo;
+          return gemini(contents, proximo);
+        }
+      }
+      const e = new Error('Gemini ' + r.status + ': ' + msg);
       e.status = r.status; throw e;
     }
     return d;
