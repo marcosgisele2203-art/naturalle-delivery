@@ -93,7 +93,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $('Config').first().json.evolution_url }}/message/sendText/{{ $('Config').first().json.evolution_instance }}",
+        "url": "={{ $('Config').first().json.evolution_url }}/message/{{ $json.copiar ? 'sendButtons' : 'sendText' }}/{{ $('Config').first().json.evolution_instance }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -105,7 +105,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ number: $json.numero, text: $json.texto }) }}",
+        "jsonBody": "={{ JSON.stringify($json.copiar ? { number: $json.numero, title: 'Pix copia e cola', description: $json.texto, footer: 'Naturalle Mania', buttons: [{ type: 'copy', displayText: 'Copiar código Pix', copyCode: $json.copiar }] } : { number: $json.numero, text: $json.texto }) }}",
         "options": {
           "batching": {
             "batch": {
@@ -122,7 +122,8 @@
       "position": [
         660,
         300
-      ]
+      ],
+      "onError": "continueRegularOutput"
     }
   ],
   "connections": {

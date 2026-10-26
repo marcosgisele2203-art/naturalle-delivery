@@ -109,7 +109,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// só segue se o aviso chegou pela entrada 'pedido'\nif ($input.first().json.rota !== 'pedido') return [];\nconst brl = (v) => 'R$ ' + Number(v).toFixed(2).replace('.', ',');\nconst b = $input.first().json.body || {};\nconst cfg = $('Config').first().json;\nif (!cfg.token || b.token !== cfg.token) throw new Error('Token inválido');\nconst p = b.pedido;\nif (!p || !p.id || !p.cliente_telefone) return [];\nconst lista = (p.itens || []).map((i) =>\n  `• ${i.qtd}× ${i.nome}${i.detalhe ? ' (' + i.detalhe + ')' : ''}${i.obs ? ' · obs: ' + i.obs : ''} — ${brl(i.preco)}`).join('\\n');\nconst pagto = {\n  pix: p.pix_copia_cola ? 'Pix (confirma sozinho pelo Mercado Pago)' : 'Pix (aguardando comprovante)',\n  cartao: p.tipo === 'entrega' ? 'Cartão na entrega' : 'Cartão',\n  dinheiro: 'Dinheiro' + (p.troco_para ? ` (paga com ${brl(p.troco_para)}, troco de ${brl(p.troco_para - p.total)})` : ' (sem troco)'),\n}[p.pagamento] || 'A combinar';\nconst recebe = p.tipo === 'entrega' ? `Entrega: ${p.endereco}` : 'Retirada no balcão';\nconst saida = [];\n\nif (['site', 'whatsapp', 'manu'].includes(p.origem) && cfg.numero_loja) {\n  saida.push({ numero: cfg.numero_loja, texto:\n    `*NOVO PEDIDO ${p.origem === 'site' ? 'PELO SITE' : 'PELA MANU'} #${p.id}*\\nCliente: ${p.cliente_nome} (${p.cliente_telefone})\\n${recebe}\\n\\n${lista}\\n\\n` +\n    (p.observacoes ? `Obs.: ${p.observacoes}\\n\\n` : '') +\n    `*Total: ${brl(p.total)}*\\nPagamento: ${pagto}\\n\\nConfirme no painel de pedidos.` });\n}\n\nlet cli = `Olá, ${p.cliente_nome}! Recebemos seu pedido *#${p.id}* na Naturalle Mania.\\n\\n${lista}\\n\\n`;\nif (Number(p.taxa_entrega)) cli += `Taxa de entrega: ${brl(p.taxa_entrega)}\\n`;\nif (Number(p.acrescimo_cartao)) cli += `Acréscimo da maquininha: ${brl(p.acrescimo_cartao)}\\n`;\ncli += `*Total: ${brl(p.total)}*\\n${recebe}\\n\\n`;\nconst loja = b.loja || {};\nconst chave = loja.pix_chave || cfg.pix_chave, nomePix = loja.pix_nome || cfg.pix_nome;\nlet codigoPix = '';\nif (p.pagamento === 'pix' && p.pix_copia_cola) {\n  // Pix do Mercado Pago: o código vai numa mensagem separada para copiar fácil (a Manu já mandou nos pedidos dela)\n  if (p.origem === 'whatsapp') cli += 'Pague com o código Pix copia e cola que mandei acima. A confirmação é automática!';\n  else { cli += 'Para pagar, copie o código da próxima mensagem e cole no app do banco em *Pix > Pix Copia e Cola*. Vale por 30 minutos e a confirmação é automática, não precisa mandar comprovante.'; codigoPix = p.pix_copia_cola; }\n} else if (p.pagamento === 'pix' && chave) {\n  cli += `Para pagar via Pix, use a chave:\\n*${chave}*${nomePix ? `\\n(${nomePix})` : ''}\\n\\nDepois é só responder aqui com a foto do comprovante.`;\n} else if (p.pagamento === 'pix') {\n  cli += 'Já já mandamos a chave Pix por aqui.';\n} else if (p.pagamento === 'cartao') {\n  cli += p.tipo === 'entrega' ? 'Pagamento no cartão na entrega: o entregador leva a maquininha.' : 'Pagamento no cartão na retirada.';\n} else if (p.pagamento === 'dinheiro') {\n  cli += 'Pagamento em dinheiro' + (p.troco_para ? `: você paga com ${brl(p.troco_para)} e recebe ${brl(p.troco_para - p.total)} de troco.` : ', valor certo (sem troco).');\n}\ncli += p.status === 'novo' ? '\\n\\nJá já confirmamos e avisamos por aqui!' : '\\n\\nJá está sendo preparado. Avisamos por aqui a cada etapa!';\nsaida.push({ numero: p.cliente_telefone, texto: cli });\nif (codigoPix) saida.push({ numero: p.cliente_telefone, texto: codigoPix });\n\nreturn saida.map((json) => ({ json }));\n"
+        "jsCode": "// só segue se o aviso chegou pela entrada 'pedido'\nif ($input.first().json.rota !== 'pedido') return [];\nconst brl = (v) => 'R$ ' + Number(v).toFixed(2).replace('.', ',');\nconst b = $input.first().json.body || {};\nconst cfg = $('Config').first().json;\nif (!cfg.token || b.token !== cfg.token) throw new Error('Token inválido');\nconst p = b.pedido;\nif (!p || !p.id || !p.cliente_telefone) return [];\nconst lista = (p.itens || []).map((i) =>\n  `• ${i.qtd}× ${i.nome}${i.detalhe ? ' (' + i.detalhe + ')' : ''}${i.obs ? ' · obs: ' + i.obs : ''} — ${brl(i.preco)}`).join('\\n');\nconst pagto = {\n  pix: p.pix_copia_cola ? 'Pix (confirma sozinho pelo Mercado Pago)' : 'Pix (aguardando comprovante)',\n  cartao: p.tipo === 'entrega' ? 'Cartão na entrega' : 'Cartão',\n  dinheiro: 'Dinheiro' + (p.troco_para ? ` (paga com ${brl(p.troco_para)}, troco de ${brl(p.troco_para - p.total)})` : ' (sem troco)'),\n}[p.pagamento] || 'A combinar';\nconst recebe = p.tipo === 'entrega' ? `Entrega: ${p.endereco}` : 'Retirada no balcão';\nconst saida = [];\n\nif (['site', 'whatsapp', 'manu'].includes(p.origem) && cfg.numero_loja) {\n  saida.push({ numero: cfg.numero_loja, texto:\n    `*NOVO PEDIDO ${p.origem === 'site' ? 'PELO SITE' : 'PELA MANU'} #${p.id}*\\nCliente: ${p.cliente_nome} (${p.cliente_telefone})\\n${recebe}\\n\\n${lista}\\n\\n` +\n    (p.observacoes ? `Obs.: ${p.observacoes}\\n\\n` : '') +\n    `*Total: ${brl(p.total)}*\\nPagamento: ${pagto}\\n\\nConfirme no painel de pedidos.` });\n}\n\nlet cli = `Olá, ${p.cliente_nome}! Recebemos seu pedido *#${p.id}* na Naturalle Mania.\\n\\n${lista}\\n\\n`;\nif (Number(p.taxa_entrega)) cli += `Taxa de entrega: ${brl(p.taxa_entrega)}\\n`;\nif (Number(p.acrescimo_cartao)) cli += `Acréscimo da maquininha: ${brl(p.acrescimo_cartao)}\\n`;\ncli += `*Total: ${brl(p.total)}*\\n${recebe}\\n\\n`;\nconst loja = b.loja || {};\nconst chave = loja.pix_chave || cfg.pix_chave, nomePix = loja.pix_nome || cfg.pix_nome;\nlet codigoPix = '';\nif (p.pagamento === 'pix' && p.pix_copia_cola) {\n  // Pix do Mercado Pago: o código vai numa mensagem separada para copiar fácil (a Manu já mandou nos pedidos dela)\n  if (p.origem === 'whatsapp') cli += 'Pague com o código Pix copia e cola que mandei acima. A confirmação é automática!';\n  else { cli += 'Para pagar, toque em *Copiar código Pix* logo abaixo (ou copie o código que vem em seguida) e cole no app do banco em *Pix > Pix Copia e Cola*. Vale por 30 minutos e a confirmação é automática, não precisa mandar comprovante.'; codigoPix = p.pix_copia_cola; }\n} else if (p.pagamento === 'pix' && chave) {\n  cli += `Para pagar via Pix, use a chave:\\n*${chave}*${nomePix ? `\\n(${nomePix})` : ''}\\n\\nDepois é só responder aqui com a foto do comprovante.`;\n} else if (p.pagamento === 'pix') {\n  cli += 'Já já mandamos a chave Pix por aqui.';\n} else if (p.pagamento === 'cartao') {\n  cli += p.tipo === 'entrega' ? 'Pagamento no cartão na entrega: o entregador leva a maquininha.' : 'Pagamento no cartão na retirada.';\n} else if (p.pagamento === 'dinheiro') {\n  cli += 'Pagamento em dinheiro' + (p.troco_para ? `: você paga com ${brl(p.troco_para)} e recebe ${brl(p.troco_para - p.total)} de troco.` : ', valor certo (sem troco).');\n}\ncli += p.status === 'novo' ? '\\n\\nJá já confirmamos e avisamos por aqui!' : '\\n\\nJá está sendo preparado. Avisamos por aqui a cada etapa!';\nsaida.push({ numero: p.cliente_telefone, texto: cli });\nif (codigoPix) {\n  // botão que copia o código com um toque (alguns celulares não mostram botão, por isso o código vai em texto logo depois)\n  saida.push({ numero: p.cliente_telefone, texto: `Toque no botão para copiar o código e cole no app do seu banco (${brl(p.total)}).`, copiar: codigoPix });\n  saida.push({ numero: p.cliente_telefone, texto: codigoPix });\n}\n\nreturn saida.map((json) => ({ json }));\n"
       },
       "id": "5bd1dca0-8d4f-4d45-a656-4dff149a6811",
       "name": "Montar mensagens",
@@ -123,7 +123,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $('Config').first().json.evolution_url }}/message/sendText/{{ $('Config').first().json.evolution_instance }}",
+        "url": "={{ $('Config').first().json.evolution_url }}/message/{{ $json.copiar ? 'sendButtons' : 'sendText' }}/{{ $('Config').first().json.evolution_instance }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -135,7 +135,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ number: $json.numero, text: $json.texto }) }}",
+        "jsonBody": "={{ JSON.stringify($json.copiar ? { number: $json.numero, title: 'Pix copia e cola', description: $json.texto, footer: 'Naturalle Mania', buttons: [{ type: 'copy', displayText: 'Copiar código Pix', copyCode: $json.copiar }] } : { number: $json.numero, text: $json.texto }) }}",
         "options": {
           "batching": {
             "batch": {
@@ -152,7 +152,8 @@
       "position": [
         960,
         80
-      ]
+      ],
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -330,7 +331,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $('Config').first().json.evolution_url }}/message/sendText/{{ $('Config').first().json.evolution_instance }}",
+        "url": "={{ $('Config').first().json.evolution_url }}/message/{{ $json.copiar ? 'sendButtons' : 'sendText' }}/{{ $('Config').first().json.evolution_instance }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -342,7 +343,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ number: $json.numero, text: $json.texto }) }}",
+        "jsonBody": "={{ JSON.stringify($json.copiar ? { number: $json.numero, title: 'Pix copia e cola', description: $json.texto, footer: 'Naturalle Mania', buttons: [{ type: 'copy', displayText: 'Copiar código Pix', copyCode: $json.copiar }] } : { number: $json.numero, text: $json.texto }) }}",
         "options": {
           "batching": {
             "batch": {
@@ -359,7 +360,8 @@
       "position": [
         1440,
         600
-      ]
+      ],
+      "onError": "continueRegularOutput"
     }
   ],
   "connections": {
