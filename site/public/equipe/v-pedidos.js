@@ -40,7 +40,7 @@ App.views.pedidos = {
       const total = entregues.reduce((s, p) => s + Number(p.total), 0);
       const scroll = window.scrollY;
       el.innerHTML = `<div class="topo"><div><h1>Pedidos</h1>
-          <p>${ativos.length} em andamento · ${entregues.length} entregues · ${brl(total)} entregue hoje</p></div>
+          <p>${ativos.length} em andamento · ${entregues.length} entregues · ${brl(total)} entregue hoje${((n) => (n ? ` · ${n} cancelado${n > 1 ? 's' : ''}` : ''))(lista.filter((p) => p.status === 'cancelado').length)}</p></div>
         <div class="controles">
           <div class="chips">${[['todos', 'Todos'], ['entrega', 'Entrega'], ['retirada', 'Retirada'], ['mesa', 'Mesas']].map(([v, n]) =>
             `<button class="chip" aria-pressed="${filtro === v}" data-filtro="${v}">${n}</button>`).join('')}</div>
@@ -48,7 +48,8 @@ App.views.pedidos = {
           <span class="status-con${App.online === false ? ' off' : ''}">${App.online === false ? 'Sem conexão' : 'Atualizando sozinho'}</span>
         </div></div>
         <div class="quadro">${COLUNAS.map((c) => {
-          let ps = c.status === 'fim' ? lista.filter((p) => ['entregue', 'cancelado'].includes(p.status)).reverse().slice(0, 30) : lista.filter((p) => p.status === c.status);
+          // cancelados saem do painel (continuam no banco e nos relatórios)
+          let ps = c.status === 'fim' ? lista.filter((p) => p.status === 'entregue').reverse().slice(0, 30) : lista.filter((p) => p.status === c.status);
           return `<section class="coluna" aria-label="${c.nome}"><header><h2><span class="ponto" style="background:${c.cor}" aria-hidden="true"></span>${c.nome}</h2><span class="qtd">${ps.length}</span></header>
             ${ps.length ? ps.map((p) => (p.status === 'cancelado' ? App.cartaoPedido(p, []).replace('class="pedido', 'style="opacity:.6" class="pedido') : App.cartaoPedido(p, acoes(p), { destaque: destaque.has(p.id) }))).join('') : '<p class="vazio">Nenhum pedido</p>'}
           </section>`;

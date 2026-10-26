@@ -392,16 +392,30 @@ async function processarPagamentoMP(mpId) {
       enviarWhatsApp(pedido.cliente_telefone, `✅ Recebemos o seu Pix de ${brlServ(pedido.total)} do pedido *#${pedido.id}*. Obrigado!`).catch(() => {});
     }
   } else if (['cancelled', 'rejected', 'expired'].includes(pg.status) && ped.pix_status === 'aguardando') {
-    await pool.query(`UPDATE pedidos SET pix_status = 'vencido', atualizado_em = now() WHERE id = $1`, [ped.id]);
+    // Pix venceu sem pagar e ninguém confirmou o pedido: cancela sozinho para não ficar parado no painel
+    const cancela = ped.status === 'novo';
+    await pool.query(`UPDATE pedidos SET pix_status = 'vencido', atualizado_em = now(), status = CASE WHEN $2 THEN 'cancelado' ELSE status END
+                       WHERE id = $1`, [ped.id, cancela]);
+    if (cancela) {
+      const pedido = await buscarPedido(ped.id);
+      if (EVO.url && EVO.chave && pedido.cliente_telefone) {
+        enviarWhatsApp(pedido.cliente_telefone, `O Pix do pedido *#${pedido.id}* venceu sem pagamento, então o pedido foi cancelado. Se ainda quiser, é só pedir de novo pelo cardápio. 😊`).catch(() => {});
+      } else notificar('/status', pedido);
+    }
   }
 }
 // rede de segurança caso o aviso do Mercado Pago não chegue: confere os Pix em aberto a cada minuto
 setInterval(async () => {
   if (!MP.configurado()) return;
   try {
+    // Pix em aberto: os recentes a cada minuto; os mais velhos (até 2 dias) a cada 10 minutos, para não ficarem parados
     const { rows } = await pool.query(`SELECT mp_pagamento_id FROM pedidos
-      WHERE mp_pagamento_id IS NOT NULL AND pix_status = 'aguardando' AND criado_em > now() - interval '50 minutes'
-        AND (mp_checado_em IS NULL OR mp_checado_em < now() - interval '50 seconds') LIMIT 20`);
+      WHERE mp_pagamento_id IS NOT NULL AND pix_status = 'aguardando' AND criado_em > now() - interval '2 days'
+        AND (mp_checado_em IS NULL OR mp_checado_em < now() - CASE WHEN criado_em > now() - interval '50 minutes' THEN interval '50 seconds' ELSE interval '10 minutes' END)
+      ORDER BY criado_em DESC LIMIT 20`);
+    // pedidos que já tinham o Pix vencido antes desta regra: cancela sem mandar mensagem
+    await pool.query(`UPDATE pedidos SET status = 'cancelado', atualizado_em = now()
+                       WHERE status = 'novo' AND pix_status = 'vencido' AND mp_pagamento_id IS NOT NULL`);
     for (const r of rows) await processarPagamentoMP(r.mp_pagamento_id).catch((e) => console.error('mp consulta', e.message));
   } catch (e) { console.error('mp ronda', e.message); }
 }, 60_000).unref();
