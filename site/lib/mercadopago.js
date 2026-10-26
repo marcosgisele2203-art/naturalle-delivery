@@ -55,4 +55,7 @@ async function consultar(id) {
   return { id: String(d.id), status, pedido: Number(d.external_reference), valor: Number(pg.paid_amount || d.total_paid_amount || d.total_amount) };
 }
 
-module.exports = { configurado, criarPix, consultar, VALIDADE_MIN };
+// pedido cancelado na loja: o código Pix para de valer
+const cancelar = (id) => chamar('POST', '/v1/orders/' + encodeURIComponent(id) + '/cancel', null, 'cancelar-' + id);
+
+module.exports = { configurado, criarPix, consultar, cancelar, VALIDADE_MIN };

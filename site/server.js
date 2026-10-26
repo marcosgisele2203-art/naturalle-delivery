@@ -50,12 +50,16 @@ function json(res, status, body, headers = {}) {
 
 function lerCorpo(req, limite = 200_000) {
   return new Promise((resolve, reject) => {
-    let data = '';
+    const partes = []; let tamanho = 0;
     req.on('data', (c) => {
-      data += c;
-      if (data.length > limite) { reject(new Erro(413, 'Dados grandes demais')); req.destroy(); }
+      tamanho += c.length;
+      if (tamanho > limite) { reject(new Erro(413, 'Dados grandes demais')); req.destroy(); return; }
+      partes.push(c);
     });
-    req.on('end', () => { try { resolve(data ? JSON.parse(data) : {}); } catch { reject(new Erro(400, 'JSON inválido')); } });
+    req.on('end', () => {
+      const data = Buffer.concat(partes).toString('utf8');
+      try { resolve(data ? JSON.parse(data) : {}); } catch { reject(new Erro(400, 'JSON inválido')); }
+    });
     req.on('error', reject);
   });
 }
@@ -78,7 +82,8 @@ function lerEmail(v) {
   return e;
 }
 
-const ipDe = (req) => (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+// o proxy do Easypanel acrescenta o IP verdadeiro no FIM do X-Forwarded-For (o começo pode ser inventado pelo cliente)
+const ipDe = (req) => (String(req.headers['x-forwarded-for'] || '').split(',').pop().trim() || req.socket.remoteAddress || '');
 
 // Limite simples por IP para pedidos públicos e tentativas de login.
 const tentativas = new Map();
@@ -370,6 +375,11 @@ async function processarPagamentoMP(mpId) {
         WHERE id = $1`, [ped.id, pg.id, vaiCozinha]);
     const pedido = await buscarPedido(ped.id);
     if (vaiCozinha) notificar('/status', pedido);
+    if (ped.status === 'cancelado') {
+      console.error('Pix pago em pedido cancelado', ped.id);
+      if (EVO.url && EVO.chave && loja.whatsapp) enviarWhatsApp(loja.whatsapp, `⚠️ Entrou um Pix de ${brlServ(pedido.total)} do pedido *#${pedido.id}*, que estava CANCELADO. Confira e devolva ao cliente pelo Mercado Pago se for o caso.`).catch(() => {});
+      return;
+    }
     if (EVO.url && EVO.chave && pedido.cliente_telefone && loja.whatsapp !== pedido.cliente_telefone) {
       enviarWhatsApp(pedido.cliente_telefone, `✅ Recebemos o seu Pix de ${brlServ(pedido.total)} do pedido *#${pedido.id}*. Obrigado!`).catch(() => {});
     }
@@ -387,6 +397,11 @@ setInterval(async () => {
     for (const r of rows) await processarPagamentoMP(r.mp_pagamento_id).catch((e) => console.error('mp consulta', e.message));
   } catch (e) { console.error('mp ronda', e.message); }
 }, 60_000).unref();
+// limpeza: conversas antigas do chat do site e códigos de senha vencidos
+setInterval(() => {
+  pool.query(`DELETE FROM manu_conversas WHERE canal = 'site' AND atualizado_em < now() - interval '30 days'`).catch(() => {});
+  pool.query(`DELETE FROM senha_codigos WHERE expira_em < now() - interval '1 day'`).catch(() => {});
+}, 6 * 3600_000).unref();
 const brlServ = (v) => 'R$ ' + Number(v).toFixed(2).replace('.', ',');
 
 // aviso do Mercado Pago: só traz o número do pagamento; a situação é sempre conferida na API deles
@@ -496,7 +511,8 @@ rota('POST', '/api/publico/mesa/:token/pedido', null, async ({ req, p, b }) => {
 
 rota('GET', '/api/publico/acompanhar/:codigo', null, async ({ p }) => {
   const { rows } = await pool.query(
-    `SELECT p.id, p.status, p.tipo, p.itens, p.total, p.criado_em, p.pagamento, p.pix_status, p.mp_pagamento_id, p.mp_checado_em, m.nome AS mesa_nome
+    `SELECT p.id, p.status, p.tipo, p.itens, p.total, p.criado_em, p.pagamento, p.pix_status, p.mp_pagamento_id, p.mp_checado_em,
+            p.pix_copia_cola, p.pix_qr, m.nome AS mesa_nome
        FROM pedidos p LEFT JOIN mesas m ON m.id = p.mesa_id WHERE p.codigo = $1`, [p.codigo]);
   if (!rows[0]) throw new Erro(404, 'Pedido não encontrado');
   const ped = rows[0];
@@ -508,6 +524,7 @@ rota('GET', '/api/publico/acompanhar/:codigo', null, async ({ p }) => {
     Object.assign(ped, r2[0]);
   }
   delete ped.mp_pagamento_id; delete ped.mp_checado_em;
+  if (ped.pix_status !== 'aguardando' || !ped.pix_copia_cola) { delete ped.pix_copia_cola; delete ped.pix_qr; }
   return { pedido: ped };
 });
 
@@ -683,6 +700,10 @@ rota('POST', '/api/equipe/pedido/:id/status', ['pedidos', 'garcom', 'caixa', 'co
       WHERE id = $2 AND status = $3`, [b.status, id, atual.status, entregador]);
   if (!rowCount) throw new Erro(409, 'O pedido já mudou de etapa. A tela foi atualizada.');
   const pedido = await buscarPedido(id);
+  // cancelou com Pix em aberto: cancela a cobrança no Mercado Pago para o cliente não pagar à toa
+  if (b.status === 'cancelado' && pedido.mp_pagamento_id && pedido.pix_status === 'aguardando' && MP.configurado()) {
+    MP.cancelar(pedido.mp_pagamento_id).catch((e) => console.error('mp cancelar', id, e.message));
+  }
   // pronto só interessa ao cliente quando ele vai buscar; na entrega ele recebe "saiu"
   const avisa = !(b.status === 'pronto' && atual.tipo === 'entrega') && !(chave === 'pronto>preparo');
   if (avisa) notificar('/status', pedido);
@@ -734,7 +755,7 @@ rota('GET', '/api/equipe/caixa/entregadores', ['caixa', 'pedidos'], async () => 
 });
 
 rota('POST', '/api/equipe/pedido/:id/pix', ['pedidos', 'caixa'], async ({ p }) => {
-  await pool.query(`UPDATE pedidos SET pix_status = 'confirmado', atualizado_em = now() WHERE id = $1 AND pagamento = 'pix'`, [Number(p.id)]);
+  await pool.query(`UPDATE pedidos SET pix_status = 'confirmado', pago_em = COALESCE(pago_em, now()), atualizado_em = now() WHERE id = $1 AND pagamento = 'pix'`, [Number(p.id)]);
   return { ok: true };
 });
 
@@ -799,7 +820,9 @@ rota('POST', '/api/equipe/conta/:id/fechar', ['caixa'], async ({ u, p, b }) => {
 
 rota('GET', '/api/equipe/caixa/resumo', ['caixa', 'pedidos'], async () => {
   const { rows } = await pool.query(
-    `SELECT COALESCE(pagamento, 'em aberto') AS pagamento, count(*)::int AS pedidos, COALESCE(sum(total), 0) AS total
+    // Pix que ainda não caiu aparece separado, para não somar como dinheiro recebido
+    `SELECT CASE WHEN pagamento = 'pix' AND pix_status IS DISTINCT FROM 'confirmado' THEN 'Pix não pago' ELSE COALESCE(pagamento, 'em aberto') END AS pagamento,
+            count(*)::int AS pedidos, COALESCE(sum(total), 0) AS total
        FROM pedidos
       WHERE status <> 'cancelado' AND (criado_em AT TIME ZONE '${FUSO}')::date = (now() AT TIME ZONE '${FUSO}')::date
       GROUP BY 1 ORDER BY 1`);
@@ -899,7 +922,7 @@ rota('POST', '/api/admin/usuarios', ['admin'], async ({ u, b }) => {
   const ativo = b.ativo !== false;
   const telefone = String(b.telefone || '').replace(/\D/g, '').slice(0, 15);
   const senha = String(b.senha || '');
-  if (senha && senha.length < 6) throw new Erro(400, 'A senha precisa ter pelo menos 6 caracteres.');
+  if (senha && senha.length < 8) throw new Erro(400, 'A senha precisa ter pelo menos 8 caracteres.');
   try {
     if (b.id) {
       const id = Number(b.id);

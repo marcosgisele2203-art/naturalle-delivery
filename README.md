@@ -64,7 +64,7 @@ EVOLUTION_APIKEY=apikey-da-evolution
 MP_ACCESS_TOKEN=APP_USR-...                  (opcional: Pix automático pelo Mercado Pago)
 ```
 
-Em *Domains*, aponte o domínio para a porta **3000** e faça o deploy.
+Em *Domains*, aponte o domínio para a porta em que o app sobe (aparece nos logs: "no ar na porta …"; no Easypanel costuma ser **80**) e faça o deploy.
 
 **Endereço só da equipe (opcional):** crie também um domínio `painel.seudominio` (registro A no DNS e outro domínio no
 mesmo App, mesma porta). Nele, a página inicial já abre o painel da equipe; o domínio principal continua sendo o cardápio.

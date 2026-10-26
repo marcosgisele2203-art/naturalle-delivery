@@ -95,6 +95,10 @@
     const [titulo, texto] = frasesDaEtapa(ativos[0]);
     $('#acompanhar').innerHTML = `<section class="acompanhar" aria-live="polite">
       <div class="manu-card"><div><span class="nota">Pedido #${ativos[0].id}</span><h2>${titulo}</h2><p>${texto}</p></div></div>
+      ${ativos.filter((p) => p.pix_copia_cola && p.status !== 'cancelado').map((p) => `<div class="pix-box"><b>Falta pagar o Pix do pedido #${p.id}</b>
+        ${p.pix_qr ? `<img class="pix-qr" src="data:image/png;base64,${esc(p.pix_qr)}" alt="QR Code do Pix">` : ''}
+        <small>Pix copia e cola · ${brl(p.total)}</small><code class="pix-codigo">${esc(p.pix_copia_cola)}</code>
+        <button type="button" class="botao verde" data-acao="copiar-pix" data-v="${esc(p.pix_copia_cola)}">Copiar código Pix</button></div>`).join('')}
       ${ativos.length > 1 ? `<h3>${tokenMesa ? 'Pedidos desta mesa' : 'Seus pedidos'}</h3>` : ''}
       ${ativos.length > 1 ? ativos.map((p) => `<div class="acomp-linha"><b>#${p.id}</b><span class="etapa etapa-${p.status}">${ETAPAS[p.status] || p.status}</span><span>${brl(p.total)}</span></div>`).join('') : ''}
     </section>`;
