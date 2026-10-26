@@ -322,13 +322,10 @@ const lojaPublica = (l, e = estadoLoja(l)) => ({ manu: manu.ativa(), endereco_co
   instagram: l.instagram || '', pix_chave: l.pix_chave || '', pix_nome: l.pix_nome || '', telefone: l.telefone || '', email: l.email || '', razao_social: l.razao_social || '', cnpj: l.cnpj || '', nome: l.nome, frase: l.frase, horario: e.texto, whatsapp: l.whatsapp, aberta: e.aberta,
   delivery: l.delivery, retirada: l.retirada, taxa_entrega: l.taxa_entrega, taxa_cartao: Number(l.taxa_cartao) || 0, recado: l.recado || '' });
 
-let baseConhecida = ''; // último endereço https visto (serve para a Manu, que não tem a requisição do cliente)
 function urlBase(req, loja) {
   if (loja.url_publica) return loja.url_publica;
   const proto = (req.headers['x-forwarded-proto'] || 'http').split(',')[0];
-  const base = proto + '://' + (req.headers['x-forwarded-host'] || req.headers.host);
-  if (proto === 'https') baseConhecida = base;
-  return base;
+  return proto + '://' + (req.headers['x-forwarded-host'] || req.headers.host);
 }
 
 // ---------------------------------------------------------------- rotas
@@ -340,12 +337,10 @@ const rota = (metodo, padrao, perms, fn) => rotas.push({ metodo, re: new RegExp(
 
 const usaMP = (loja) => MP.configurado() && loja.mp_ativo !== false;
 // cria o Pix do pedido no Mercado Pago e guarda no pedido; se der erro, o pedido segue com a chave Pix normal
-async function prepararPixMP(pedido, loja, req) {
+async function prepararPixMP(pedido, loja) {
   if (pedido.pagamento !== 'pix' || !usaMP(loja)) return null;
-  const base = req ? urlBase(req, loja) : (loja.url_publica || baseConhecida);
   try {
-    const pix = await MP.criarPix(pedido, { email: loja.email || 'pagamentos@naturallemania.com.br',
-      notificacao: /^https:\/\//.test(base) ? base + '/api/mp/webhook' : '' });
+    const pix = await MP.criarPix(pedido, { email: loja.email || 'pagamentos@naturallemania.com.br' });
     await pool.query('UPDATE pedidos SET mp_pagamento_id = $2, pix_copia_cola = $3, pix_qr = $4, pix_expira = $5 WHERE id = $1',
       [pedido.id, pix.id, pix.copia_cola, pix.qr_base64, pix.expira]);
     Object.assign(pedido, { mp_pagamento_id: pix.id, pix_copia_cola: pix.copia_cola, pix_expira: pix.expira });
@@ -397,15 +392,15 @@ const brlServ = (v) => 'R$ ' + Number(v).toFixed(2).replace('.', ',');
 // aviso do Mercado Pago: só traz o número do pagamento; a situação é sempre conferida na API deles
 rota('POST', '/api/mp/webhook', null, async ({ req, b, q }) => {
   limitar('mp:' + ipDe(req), 120, 60_000);
-  const id = String((b && b.data && b.data.id) || q.get('data.id') || q.get('id') || '').replace(/\D/g, '');
+  const id = String((b && b.data && b.data.id) || q.get('data.id') || q.get('id') || '').replace(/[^\w-]/g, '').slice(0, 64);
   const tipo = (b && (b.type || b.topic)) || q.get('type') || q.get('topic') || '';
-  if (id && /payment/.test(tipo) && MP.configurado()) await processarPagamentoMP(id).catch((e) => console.error('mp webhook', e.message));
+  if (id && /order/.test(tipo) && MP.configurado()) await processarPagamentoMP(id).catch((e) => console.error('mp webhook', e.message));
   return { ok: true };
 });
 
 // --- Manu IA (garçonete online)
 
-const manu = require('./lib/manu').criar({ clienteDoTelefone: (t) => clienteDoTelefone(t), prepararPixMP: (p, l) => prepararPixMP(p, l, null), pool, lerConfig, Calc, diaDaSemana, estadoLoja, calcularItens, gravarPedido, lerPagamento,
+const manu = require('./lib/manu').criar({ clienteDoTelefone: (t) => clienteDoTelefone(t), prepararPixMP, pool, lerConfig, Calc, diaDaSemana, estadoLoja, calcularItens, gravarPedido, lerPagamento,
   telefoneBR, notificar, Erro, texto });
 
 // mensagem que chegou no WhatsApp (o n8n repassa da Evolution e manda de volta o que vier em "mensagens")
@@ -480,7 +475,7 @@ rota('POST', '/api/publico/pedido', null, async ({ req, b }) => {
   const pag = lerPagamento(b, Calc.somar(itens) + taxa, true);
   const pedido = await gravarPedido({ origem: 'site', tipo, status: 'novo', cliente_nome: nome, cliente_telefone: tel,
     endereco: tipo === 'entrega' ? endereco : '', observacoes: texto(b.observacoes, 300), itens, taxa_entrega: taxa, taxa_cartao: loja.taxa_cartao, ...pag });
-  const mp = await prepararPixMP(pedido, loja, req);
+  const mp = await prepararPixMP(pedido, loja);
   notificar('/pedido', pedido);
   return { ok: true, pedido_id: pedido.id, codigo: pedido.codigo, total: Number(pedido.total),
     ...(mp ? { pix: { copia_cola: mp.copia_cola, qr: mp.qr_base64, expira: mp.expira, nome: loja.pix_nome || '' } }

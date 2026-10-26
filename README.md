@@ -119,9 +119,13 @@ Mercado Pago avisa o sistema (`/api/mp/webhook`), o sistema confere direto na AP
 sem comprovante. O site mostra "Pagamento confirmado ✅" na hora e a Manu manda o código numa mensagem separada.
 
 1. Crie a conta no Mercado Pago (pode ser a da loja) e cadastre uma chave Pix nela.
-2. Entre em **https://www.mercadopago.com.br/developers/panel/app** → *Criar aplicação* (pagamentos on-line / Checkout API).
+2. Entre em **https://www.mercadopago.com.br/developers/panel/app** → *Criar aplicação* → **Checkout Transparente**,
+   tipo de API **API de Orders**.
 3. Em *Credenciais de produção*, copie o **Access Token** (começa com `APP_USR-`). Não mande essa chave para ninguém.
 4. No Easypanel, em *Environment* do site, acrescente `MP_ACCESS_TOKEN=APP_USR-...` e clique em **Implantar**.
+   Na aplicação do Mercado Pago, em *Webhooks* → *Configurar notificações* (modo produção), coloque a URL
+   `https://SEU-SITE/api/mp/webhook` e marque o evento **Order (Mercado Pago)**. Sem isso também funciona: o sistema
+   confere sozinho a cada minuto e na hora em que o cliente está com a página aberta.
 5. Em Administração › *Loja* aparece "Mercado Pago conectado". Lá dá para desligar e escolher se o Pix pago já vai direto
    para a cozinha.
 
