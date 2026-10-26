@@ -331,7 +331,7 @@ function validarQuadro(lista) {
 const quadroDeHoje = (lista, dia) => (lista || []).filter((a) => a.ativo && (!a.dias.length || a.dias.includes(dia)))
   .map(({ id, tipo, titulo, texto: t, preco, foto, produto }) => ({ id, tipo, titulo, texto: t, preco, foto, produto }));
 
-const lojaPublica = (l, e = estadoLoja(l)) => ({ manu: manu.ativa(), endereco_completo: enderecoLoja(l), referencia: l.referencia || '',
+const lojaPublica = (l, e = estadoLoja(l)) => ({ manu: manu.ativa(), endereco_completo: enderecoLoja(l), cidade: l.cidade || 'Campo Grande', uf: l.uf || 'MS', referencia: l.referencia || '',
   instagram: l.instagram || '', pix_chave: l.pix_chave || '', pix_nome: l.pix_nome || '', telefone: l.telefone || '', email: l.email || '', razao_social: l.razao_social || '', cnpj: l.cnpj || '', nome: l.nome, frase: l.frase, horario: e.texto, whatsapp: l.whatsapp, aberta: e.aberta,
   pix_auto: usaMP(l), delivery: l.delivery, retirada: l.retirada, taxa_entrega: l.taxa_entrega, taxa_cartao: Number(l.taxa_cartao) || 0, recado: l.recado || '' });
 

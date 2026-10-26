@@ -400,45 +400,83 @@
     return leaflet;
   }
   // o primeiro ponto do GPS costuma ser grosseiro: escuta por alguns segundos e fica com o mais preciso
+  // devolve { pos } ou { erro: 'permissao' | 'desligado' }
   function melhorPosicao() {
     return new Promise((ok) => {
-      if (!navigator.geolocation) return ok(null);
-      let melhor = null, fim;
-      const terminar = () => { clearTimeout(fim); navigator.geolocation.clearWatch(id); ok(melhor); };
+      if (!navigator.geolocation) return ok({ erro: 'desligado' });
+      let melhor = null, falha = null, fim;
+      const terminar = () => { clearTimeout(fim); navigator.geolocation.clearWatch(id); ok(melhor ? { pos: melhor } : { erro: falha || 'desligado' }); };
       const id = navigator.geolocation.watchPosition((pos) => {
         if (!melhor || pos.coords.accuracy < melhor.coords.accuracy) melhor = pos;
         if (pos.coords.accuracy <= 25) terminar();
-      }, () => terminar(), { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
+      }, (e) => { falha = e.code === 1 ? 'permissao' : 'desligado'; if (e.code === 1 || !melhor) terminar(); },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
       fim = setTimeout(terminar, 12000);
     });
   }
+  const AJUDA_GPS = {
+    permissao: '📵 O site está sem permissão de localização. Toque no ícone ao lado do endereço do site (lá em cima) › <b>Permissões</b> › <b>Localização</b> › <b>Permitir</b>, e depois em “Usar meu GPS”. Ou arraste o alfinete até a sua casa.',
+    desligado: '📍 Não conseguimos o GPS. Ligue a <b>Localização</b> do celular (puxe a barra de cima) e toque em “Usar meu GPS”. Ou arraste o alfinete até a sua casa.',
+  };
+  // procura no mapa o endereço que o cliente digitou (OpenStreetMap), na cidade da loja
+  async function acharEndereco(endereco) {
+    const l = st.loja || {};
+    const busca = [endereco, l.cidade || 'Campo Grande', l.uf || 'MS', 'Brasil'].filter(Boolean).join(', ');
+    try {
+      const r = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=br&accept-language=pt-BR&q=' + encodeURIComponent(busca),
+        { signal: AbortSignal.timeout(8000) });
+      const d = await r.json();
+      return d[0] ? [Number(d[0].lat), Number(d[0].lon)] : null;
+    } catch { return null; }
+  }
+  const textoGps = (r, precisao) => (r.pos ? (precisao > 100 ? `⚠️ O GPS achou um ponto aproximado (${precisao} m). ` : '') + 'Arraste o alfinete até a sua casa, se precisar.' : AJUDA_GPS[r.erro]);
   async function marcarLocal() {
     st.buscandoLocal = true; renderCarrinho();
-    const [pos] = await Promise.all([st.local ? null : melhorPosicao(), carregarMapa().catch(() => null)]);
+    const enderecoDigitado = String(st.cliente.endereco || '').trim();
+    const [r, porEndereco] = await Promise.all([st.local ? {} : melhorPosicao(), st.local || !enderecoDigitado ? null : acharEndereco(enderecoDigitado),
+      carregarMapa().catch(() => null)]);
+    const pos = r.pos;
     st.buscandoLocal = false; renderCarrinho();
     if (!window.L) { avisar('Não deu para abrir o mapa agora. Escreva o endereço com um ponto de referência.'); return; }
-    const inicio = st.local ? [st.local.lat, st.local.lng] : pos ? [pos.coords.latitude, pos.coords.longitude] : CENTRO_LOJA;
+    // ordem: o que já foi marcado › GPS preciso › endereço digitado › GPS aproximado › centro da cidade
+    const gpsBom = pos && pos.coords.accuracy <= 150;
+    const inicio = st.local ? [st.local.lat, st.local.lng] : gpsBom ? [pos.coords.latitude, pos.coords.longitude]
+      : porEndereco || (pos ? [pos.coords.latitude, pos.coords.longitude] : CENTRO_LOJA);
+    const pelaRua = !st.local && !gpsBom && !!porEndereco;
     const precisao = st.local ? st.local.precisao : pos ? Math.round(pos.coords.accuracy) : 0;
     const z = document.createElement('div');
     z.className = 'mapa-local'; z.setAttribute('role', 'dialog'); z.setAttribute('aria-label', 'Confirme o local da entrega');
     z.innerHTML = `<div class="mapa-caixa"><h2>Onde entregar?</h2>
-      <p>${pos || st.local ? (precisao > 100 ? `⚠️ O GPS achou um ponto aproximado (${precisao} m). ` : '') + 'Arraste o alfinete até a sua casa, se precisar.' : 'Não conseguimos o GPS. Arraste o alfinete até a sua casa.'}</p>
+      <p data-ajuda>${st.local ? 'Arraste o alfinete até a sua casa, se precisar.' : pelaRua ? '🔎 Achamos a sua rua pelo endereço. Arraste o alfinete até a sua casa e confirme.' : textoGps(r, precisao)}</p>
       <div class="mapa" id="mapa-entrega"></div>
+      <button type="button" class="chip" data-m="gps">📍 Usar meu GPS</button>
       <div class="mapa-botoes"><button type="button" class="botao" data-m="cancelar">Cancelar</button><button type="button" class="botao verde" data-m="ok">Confirmar este local</button></div></div>`;
     document.body.append(z);
-    const mapa = L.map('mapa-entrega', { zoomControl: true }).setView(inicio, pos || st.local ? 18 : 13);
+    const mapa = L.map('mapa-entrega', { zoomControl: true }).setView(inicio, st.local || gpsBom ? 18 : pelaRua ? 17 : pos ? 16 : 13);
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(mapa);
     L.Icon.Default.imagePath = '/vendor/leaflet/images/';
     const alfinete = L.marker(inicio, { draggable: true, autoPan: true }).addTo(mapa);
-    let mexeu = false;
+    let mexeu = false, precisaoAtual = precisao, temGps = !!(st.local || gpsBom);
     alfinete.on('dragend', () => { mexeu = true; });
     mapa.on('click', (e) => { alfinete.setLatLng(e.latlng); mexeu = true; }); // tocar no mapa também move o alfinete
     z.addEventListener('click', (e) => {
       const m = e.target.closest('[data-m]'); if (!m) return;
+      if (m.dataset.m === 'gps') {
+        m.disabled = true; m.textContent = 'Buscando o GPS…';
+        melhorPosicao().then((r2) => {
+          m.disabled = false; m.textContent = '📍 Usar meu GPS';
+          if (r2.pos) {
+            const ll = [r2.pos.coords.latitude, r2.pos.coords.longitude];
+            alfinete.setLatLng(ll); mapa.setView(ll, 18); mexeu = false; temGps = true; precisaoAtual = Math.round(r2.pos.coords.accuracy);
+          }
+          z.querySelector('[data-ajuda]').innerHTML = textoGps(r2, precisaoAtual);
+        });
+        return;
+      }
       if (m.dataset.m === 'ok') {
         const { lat, lng } = alfinete.getLatLng();
         // o cliente conferiu no mapa: vale mais que a precisão do GPS
-        st.local = { lat, lng, precisao: mexeu || !(pos || st.local) ? 0 : precisao, conferido: true };
+        st.local = { lat, lng, precisao: mexeu || !temGps ? 0 : precisaoAtual, conferido: true };
         renderCarrinho();
       }
       mapa.remove(); z.remove();
