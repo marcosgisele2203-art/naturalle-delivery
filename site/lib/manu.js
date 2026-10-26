@@ -197,7 +197,7 @@ function criar(s) {
     const res = { pedido: pedido.id, total: brl(pedido.total), situacao: 'aguardando a loja confirmar' };
     if (pedido.pagamento === 'pix') {
       res.pix = mp
-        ? { pix_gerado: true, valido_por: '30 minutos', instrucao: 'NÃO escreva código Pix nem chave: o código copia e cola vai sozinho numa mensagem logo depois da sua. Diga o total, que é só copiar a próxima mensagem e colar no app do banco em Pix > Pix Copia e Cola, que vale por 30 minutos e que o pagamento é confirmado automaticamente (não precisa mandar comprovante).' }
+        ? { pix_gerado: true, valido_por: '30 minutos', instrucao: 'NÃO escreva código Pix nem chave: o código copia e cola vai sozinho numa mensagem logo depois da sua. Diga o total, que é só tocar e segurar a próxima mensagem, escolher Copiar e colar no app do banco em Pix > Pix Copia e Cola, que vale por 30 minutos e que o pagamento é confirmado automaticamente (não precisa mandar comprovante).' }
         : loja.pix_chave
         ? { chave: loja.pix_chave, nome: loja.pix_nome || '', instrucao: 'Mande a chave Pix ao cliente nesta resposta, sozinha numa linha para ele copiar fácil, com o nome do recebedor e o total, e peça a foto do comprovante aqui.' }
         : { instrucao: 'A chave Pix vai por mensagem automática; peça a foto do comprovante aqui depois de pagar.' };

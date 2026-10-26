@@ -436,7 +436,7 @@ rota('POST', '/api/manu/whatsapp', null, async ({ req, b }) => {
     console.error('manu', e.message);
     r = { resposta: 'Ops, tive um probleminha aqui 😅 Tenta de novo daqui a pouco ou faça o pedido pelo cardápio: ' + urlBase(req, loja), avisos: [] };
   }
-  return { mensagens: [{ numero: telefone, texto: r.resposta }, ...(r.pix ? [{ numero: telefone, texto: 'Toque no botão para copiar o código e cole no app do seu banco.', copiar: r.pix }, { numero: telefone, texto: r.pix }] : []), ...(r.avisos || [])] };
+  return { mensagens: [{ numero: telefone, texto: r.resposta }, ...(r.pix ? [{ numero: telefone, texto: r.pix }] : []), ...(r.avisos || [])] };
 });
 
 // chat da Manu dentro do cardápio
