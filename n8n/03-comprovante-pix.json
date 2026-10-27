@@ -79,7 +79,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const b = $input.first().json.body || {};\nconst d = b.data || {};\nconst key = d.key || {};\nconst jid = key.remoteJid || '';\nif (b.event !== 'messages.upsert' || key.fromMe || !jid.endsWith('@s.whatsapp.net')) return [];\nconst tipo = d.messageType || Object.keys(d.message || {})[0] || '';\nif (!['imageMessage', 'documentMessage'].includes(tipo)) return [];\nconst telefone = jid.split('@')[0];\n// Compara pelos 8 últimos dígitos: o WhatsApp pode tirar o 9 extra do celular.\nreturn [{ json: { telefone, final8: telefone.slice(-8) } }];\n"
+        "jsCode": "const b = $input.first().json.body || {};\nconst d = b.data || {};\nconst key = d.key || {};\n// o WhatsApp às vezes manda um \"@lid\" no remoteJid e o número de verdade em outro campo\nconst jids = [key.remoteJid, key.remoteJidAlt, key.senderPn, d.senderPn].filter(Boolean);\nconst jid = jids.find((j) => j.endsWith('@s.whatsapp.net')) || '';\nif (b.event !== 'messages.upsert' || key.fromMe || !jid) return [];\nconst tipo = d.messageType || Object.keys(d.message || {})[0] || '';\nif (!['imageMessage', 'documentMessage'].includes(tipo)) return [];\nconst telefone = jid.split('@')[0];\n// Compara pelos 8 últimos dígitos: o WhatsApp pode tirar o 9 extra do celular.\nreturn [{ json: { telefone, final8: telefone.slice(-8) } }];\n"
       },
       "id": "a05ef78d-35d8-4c21-883b-e7251ef21384",
       "name": "Filtrar comprovante",
