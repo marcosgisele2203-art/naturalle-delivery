@@ -180,6 +180,7 @@ async function migrar() {
   await cidadeMiranda();
   await cozinhaSoLanches();
   await incluirMarmitexPanquecas();
+  await incluirNovosLanches();
 }
 
 // Migração única e transacional: preserva preços, produtos e alterações futuras do admin.
@@ -192,6 +193,28 @@ async function incluirMarmitexPanquecas() {
     const { rows: aplicado } = await cli.query('SELECT valor FROM config WHERE chave = $1', [chave]);
     if (!aplicado[0]?.valor) {
       const menu = require('./panquecas').incluirPanquecas(rows[0]?.valor);
+      await cli.query("UPDATE config SET valor = $1, atualizado_em = now() WHERE chave = 'cardapio'", [JSON.stringify(menu)]);
+      await cli.query('INSERT INTO config (chave, valor) VALUES ($1, $2) ON CONFLICT (chave) DO NOTHING', [chave, 'true']);
+    }
+    await cli.query('COMMIT');
+  } catch (e) {
+    await cli.query('ROLLBACK');
+    throw e;
+  } finally {
+    cli.release();
+  }
+}
+
+// Migração única e transacional: preserva preços, produtos e alterações futuras do admin.
+async function incluirNovosLanches() {
+  const chave = 'ajuste_lanches_cartaz_v1';
+  const cli = await pool.connect();
+  try {
+    await cli.query('BEGIN');
+    const { rows } = await cli.query("SELECT valor FROM config WHERE chave = 'cardapio' FOR UPDATE");
+    const { rows: aplicado } = await cli.query('SELECT valor FROM config WHERE chave = $1', [chave]);
+    if (!aplicado[0]?.valor) {
+      const menu = require('./lanches-novos').incluirLanches(rows[0]?.valor);
       await cli.query("UPDATE config SET valor = $1, atualizado_em = now() WHERE chave = 'cardapio'", [JSON.stringify(menu)]);
       await cli.query('INSERT INTO config (chave, valor) VALUES ($1, $2) ON CONFLICT (chave) DO NOTHING', [chave, 'true']);
     }
