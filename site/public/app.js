@@ -88,8 +88,15 @@
     return d.length >= 10 ? `(${d.slice(0, 2)}) ${d.slice(2, -4)}-${d.slice(-4)}` : t;
   }
 
+  // O acompanhamento rápido expira; o histórico no banco da loja permanece intacto.
+  const acompanhamentoRecente = (pedido) => {
+    const criado = Date.parse(pedido?.criado_em);
+    return Number.isFinite(criado) && Date.now() - criado < 24 * 3600_000;
+  };
+
   function renderAcompanhar() {
     const ativos = st.meus.map((m) => st.acompanhamento[m.codigo]).filter(Boolean)
+      .filter(acompanhamentoRecente)
       .filter((p) => tokenMesa || !['entregue', 'cancelado'].includes(p.status) || Date.now() - new Date(p.criado_em) < 3 * 3600_000);
     if (!ativos.length) { $('#acompanhar').innerHTML = ''; return; }
     const [titulo, texto] = frasesDaEtapa(ativos[0]);
@@ -527,6 +534,12 @@
     await Promise.all(st.meus.map(async (m) => {
       try { st.acompanhamento[m.codigo] = (await api('/api/publico/acompanhar/' + m.codigo)).pedido; } catch { /* sumiu */ }
     }));
+    const anteriores = st.meus;
+    st.meus = st.meus.filter(m => !st.acompanhamento[m.codigo] || acompanhamentoRecente(st.acompanhamento[m.codigo]));
+    if (st.meus.length !== anteriores.length) {
+      guardar(chave('pedidos'), st.meus);
+      for (const m of anteriores) if (!st.meus.some(atual => atual.codigo === m.codigo)) delete st.acompanhamento[m.codigo];
+    }
     renderAcompanhar();
     if (st.enviado && st.enviado.chavePix && st.enviado.chavePix.copia_cola) {
       const s = (st.acompanhamento[st.enviado.codigo] || {}).pix_status;
