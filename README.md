@@ -203,3 +203,21 @@ atualizada depois de implantar o app: ela compara telefones completos em vez dos
 8 dígitos. Alterar o arquivo no GitHub não atualiza um fluxo já instalado no n8n.
 
 Verificação das regras sem banco: `cd site && node --test test/reliability.test.js`.
+
+## Atendimento: mesa, para levar e entrega
+
+Garçom e caixa podem lançar os três tipos de pedido. Pedidos de mesa feitos pelo QR,
+pelo garçom e pelo caixa ficam na mesma conta aberta. Marcar **Servido na mesa** não
+recebe o pagamento. O caixa confirma o pagamento ao fechar a conta; só então a mesa
+fica livre. Pedidos ainda não servidos devem ser servidos ou cancelados antes do fechamento.
+
+Para levar e entrega têm recebimento independente: podem estar preparados, retirados
+ou entregues e continuar **Aguardando pagamento**. O caixa usa **Receber pagamento**,
+escolhe a forma realmente usada e confirma após conferir o valor. Ao lançar o pedido,
+o caixa também pode marcar **Já recebi o pagamento**. O garçom não pode confirmar
+recebimento. O entregador pode confirmar o valor recebido na entrega marcando a opção
+explícita; sem marcá-la, a entrega continua a receber. Pedidos pagos antecipadamente
+mostram que não devem ser cobrados novamente.
+
+O resumo do caixa e o relatório distinguem valores recebidos dos valores a receber.
+Pagamentos antigos sem confirmação não são presumidos pagos automaticamente.

@@ -5,6 +5,7 @@
 
   // o que o entregador precisa levar para receber
   function levar(p) {
+    if (App.estaPago(p)) return '<div class="levar">Pagamento já confirmado. Não cobrar novamente.</div>';
     if (p.pagamento === 'cartao') return `<div class="levar cartao">Levar a <b>maquininha</b> · cobrar ${brl(p.total)} no cartão</div>`;
     if (p.pagamento === 'dinheiro') {
       const troco = p.troco_para ? Number(p.troco_para) - Number(p.total) : 0;
@@ -28,11 +29,12 @@
     const valor = (forma) => base + (forma === 'cartao' ? taxa : 0);
     const j = App.janela('Entregar pedido #' + p.id, `<div style="display:flex;flex-direction:column;gap:12px">
       ${levar(p)}
-      <div class="campo"><span>Como o cliente pagou?</span><div class="chips" data-formas>
+      <div class="campo"><span>Forma de pagamento, se receber agora</span><div class="chips" data-formas>
         ${['dinheiro', 'cartao', 'pix'].map((f) => `<button type="button" class="chip" aria-pressed="${p.pagamento === f}" data-forma="${f}">${PAG[f]} · ${brl(valor(f))}</button>`).join('')}
       </div><small>Se o cliente mudou a forma de pagamento na hora, escolha a que ele usou.</small></div>
+      ${App.estaPago(p) ? '<p class="nota">Este pedido já está pago.</p>' : '<label class="campo"><span><input type="checkbox" data-recebido> Recebi o pagamento e conferi o valor.</span><small>Sem marcar, a entrega será registrada com pagamento pendente para o caixa.</small></label>'}
       <p class="erro" data-msg hidden></p>
-      <button type="button" class="btn verde grande" data-ok>Entregue e pagamento recebido</button></div>`);
+      <button type="button" class="btn verde grande" data-ok>Confirmar entrega</button></div>`);
     let forma = p.pagamento || '';
     j.addEventListener('click', async (e) => {
       const b = e.target.closest('button');
@@ -42,11 +44,12 @@
         j.querySelectorAll('[data-forma]').forEach((x) => x.setAttribute('aria-pressed', x.dataset.forma === forma));
       } else if (b.hasAttribute('data-ok')) {
         const msg = j.querySelector('[data-msg]');
-        if (!forma) { msg.textContent = 'Escolha como o cliente pagou.'; msg.hidden = false; return; }
+        const recebeu = !!j.querySelector('[data-recebido]')?.checked;
+        if (recebeu && !forma) { msg.textContent = 'Escolha como o cliente pagou.'; msg.hidden = false; return; }
         b.disabled = true;
         try {
-          await App.api('/api/equipe/pedido/' + p.id + '/entregar', { pagamento: forma });
-          j.fechar(); App.toast('Pedido #' + p.id + ' entregue e pago'); App.atualizarPedidos();
+          await App.api('/api/equipe/pedido/' + p.id + '/entregar', { pagamento: forma, pagamento_recebido: recebeu });
+          j.fechar(); App.toast('Entrega registrada' + (recebeu || App.estaPago(p) ? ' · pago' : ' · aguardando pagamento')); App.atualizarPedidos();
           aoTerminar && aoTerminar();
         } catch (err) { msg.textContent = err.message; msg.hidden = false; b.disabled = false; }
       }
@@ -87,7 +90,7 @@
           ${p.observacoes ? `<div class="obs"><b>Obs.:</b> ${esc(p.observacoes)}</div>` : ''}
           <div class="acoes">
             ${minha
-              ? `<button class="btn verde grande" data-entregar="${p.id}">Entregue e pago</button>
+              ? `<button class="btn verde grande" data-entregar="${p.id}">Registrar entrega</button>
                  ${p.endereco || p.localizacao ? `<a class="btn" href="${mapa}" target="_blank" rel="noopener">Abrir no mapa</a>` : ''}
                  ${p.cliente_telefone ? `<a class="btn" href="https://wa.me/${esc(p.cliente_telefone)}" target="_blank" rel="noopener">WhatsApp</a>` : ''}`
               : '<p class="nota">Aguardando o atendente liberar a saída pelo painel de pedidos.</p>'}
@@ -99,7 +102,7 @@
         const minhas = App.pedidos.filter((p) => p.tipo === 'entrega' && p.status === 'saiu' && p.entregador_id === App.usuario.id);
         const prontos = App.pedidos.filter((p) => p.tipo === 'entrega' && p.status === 'pronto');
         const feitas = App.pedidos.filter((p) => p.tipo === 'entrega' && p.status === 'entregue' && p.entregador_id === App.usuario.id);
-        const recebido = (f) => feitas.filter((p) => p.pagamento === f).reduce((s, p) => s + Number(p.total), 0);
+        const recebido = (f) => feitas.filter((p) => p.pagamento === f && App.estaPago(p)).reduce((s, p) => s + Number(p.total), 0);
         el.innerHTML = `<div class="topo"><div><h1>Entregas</h1><p>${feitas.length} entregues hoje · dinheiro ${brl(recebido('dinheiro'))} · cartão ${brl(recebido('cartao'))} · Pix ${brl(recebido('pix'))}</p></div>
             <div class="controles"><button class="btn" data-som aria-pressed="${App.somLigado()}">${App.somLigado() ? 'Som ligado' : 'Ligar som'}</button></div></div>
           <section class="cartao"><h2>Minhas entregas (${minhas.length})</h2>

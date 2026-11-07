@@ -14,7 +14,7 @@ App.views.garcom = {
       const a = [];
       if (p.status === 'novo') a.push({ rotulo: 'Confirmar', classe: 'principal', acao: 'status', valor: 'preparo' }, { rotulo: 'Recusar', classe: 'fraco', acao: 'status', valor: 'cancelado' });
       if (p.status === 'preparo' && !window.Calc.temCozinha(p.itens)) a.push({ rotulo: 'Pronto (balcão)', classe: 'verde', acao: 'status', valor: 'pronto' });
-      if (p.status === 'pronto') a.push({ rotulo: 'Servido', classe: 'verde', acao: 'status', valor: 'entregue' });
+      if (p.status === 'pronto' && p.tipo !== 'entrega') a.push({ rotulo: p.tipo === 'mesa' ? 'Servido na mesa' : 'Cliente retirou', classe: 'verde', acao: 'status', valor: 'entregue' });
       return a;
     }
 
@@ -27,12 +27,13 @@ App.views.garcom = {
       const aguardando = doMesa.filter((p) => p.status === 'novo');
       const prontos = doMesa.filter((p) => p.status === 'pronto');
       el.innerHTML = `<div class="topo"><div><h1>Mesas</h1><p>Toque numa mesa para ver a conta ou lançar um pedido.</p></div>
-          <div class="controles"><button class="btn" data-som aria-pressed="${App.somLigado()}">${App.somLigado() ? 'Som ligado' : 'Ligar som'}</button></div></div>
+          <div class="controles"><button class="btn principal" data-novo-geral>+ Novo pedido: mesa, levar ou entrega</button><button class="btn" data-som aria-pressed="${App.somLigado()}">${App.somLigado() ? 'Som ligado' : 'Ligar som'}</button></div></div>
         ${prontos.length ? `<section class="cartao"><h2>Prontos para servir (${prontos.length})</h2><div class="quadro">${prontos.map((p) => App.cartaoPedido(p, acoesPedido(p), { destaque: true })).join('')}</div></section>` : ''}
         ${aguardando.length ? `<section class="cartao"><h2>Pedidos pelo QR esperando confirmação (${aguardando.length})</h2><div class="quadro">${aguardando.map((p) => App.cartaoPedido(p, acoesPedido(p), { destaque: true })).join('')}</div></section>` : ''}
+        ${App.pedidos.some(p => p.criado_por === App.usuario.id && p.tipo !== 'mesa' && ['novo','preparo','pronto','saiu'].includes(p.status)) ? `<section class="cartao"><h2>Meus pedidos para levar e entrega</h2><div class="quadro">${App.pedidos.filter(p => p.criado_por === App.usuario.id && p.tipo !== 'mesa' && ['novo','preparo','pronto','saiu'].includes(p.status)).map(p => App.cartaoPedido(p, acoesPedido(p))).join('')}</div></section>` : ''}
         <div class="mesas">${mesas.map((m) => {
           const classe = Number(m.aguardando) ? 'alerta' : Number(m.prontos) ? 'pronto' : m.conta_id ? 'ocupada' : '';
-          const sinal = Number(m.aguardando) ? 'Pedido para confirmar' : Number(m.prontos) ? 'Pronto para servir' : Number(m.preparando) ? 'Preparando' : m.conta_id ? 'Ocupada' : 'Livre';
+          const sinal = Number(m.aguardando) ? 'Pedido para confirmar' : Number(m.prontos) ? 'Pronto para servir' : Number(m.preparando) ? 'Preparando' : m.conta_id ? 'Conta aberta — aguardando pagamento' : 'Livre';
           return `<button class="mesa ${classe}" data-mesa="${m.id}"><b>${esc(m.nome)}</b><span class="sinal">${sinal}</span>${m.conta_id ? `<span>${brl(m.total)} · ${App.tempo(m.aberta_em)}</span>` : ''}</button>`;
         }).join('') || '<p class="nota">Nenhuma mesa cadastrada. O administrador cadastra em Administração › Mesas.</p>'}</div>`;
     }
@@ -57,6 +58,12 @@ App.views.garcom = {
     el.addEventListener('click', (e) => {
       const b = e.target.closest('button');
       if (!b || b.closest('.novo')) return;
+      if (b.hasAttribute('data-novo-geral')) {
+        modo = { novo: true };
+        el.innerHTML = '<h1>Novo pedido</h1><div id="novo-geral"></div>';
+        App.novoPedido(el.querySelector('#novo-geral'), { voltar: () => { modo=null; render(); }, aoEnviar: async () => { modo=null; await carregarMesas(); render(); } });
+        return;
+      }
       if (b.dataset.mesa) { location.hash = '#/garcom/mesa/' + b.dataset.mesa; return; }
       if (b.hasAttribute('data-voltar')) { location.hash = '#/garcom'; return; }
       if (b.hasAttribute('data-som')) { App.alternarSom(); render(); return; }

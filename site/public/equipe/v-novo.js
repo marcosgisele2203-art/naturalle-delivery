@@ -4,7 +4,7 @@ App.novoPedido = function (el, opts) {
   const { esc, brl } = App;
   const st = {
     itens: [], tipo: opts.mesa || opts.somenteMesa ? 'mesa' : 'retirada', mesa_id: opts.mesa ? opts.mesa.id : '',
-    nome: '', telefone: '', endereco: '', obs: '', pagamento: '', troco: '', enviando: false, erro: '', mesas: [],
+    nome: '', telefone: '', endereco: '', obs: '', pagamento: '', recebido: false, troco: '', enviando: false, erro: '', mesas: [],
   };
   let montador;
 
@@ -21,7 +21,7 @@ App.novoPedido = function (el, opts) {
 
   function renderCarrinho() {
     const c = el.querySelector('#novo-carrinho');
-    const tipos = opts.somenteMesa || opts.mesa ? [] : [['retirada', 'Retirada'], ['entrega', 'Entrega'], ['mesa', 'Mesa']];
+    const tipos = opts.somenteMesa || opts.mesa ? [] : [['retirada', 'Para levar / retirada'], ['entrega', 'Entrega'], ['mesa', 'Mesa']];
     c.innerHTML = `<div class="cartao">
       <h2>${opts.mesa ? 'Pedido · ' + esc(opts.mesa.nome) : 'Pedido'}</h2>
       ${tipos.length ? `<div class="chips">${tipos.map(([v, n]) => `<button type="button" class="chip" aria-pressed="${st.tipo === v}" data-tipo="${v}">${n}</button>`).join('')}</div>` : ''}
@@ -32,7 +32,8 @@ App.novoPedido = function (el, opts) {
       ${st.tipo !== 'mesa' ? `<label class="campo">WhatsApp (opcional)<input name="telefone" type="tel" inputmode="tel" value="${esc(st.telefone)}" placeholder="Se preencher, o cliente recebe as mensagens"></label>` : ''}
       ${st.tipo === 'entrega' ? `<label class="campo">Endereço<input name="endereco" value="${esc(st.endereco)}"></label>` : ''}
       <label class="campo">Observações<input name="obs" value="${esc(st.obs)}" autocomplete="off"></label>
-      ${st.tipo !== 'mesa' ? `<div class="campo"><span>Pagamento${st.tipo === 'entrega' ? '' : ' (opcional)'}</span><div class="chips">${[['pix', 'Pix'], ['cartao', 'Cartão'], ['dinheiro', 'Dinheiro']].map(([v, n]) =>
+      ${st.tipo === 'mesa' ? '<p class="nota">Este pedido entra na conta da mesa. O pagamento será recebido pelo caixa na saída.</p>' : `<p class="nota">${st.recebido ? 'Recebimento confirmado pelo caixa.' : st.tipo === 'retirada' ? 'Pagamento pendente: receber ao pedir ou retirar.' : 'Pagamento pendente: receber antes ou na entrega.'}</p>${App.pode('caixa') ? `<div class="chips"><button type="button" class="chip" data-quando="depois" aria-pressed="${!st.recebido}">Paga depois</button><button type="button" class="chip" data-quando="agora" aria-pressed="${st.recebido}">Já recebi o pagamento</button></div>` : ''}`}
+      ${st.tipo !== 'mesa' ? `<div class="campo"><span>Forma de pagamento${st.recebido ? '' : ' (pode escolher depois)'}</span><div class="chips">${[['pix', 'Pix'], ['cartao', 'Cartão'], ['dinheiro', 'Dinheiro']].map(([v, n]) =>
         `<button type="button" class="chip" aria-pressed="${st.pagamento === v}" data-pag="${v}">${n}</button>`).join('')}</div></div>` : ''}
       ${st.pagamento === 'dinheiro' && st.tipo !== 'mesa' ? `<label class="campo">Cliente paga com<input name="troco" inputmode="decimal" value="${esc(st.troco)}" placeholder="Ex.: 50,00"><small data-troco>${textoTroco()}</small></label>` : ''}
       ${taxa() ? `<div class="linha-total" style="font-size:14px;font-weight:600"><span>Taxa de entrega</span><span>${brl(taxa())}</span></div>` : ''}
@@ -62,26 +63,28 @@ App.novoPedido = function (el, opts) {
     const b = e.target.closest('button');
     if (!b || !b.closest('#novo-carrinho')) return;
     lerCampos();
-    if (b.dataset.tipo) { st.tipo = b.dataset.tipo; if (st.tipo === 'mesa') st.pagamento = ''; }
+    if (b.dataset.tipo) { st.tipo = b.dataset.tipo; if (st.tipo === 'mesa') { st.pagamento = ''; st.recebido = false; } }
+    else if (b.dataset.quando) st.recebido = b.dataset.quando === 'agora';
     else if (b.dataset.pag) st.pagamento = st.pagamento === b.dataset.pag ? '' : b.dataset.pag;
     else if (b.dataset.remover != null) st.itens.splice(Number(b.dataset.remover), 1);
     else if (b.hasAttribute('data-voltar')) return opts.voltar();
     else if (b.hasAttribute('data-enviar')) {
+      if (st.enviando) return;
       st.erro = '';
       if (st.tipo === 'mesa' && !st.mesa_id) st.erro = 'Escolha a mesa.';
       else if (st.tipo !== 'mesa' && !st.nome.trim()) st.erro = 'Informe o nome do cliente.';
       else if (st.tipo === 'entrega' && !st.endereco.trim()) st.erro = 'Informe o endereço.';
-      else if (st.tipo === 'entrega' && !st.pagamento) st.erro = 'Escolha a forma de pagamento.';
+      else if (st.recebido && !st.pagamento) st.erro = 'Escolha a forma de pagamento.';
       else if (st.pagamento === 'dinheiro' && st.troco && !(pagoCom() >= total())) st.erro = 'O valor em dinheiro é menor que o total (' + brl(total()) + ').';
       if (!st.erro) {
         st.enviando = true; renderCarrinho();
         try {
           const d = await App.api('/api/equipe/pedido', {
             tipo: st.tipo, mesa_id: st.mesa_id, cliente_nome: st.nome, cliente_telefone: st.telefone, endereco: st.endereco,
-            observacoes: st.obs, pagamento: st.pagamento || null, troco_para: st.pagamento === 'dinheiro' && st.troco ? pagoCom() : null, itens: st.itens.map((i) => i.escolha),
+            observacoes: st.obs, pagamento_recebido: st.tipo !== 'mesa' && st.recebido, pagamento: st.pagamento || null, troco_para: st.pagamento === 'dinheiro' && st.troco ? pagoCom() : null, itens: st.itens.map((i) => i.escolha),
           });
           App.toast('Pedido #' + d.pedido.id + ' enviado para a cozinha');
-          Object.assign(st, { itens: [], nome: '', telefone: '', endereco: '', obs: '', pagamento: '', troco: '' });
+          Object.assign(st, { itens: [], nome: '', telefone: '', endereco: '', obs: '', pagamento: '', recebido: false, troco: '' });
           App.atualizarPedidos();
           if (opts.aoEnviar) { st.enviando = false; return opts.aoEnviar(d.pedido); }
         } catch (err) { st.erro = err.message; }

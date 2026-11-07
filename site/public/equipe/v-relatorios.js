@@ -50,7 +50,7 @@ App.views.relatorios = {
         ${carregando && !rel ? '<p class="nota">Carregando…</p>' : ''}
         ${r ? `<div class="rel-numeros">
             <div class="cartao"><span class="nota">Total vendido</span><b>${brl(r.total)}</b></div>
-            <div class="cartao"><span class="nota">Pedidos</span><b>${r.pedidos}</b></div>
+            <div class="cartao"><span class="nota">Recebido nos pedidos do período</span><b>${brl(r.recebido)}</b></div><div class="cartao"><span class="nota">A receber</span><b>${brl(r.a_receber)}</b></div><div class="cartao"><span class="nota">Pedidos</span><b>${r.pedidos}</b></div>
             <div class="cartao"><span class="nota">Ticket médio</span><b>${brl(r.ticket)}</b></div>
             <div class="cartao"><span class="nota">Cancelados</span><b>${r.cancelados.pedidos}</b><small>${brl(r.cancelados.total)}</small></div>
           </div>

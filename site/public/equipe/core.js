@@ -94,6 +94,8 @@
   App.rotuloOrigem = (p) => (p.tipo === 'mesa' ? esc(p.mesa_nome || 'Mesa') : ROTULO_TIPO[p.tipo] || p.tipo)
     + (p.origem === 'site' ? ' · site' : p.origem === 'mesa' ? ' · QR' : p.origem === 'whatsapp' ? ' · Manu (WhatsApp)' : p.origem === 'manu' ? ' · Manu (chat)' : p.criado_por_nome ? ' · ' + esc(p.criado_por_nome) : '');
 
+  App.estaPago = p => !!(p.pagamento_confirmado || p.pago_em || (p.pagamento === 'pix' && p.pix_status === 'confirmado'));
+
   App.cartaoPedido = (p, acoes = [], extra = {}) => {
     const itens = window.Montador.linhas(p.itens || []);
     let pag = '';
@@ -116,12 +118,34 @@
       ${p.cliente_nome || p.endereco ? `<div class="cliente">${p.cliente_nome ? `<strong>${esc(p.cliente_nome)}</strong>` : ''}${p.endereco ? `<span>${esc(p.endereco)}</span>` : ''}${p.localizacao ? `<a class="selo-cliente" href="https://www.google.com/maps/search/?api=1&query=${p.localizacao.lat},${p.localizacao.lng}" target="_blank" rel="noopener">📍 Ver no mapa</a>` : ''}${p.cliente_telefone ? `<span>${App.fone(p.cliente_telefone)}</span>` : ''}${p.n_pedido_cliente ? `<span class="selo-cliente${p.n_pedido_cliente === 1 ? ' novo' : ''}">${p.n_pedido_cliente === 1 ? 'Cliente novo' : p.n_pedido_cliente + 'º pedido'}</span>` : ''}</div>` : ''}
       <div>${itens}</div>
       ${p.observacoes ? `<div class="obs"><b>Obs.:</b> ${esc(p.observacoes)}</div>` : ''}
-      <div class="tags">${pag}${Number(p.taxa_entrega) ? `<span class="tag">Entrega ${brl(p.taxa_entrega)}</span>` : ''}${Number(p.acrescimo_cartao) ? `<span class="tag">Maquininha ${brl(p.acrescimo_cartao)}</span>` : ''}<span class="tag forte">${brl(p.total)}</span>${p.entregador_nome ? `<span class="tag">Entregador: ${esc(p.entregador_nome)}</span>` : ''}${p.pago_em ? '<span class="tag ok">Pago</span>' : ''}</div>
+      <div class="tags">${pag}${Number(p.taxa_entrega) ? `<span class="tag">Entrega ${brl(p.taxa_entrega)}</span>` : ''}${Number(p.acrescimo_cartao) ? `<span class="tag">Maquininha ${brl(p.acrescimo_cartao)}</span>` : ''}<span class="tag forte">${brl(p.total)}</span>${p.entregador_nome ? `<span class="tag">Entregador: ${esc(p.entregador_nome)}</span>` : ''}${App.estaPago(p) ? '<span class="tag ok">Pago</span>' : '<span class="tag alerta">' + (p.tipo === 'mesa' ? 'Conta aberta — aguardando pagamento' : 'Aguardando pagamento') + '</span>'}${p.status === 'entregue' ? '<span class="tag">' + (p.tipo === 'mesa' ? 'Servido na mesa' : p.tipo === 'retirada' ? 'Retirado' : 'Entregue') + '</span>' : ''}</div>
       ${`<div class="acoes">${acoes.map((a) => a.href
         ? `<a class="btn" href="${esc(a.href)}" target="_blank" rel="noopener">${a.rotulo}</a>`
         : `<button class="btn ${a.classe || ''}" data-acao="${a.acao}" data-id="${p.id}"${a.valor ? ` data-valor="${a.valor}"` : ''}>${a.rotulo}</button>`).join('')}
         <button class="btn fraco" data-imprimir="${p.id}">Imprimir</button></div>`}
     </article>`;
+  };
+
+  App.receberPedido = async (p, aoReceber) => {
+    if (!App.loja) await App.carregarCardapio();
+    const base = Number(p.total) - Number(p.acrescimo_cartao || 0);
+    const j = App.janela('Receber pedido #' + p.id, `<p>Confirme somente depois de receber o dinheiro, a aprovação do cartão ou conferir o Pix no banco.</p>
+      <div class="chips">${[['dinheiro', 'Dinheiro'], ['cartao', 'Cartão'], ['pix', 'Pix']].map(([v,n]) => `<button class="chip" data-forma="${v}" aria-pressed="false">${n}</button>`).join('')}</div>
+      <p class="linha-total" data-total>${brl(p.total)}</p><p data-msg class="erro" hidden></p><button class="btn verde grande" data-receber disabled>Confirmar pagamento recebido</button>`);
+    let forma = '';
+    j.addEventListener('click', async e => {
+      const b = e.target.closest('button'); if (!b) return;
+      if (b.dataset.forma) {
+        forma = b.dataset.forma;
+        j.querySelectorAll('[data-forma]').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.forma === forma)));
+        j.querySelector('[data-total]').textContent = brl(base + (forma === 'cartao' ? Number(App.loja.taxa_cartao) || 0 : 0));
+        j.querySelector('[data-receber]').disabled = false;
+      } else if (b.hasAttribute('data-receber')) {
+        b.disabled = true;
+        try { await App.api('/api/equipe/pedido/' + p.id + '/receber', { pagamento: forma }); j.fechar(); App.toast('Pagamento recebido'); await App.atualizarPedidos(); aoReceber && aoReceber(); }
+        catch (err) { const msg=j.querySelector('[data-msg]'); msg.hidden=false; msg.textContent=err.message; b.disabled=false; }
+      }
+    });
   };
 
   // muda status com tratamento de erro e atualização

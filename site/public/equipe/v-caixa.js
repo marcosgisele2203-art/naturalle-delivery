@@ -22,7 +22,7 @@ App.fecharConta = async function (mesa, aoFechar) {
     if (b.dataset.v) {
       pag = b.dataset.v;
       j.querySelectorAll('#pag-conta .chip').forEach((c) => c.setAttribute('aria-pressed', c.dataset.v === pag));
-      j.querySelector('[data-confirmar]').disabled = false;
+      j.querySelector('[data-confirmar]').disabled = pendentes.length > 0;
       const extra = pag === 'cartao' && App.loja ? Number(App.loja.taxa_cartao) || 0 : 0;
       j.querySelector('[data-acrescimo]').hidden = !extra;
       j.querySelector('[data-total]').textContent = brl(Number(mesa.total) + extra);
@@ -63,18 +63,23 @@ App.views.caixa = {
     function render() {
       if (!ativo) return;
       const abertas = mesas.filter((m) => m.conta_id);
+      const recebidoDia = resumo.filter(r => r.pagamento !== 'em aberto').reduce((s,r) => s + Number(r.total), 0);
+      const pendentesAvulsos = App.pedidos.filter(p => p.tipo !== 'mesa' && p.status !== 'cancelado' && !App.estaPago(p));
       const totalDia = resumo.reduce((s, r) => s + Number(r.total), 0);
       el.innerHTML = `<div class="topo"><div><h1>Caixa</h1><p>Contas das mesas e movimento de hoje.</p></div>${abas('contas')}</div>
-        <section class="cartao"><h2>Hoje</h2>
+        <section class="cartao"><h2>Hoje</h2><p>Recebido: <b>${brl(recebidoDia)}</b> · A receber nos pedidos de hoje: <b>${brl(totalDia - recebidoDia)}</b></p>
           <div class="rolagem"><table class="tabela"><thead><tr><th>Pagamento</th><th>Pedidos</th><th>Total</th></tr></thead><tbody>
           ${resumo.map((r) => `<tr><td>${NOMES[r.pagamento] || esc(r.pagamento)}</td><td>${r.pedidos}</td><td>${brl(r.total)}</td></tr>`).join('')}
           <tr><th>Total</th><th>${resumo.reduce((s, r) => s + r.pedidos, 0)}</th><th>${brl(totalDia)}</th></tr></tbody></table></div>
-          <p class="nota">"Em aberto" são mesas ainda sem conta fechada e pedidos de balcão sem forma de pagamento marcada.</p>
+          <p class="nota">"Em aberto" significa pagamento ainda não recebido, mesmo que o cliente já tenha escolhido Pix, cartão ou dinheiro.</p>
         </section>
         <section class="cartao"><h2>Acerto dos entregadores (hoje)</h2>
           ${entregadores.length ? `<div class="rolagem"><table class="tabela"><thead><tr><th>Entregador</th><th class="num">Entregas</th><th class="num">Dinheiro</th><th class="num">Cartão</th><th class="num">Pix</th><th class="num">Na rua</th></tr></thead><tbody>
           ${entregadores.map((x) => `<tr><td><b>${esc(x.nome)}</b></td><td class="num">${x.entregas}</td><td class="num">${brl(x.dinheiro)}</td><td class="num">${brl(x.cartao)}</td><td class="num">${brl(x.pix)}</td><td class="num">${x.na_rua}</td></tr>`).join('')}
           </tbody></table></div><p class="nota">"Dinheiro" é o que o entregador deve entregar no caixa. "Na rua" são entregas que ainda não voltaram.</p>` : '<p class="nota">Nenhuma entrega hoje.</p>'}
+        </section>
+        <section class="cartao"><h2>Pedidos para levar / entrega a receber (${pendentesAvulsos.length})</h2>
+          ${pendentesAvulsos.length ? `<div class="quadro">${pendentesAvulsos.map(p => App.cartaoPedido(p, [{ rotulo: 'Receber pagamento', acao: 'receber', classe: 'verde' }])).join('')}</div>` : '<p class="nota">Nenhum recebimento pendente.</p>'}
         </section>
         <section class="cartao"><h2>Mesas com conta aberta (${abertas.length})</h2>
           ${abertas.length ? `<div class="rolagem"><table class="tabela"><thead><tr><th>Mesa</th><th>Aberta</th><th>Total</th><th></th></tr></thead><tbody>
@@ -85,6 +90,8 @@ App.views.caixa = {
     }
 
     el.addEventListener('click', (e) => {
+      const receber = e.target.closest('button[data-acao="receber"]');
+      if (receber) { const p = App.pedidos.find(p => p.id === Number(receber.dataset.id)); if (p) App.receberPedido(p, carregar); return; }
       const b = e.target.closest('button[data-fechar]');
       if (!b) return;
       const m = mesas.find((x) => x.id === Number(b.dataset.fechar));

@@ -115,12 +115,12 @@ function notificar(caminho, pedido) {
 
 const CAMPOS_PEDIDO = `p.id, p.codigo, p.criado_em, p.confirmado_em, p.pronto_em, p.origem, p.tipo, p.status,
   p.cliente_nome, p.cliente_telefone, p.endereco, p.localizacao, p.observacoes, p.itens, p.subtotal, p.taxa_entrega, p.acrescimo_cartao, p.total,
-  p.pagamento, p.troco_para, p.pix_status, p.pix_conferencia, p.pix_qr, p.pix_copia_cola, p.pix_expira, p.mp_pagamento_id, p.mesa_id, p.conta_id, m.nome AS mesa_nome, u.nome AS criado_por_nome,
+  p.pagamento, p.troco_para, p.pix_status, p.pix_conferencia, p.pix_qr, p.pix_copia_cola, p.pix_expira, p.mp_pagamento_id, p.mesa_id, p.conta_id, p.criado_por, COALESCE(p.pago_em IS NOT NULL OR (p.pagamento = 'pix' AND p.pix_status = 'confirmado') OR conta.fechada_em IS NOT NULL, false) AS pagamento_confirmado, m.nome AS mesa_nome, u.nome AS criado_por_nome,
   p.entregador_id, e.nome AS entregador_nome, p.saiu_em, p.pago_em,
   CASE WHEN length(p.cliente_telefone) >= 10 THEN (SELECT count(*)::int FROM pedidos q
     WHERE nm_telefone(q.cliente_telefone) = nm_telefone(p.cliente_telefone) AND q.id <= p.id AND q.status <> 'cancelado') END AS n_pedido_cliente`;
 const FROM_PEDIDO = `FROM pedidos p LEFT JOIN mesas m ON m.id = p.mesa_id LEFT JOIN usuarios u ON u.id = p.criado_por
-  LEFT JOIN usuarios e ON e.id = p.entregador_id`;
+  LEFT JOIN usuarios e ON e.id = p.entregador_id LEFT JOIN contas conta ON conta.id = p.conta_id`;
 
 function lerRequisicao(corpo, escopo) {
   try { return requisicaoPedido(corpo, escopo); }
@@ -174,7 +174,8 @@ async function gravarPedido(d) {
     if (d.mesa_id) {
       await cli.query(
         `INSERT INTO contas (mesa_id) VALUES ($1) ON CONFLICT (mesa_id) WHERE fechada_em IS NULL DO NOTHING`, [d.mesa_id]);
-      const { rows } = await cli.query('SELECT id FROM contas WHERE mesa_id = $1 AND fechada_em IS NULL', [d.mesa_id]);
+      const { rows } = await cli.query('SELECT id FROM contas WHERE mesa_id = $1 AND fechada_em IS NULL FOR UPDATE', [d.mesa_id]);
+      if (!rows[0]) throw new Erro(409, 'A conta da mesa mudou. Atualize e tente novamente.');
       contaId = rows[0].id;
     }
     const subtotal = Calc.somar(d.itens);
@@ -190,6 +191,7 @@ async function gravarPedido(d) {
         subtotal, d.taxa_entrega || 0, total, d.pagamento || null, d.troco_para || null,
         d.pagamento === 'pix' ? 'aguardando' : null, acrescimo, d.localizacao ? JSON.stringify(d.localizacao) : null]);
     if (d.requisicao) await cli.query('UPDATE pedido_requisicoes SET pedido_id = $2 WHERE chave = $1', [d.requisicao.chave, rows[0].id]);
+    if (d.pagamento_recebido && d.tipo !== 'mesa') await cli.query("UPDATE pedidos SET pago_em = now(), pago_confirmado_por = $2, pix_status = CASE WHEN pagamento = 'pix' THEN 'confirmado' ELSE pix_status END WHERE id = $1", [rows[0].id, d.criado_por]);
     // cadastro automático do cliente pelo WhatsApp (nome e endereço mais recentes)
     if (String(d.cliente_telefone || '').length >= 10) {
       await cli.query(
@@ -756,7 +758,9 @@ rota('GET', '/api/equipe/pedidos', ['pedidos', 'garcom', 'caixa', 'cozinha', 'en
   const menu = await lerConfig('cardapio');
   const { rows } = await pool.query(
     `SELECT ${CAMPOS_PEDIDO} ${FROM_PEDIDO}
-      WHERE p.status IN ('novo', 'preparo', 'pronto', 'saiu') OR (p.criado_em AT TIME ZONE '${FUSO}')::date = (now() AT TIME ZONE '${FUSO}')::date
+      WHERE p.status IN ('novo', 'preparo', 'pronto', 'saiu') OR (p.tipo = 'mesa' AND conta.fechada_em IS NULL)
+         OR (p.status = 'entregue' AND p.tipo <> 'mesa' AND p.pago_em IS NULL AND (p.pagamento IS DISTINCT FROM 'pix' OR p.pix_status IS DISTINCT FROM 'confirmado'))
+         OR (p.criado_em AT TIME ZONE '${FUSO}')::date = (now() AT TIME ZONE '${FUSO}')::date
       ORDER BY p.criado_em ASC LIMIT 400`);
   return { pedidos: marcarCozinha(rows, menu || {}), agora: new Date().toISOString() };
 });
@@ -764,7 +768,7 @@ rota('GET', '/api/equipe/pedidos', ['pedidos', 'garcom', 'caixa', 'cozinha', 'en
 rota('POST', '/api/equipe/pedido', ['garcom', 'caixa', 'pedidos'], async ({ u, b }) => {
   const tipo = ['entrega', 'retirada', 'mesa'].includes(b.tipo) ? b.tipo : null;
   if (!tipo) throw new Erro(400, 'Escolha mesa, retirada ou entrega.');
-  if (tipo !== 'mesa' && !auth.pode(u, 'caixa', 'pedidos')) throw new Erro(403, 'Seu usuário só lança pedidos de mesa.');
+  if (b.pagamento_recebido === true && (tipo === 'mesa' || !auth.pode(u, 'caixa'))) throw new Erro(403, 'O caixa confirma o recebimento; mesas são pagas pelo fechamento da conta.');
   const anterior = await recuperarEnvio(b, 'equipe-' + u.id);
   if (anterior) return { ok: true, pedido: anterior };
   let mesaId = null;
@@ -780,8 +784,8 @@ rota('POST', '/api/equipe/pedido', ['garcom', 'caixa', 'pedidos'], async ({ u, b
   const itens = await calcularItens(b.itens);
   const loja = await lerConfig('loja');
   const taxa = tipo === 'entrega' ? Number(b.taxa_entrega ?? loja.taxa_entrega) || 0 : 0;
-  const pag = tipo === 'mesa' ? {} : lerPagamento(b, Calc.somar(itens) + taxa, tipo === 'entrega');
-  const pedido = await gravarPedido({ requisicao: lerRequisicao(b, 'equipe-' + u.id), origem: tipo === 'mesa' ? 'garcom' : 'balcao', tipo, status: 'preparo', mesa_id: mesaId,
+  const pag = tipo === 'mesa' ? {} : lerPagamento(b, Calc.somar(itens) + taxa, b.pagamento_recebido === true);
+  const pedido = await gravarPedido({ pagamento_recebido: b.pagamento_recebido === true, requisicao: lerRequisicao(b, 'equipe-' + u.id), origem: tipo === 'mesa' ? 'garcom' : 'balcao', tipo, status: 'preparo', mesa_id: mesaId,
     criado_por: u.id, cliente_nome: nome, cliente_telefone: telefoneBR(b.cliente_telefone), endereco: tipo === 'entrega' ? endereco : '',
     observacoes: texto(b.observacoes, 300), itens, taxa_entrega: taxa, taxa_cartao: loja.taxa_cartao, ...pag });
   if (!pedido.repetido) notificar('/pedido', pedido);
@@ -832,23 +836,47 @@ rota('GET', '/api/equipe/entregadores', ['pedidos', 'caixa'], async () => {
   return { entregadores: rows };
 });
 
-// entregue e pago: confirma como o cliente pagou de verdade (pode ter mudado na porta)
-rota('POST', '/api/equipe/pedido/:id/entregar', ['entregador', 'pedidos', 'caixa'], async ({ u, p, b }) => {
-  const id = Number(p.id);
-  const atual = await buscarPedido(id);
-  if (!atual || atual.status !== 'saiu') throw new Erro(409, 'Esse pedido não está em entrega.');
-  if (!auth.pode(u, 'pedidos', 'caixa') && atual.entregador_id !== u.id) throw new Erro(403, 'Essa entrega está com outro entregador.');
-  const pagamento = ['pix', 'cartao', 'dinheiro'].includes(b.pagamento) ? b.pagamento : null;
-  if (!pagamento) throw new Erro(400, 'Diga como o cliente pagou.');
+// Recebimento independente do preparo/entrega. A confirmação é feita pelo caixa.
+async function receberPagamento(cli, id, forma, usuario) {
+  const { rows } = await cli.query('SELECT * FROM pedidos WHERE id = $1 FOR UPDATE', [id]);
+  const p = rows[0];
+  if (!p) throw new Erro(404, 'Pedido não encontrado.');
+  if (p.tipo === 'mesa') throw new Erro(400, 'Receba esta mesa pelo fechamento da conta.');
+  if (p.status === 'cancelado') throw new Erro(409, 'Pedido cancelado.');
+  if (p.pago_em || (p.pagamento === 'pix' && p.pix_status === 'confirmado')) return;
+  if (!['pix', 'cartao', 'dinheiro'].includes(forma)) throw new Erro(400, 'Escolha como o cliente pagou.');
   const loja = await lerConfig('loja');
-  const acrescimo = pagamento === 'cartao' ? Number(loja.taxa_cartao) || 0 : 0;
-  await pool.query(
-    `UPDATE pedidos SET status = 'entregue', atualizado_em = now(), pagamento = $2, acrescimo_cartao = $3,
-        total = COALESCE(subtotal, total - taxa_entrega - acrescimo_cartao) + taxa_entrega + $3,
-        pix_status = CASE WHEN $2 = 'pix' THEN 'confirmado' ELSE pix_status END,
-        troco_para = CASE WHEN $2 = 'dinheiro' THEN troco_para END,
-        pago_em = now(), pago_confirmado_por = $4, entregador_id = COALESCE(entregador_id, $5)
-      WHERE id = $1 AND status = 'saiu'`, [id, pagamento, acrescimo, u.id, auth.pode(u, 'entregador') ? u.id : null]);
+  const extra = forma === 'cartao' ? Number(loja.taxa_cartao) || 0 : 0;
+  await cli.query(`UPDATE pedidos SET pagamento = $2, acrescimo_cartao = $3,
+    total = subtotal + taxa_entrega + $3, pago_em = now(), pago_confirmado_por = $4,
+    pix_status = CASE WHEN $2 = 'pix' THEN 'confirmado' ELSE pix_status END,
+    troco_para = CASE WHEN $2 = 'dinheiro' THEN troco_para END, atualizado_em = now() WHERE id = $1`, [id, forma, extra, usuario]);
+}
+rota('POST', '/api/equipe/pedido/:id/receber', ['caixa'], async ({ u, p, b }) => {
+  const cli = await pool.connect();
+  try {
+    await cli.query('BEGIN');
+    await receberPagamento(cli, Number(p.id), b.pagamento, u.id);
+    await cli.query('COMMIT');
+  } catch (e) { await cli.query('ROLLBACK'); throw e; }
+  finally { cli.release(); }
+  return { ok: true, pedido: await buscarPedido(Number(p.id)) };
+});
+
+// Entregar a comida não presume que houve pagamento.
+rota('POST', '/api/equipe/pedido/:id/entregar', ['entregador', 'pedidos', 'caixa'], async ({ u, p, b }) => {
+  const id = Number(p.id), cli = await pool.connect();
+  try {
+    await cli.query('BEGIN');
+    const { rows } = await cli.query('SELECT * FROM pedidos WHERE id = $1 FOR UPDATE', [id]);
+    const atual = rows[0];
+    if (!atual || atual.status !== 'saiu') throw new Erro(409, 'Esse pedido não está em entrega.');
+    if (!auth.pode(u, 'pedidos', 'caixa') && atual.entregador_id !== u.id) throw new Erro(403, 'Essa entrega está com outro entregador.');
+    if (b.pagamento_recebido === true) await receberPagamento(cli, id, b.pagamento, u.id);
+    await cli.query("UPDATE pedidos SET status = 'entregue', atualizado_em = now(), entregador_id = COALESCE(entregador_id, $2) WHERE id = $1", [id, auth.pode(u, 'entregador') ? u.id : null]);
+    await cli.query('COMMIT');
+  } catch (e) { await cli.query('ROLLBACK'); throw e; }
+  finally { cli.release(); }
   const pedido = await buscarPedido(id);
   notificar('/status', pedido);
   return { ok: true, pedido };
@@ -858,9 +886,9 @@ rota('POST', '/api/equipe/pedido/:id/entregar', ['entregador', 'pedidos', 'caixa
 rota('GET', '/api/equipe/caixa/entregadores', ['caixa', 'pedidos'], async () => {
   const { rows } = await pool.query(
     `SELECT COALESCE(e.nome, 'Sem entregador') AS nome, count(*) FILTER (WHERE p.status = 'entregue')::int AS entregas,
-            COALESCE(sum(p.total) FILTER (WHERE p.pagamento = 'dinheiro' AND p.status = 'entregue'), 0) AS dinheiro,
-            COALESCE(sum(p.total) FILTER (WHERE p.pagamento = 'cartao' AND p.status = 'entregue'), 0) AS cartao,
-            COALESCE(sum(p.total) FILTER (WHERE p.pagamento = 'pix' AND p.status = 'entregue'), 0) AS pix,
+            COALESCE(sum(p.total) FILTER (WHERE p.pagamento = 'dinheiro' AND p.status = 'entregue' AND p.pago_em IS NOT NULL), 0) AS dinheiro,
+            COALESCE(sum(p.total) FILTER (WHERE p.pagamento = 'cartao' AND p.status = 'entregue' AND p.pago_em IS NOT NULL), 0) AS cartao,
+            COALESCE(sum(p.total) FILTER (WHERE p.pagamento = 'pix' AND p.status = 'entregue' AND (p.pago_em IS NOT NULL OR p.pix_status = 'confirmado')), 0) AS pix,
             count(*) FILTER (WHERE p.status = 'saiu')::int AS na_rua
        FROM pedidos p LEFT JOIN usuarios e ON e.id = p.entregador_id
       WHERE p.tipo = 'entrega' AND p.status IN ('saiu', 'entregue')
@@ -870,6 +898,8 @@ rota('GET', '/api/equipe/caixa/entregadores', ['caixa', 'pedidos'], async () => 
 });
 
 rota('POST', '/api/equipe/pedido/:id/pix', ['pedidos', 'caixa'], async ({ p }) => {
+  const pedido = await buscarPedido(Number(p.id));
+  if (!pedido || pedido.tipo === 'mesa' || pedido.status === 'cancelado') throw new Erro(400, 'Receba a mesa no fechamento da conta; pedidos cancelados não podem ser recebidos.');
   await pool.query(`UPDATE pedidos SET pix_status = 'confirmado', pago_em = COALESCE(pago_em, now()), atualizado_em = now() WHERE id = $1 AND pagamento = 'pix'`, [Number(p.id)]);
   return { ok: true };
 });
@@ -908,10 +938,12 @@ rota('POST', '/api/equipe/conta/:id/fechar', ['caixa'], async ({ u, p, b }) => {
     await cli.query('BEGIN');
     const { rows: aberta } = await cli.query('SELECT id FROM contas WHERE id = $1 AND fechada_em IS NULL FOR UPDATE', [id]);
     if (!aberta[0]) throw new Erro(409, 'Essa conta já foi fechada.');
-    // conta paga: o que já estava pronto foi servido
+    const { rows: pendentes } = await cli.query("SELECT id FROM pedidos WHERE conta_id = $1 AND status NOT IN ('entregue', 'cancelado') FOR UPDATE", [id]);
+    if (pendentes.length) throw new Erro(409, 'Ainda há pedidos para servir. Marque-os como servidos ou cancele-os antes de fechar a conta.');
     await cli.query(
-      `UPDATE pedidos SET pagamento = $2, atualizado_em = now(), status = CASE WHEN status = 'pronto' THEN 'entregue' ELSE status END
-        WHERE conta_id = $1 AND status <> 'cancelado'`, [id, pagamento]);
+      `UPDATE pedidos SET pagamento = $2, pago_em = COALESCE(pago_em, now()), pago_confirmado_por = $3,
+        pix_status = CASE WHEN $2 = 'pix' THEN 'confirmado' ELSE pix_status END, atualizado_em = now()
+       WHERE conta_id = $1 AND status <> 'cancelado'`, [id, pagamento, u.id]);
     // acréscimo da maquininha: uma vez por conta, lançado no último pedido
     const acrescimo = pagamento === 'cartao' ? Number(loja.taxa_cartao) || 0 : 0;
     if (acrescimo) {
@@ -935,12 +967,12 @@ rota('POST', '/api/equipe/conta/:id/fechar', ['caixa'], async ({ u, p, b }) => {
 
 rota('GET', '/api/equipe/caixa/resumo', ['caixa', 'pedidos'], async () => {
   const { rows } = await pool.query(
-    // Pix que ainda não caiu aparece separado, para não somar como dinheiro recebido
-    `SELECT CASE WHEN pagamento = 'pix' AND pix_status IS DISTINCT FROM 'confirmado' THEN 'Pix não pago' ELSE COALESCE(pagamento, 'em aberto') END AS pagamento,
-            count(*)::int AS pedidos, COALESCE(sum(total), 0) AS total
-       FROM pedidos
-      WHERE status <> 'cancelado' AND (criado_em AT TIME ZONE '${FUSO}')::date = (now() AT TIME ZONE '${FUSO}')::date
-      GROUP BY 1 ORDER BY 1`);
+    `SELECT CASE WHEN p.pago_em IS NOT NULL OR (p.pagamento = 'pix' AND p.pix_status = 'confirmado') OR c.fechada_em IS NOT NULL
+       THEN COALESCE(p.pagamento, c.pagamento) ELSE 'em aberto' END AS pagamento,
+       count(*)::int AS pedidos, COALESCE(sum(p.total), 0) AS total
+     FROM pedidos p LEFT JOIN contas c ON c.id = p.conta_id
+     WHERE p.status <> 'cancelado' AND (COALESCE(p.pago_em, c.fechada_em, p.criado_em) AT TIME ZONE '${FUSO}')::date = (now() AT TIME ZONE '${FUSO}')::date
+     GROUP BY 1 ORDER BY 1`);
   return { hoje: rows };
 });
 
@@ -952,9 +984,9 @@ rota('GET', '/api/equipe/relatorio', ['caixa'], async ({ q }) => {
   if ((Date.parse(ate) - Date.parse(de)) / 86400000 > 400) throw new Erro(400, 'Escolha um período de até 1 ano.');
   const { rows } = await pool.query(
     `SELECT p.id, to_char(p.criado_em AT TIME ZONE '${FUSO}', 'YYYY-MM-DD') AS data, to_char(p.criado_em AT TIME ZONE '${FUSO}', 'HH24:MI') AS hora,
-            p.tipo, p.origem, m.nome AS mesa_nome, p.cliente_nome, p.itens, p.pagamento, p.subtotal, p.taxa_entrega, p.acrescimo_cartao, p.total, p.status,
+            p.tipo, p.origem, m.nome AS mesa_nome, p.cliente_nome, p.itens, p.pagamento, p.subtotal, p.taxa_entrega, p.acrescimo_cartao, p.total, p.status, p.pago_em, p.pix_status, COALESCE(p.pago_em IS NOT NULL OR (p.pagamento = 'pix' AND p.pix_status = 'confirmado') OR c.fechada_em IS NOT NULL, false) AS pagamento_confirmado,
             e.nome AS entregador_nome
-       FROM pedidos p LEFT JOIN mesas m ON m.id = p.mesa_id LEFT JOIN usuarios e ON e.id = p.entregador_id
+       FROM pedidos p LEFT JOIN mesas m ON m.id = p.mesa_id LEFT JOIN usuarios e ON e.id = p.entregador_id LEFT JOIN contas c ON c.id = p.conta_id
       WHERE (p.criado_em AT TIME ZONE '${FUSO}')::date BETWEEN $1 AND $2
       ORDER BY p.criado_em`, [de, ate]);
   return Relatorio.montar(rows, de, ate);

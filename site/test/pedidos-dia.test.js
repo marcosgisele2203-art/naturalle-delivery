@@ -7,11 +7,11 @@ function renderizar(agora) {
   const Relogio = class extends Date { constructor(...args) { super(...(args.length ? args : [agora])); } };
   const el = { innerHTML: '', addEventListener() {} };
   const App = { views: {}, pedidos: [
-    { id: 'antigo', status: 'entregue', criado_em: '2026-11-06T03:00:00Z', atualizado_em: agora, total: 100 },
-    { id: 'recente', status: 'entregue', criado_em: '2026-11-07T00:00:00Z', total: 20 },
+    { id: 'antigo', status: 'entregue', pagamento_confirmado: true, criado_em: '2026-11-06T03:00:00Z', atualizado_em: agora, total: 100 },
+    { id: 'recente', status: 'entregue', pagamento_confirmado: true, criado_em: '2026-11-07T00:00:00Z', total: 20 },
     { id: 'pendente', status: 'novo', criado_em: '2026-10-01T12:00:00Z', total: 30 },
   ], esc: s => s, brl: n => String(n), somLigado: () => false, on() {},
-    cartaoPedido: p => `<article>${p.id}</article>` };
+    estaPago: p => !!p.pagamento_confirmado, pode: () => true, cartaoPedido: p => `<article>${p.id}</article>` };
   const ctx = { App, Date: Relogio, Intl, window: { Calc: { temCozinha: () => false }, scrollY: 0, scrollTo() {} }, setInterval() {}, setTimeout() {}, clearInterval() {} };
   vm.runInNewContext(fonte, ctx);
   App.views.pedidos.montar(el);

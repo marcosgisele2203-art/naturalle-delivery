@@ -7,6 +7,7 @@
   const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
   const centavos = (v) => Math.round(Number(v || 0) * 100);
   const reais = (c) => c / 100;
+  const estaPago = p => !!(p.pagamento_confirmado || p.pago_em || (p.pagamento === 'pix' && p.pix_status === 'confirmado'));
 
   function montar(pedidos, de, ate) {
     const validos = pedidos.filter((p) => p.status !== 'cancelado');
@@ -40,15 +41,17 @@
       }
     }
 
+    const pago = estaPago;
     const total = soma(validos, 'total');
     return {
       de, ate, agrupado: porMes ? 'mês' : 'dia',
       resumo: {
+        recebido: soma(validos.filter(pago), 'total'), a_receber: soma(validos.filter(p => !pago(p)), 'total'),
         total, pedidos: validos.length, ticket: validos.length ? Math.round((total / validos.length) * 100) / 100 : 0,
         taxa_entrega: soma(validos, 'taxa_entrega'), acrescimo_cartao: soma(validos, 'acrescimo_cartao'),
         cancelados: { pedidos: cancelados.length, total: soma(cancelados, 'total') },
       },
-      pagamentos: agrupar((p) => p.pagamento || 'em aberto').sort((a, b) => b.total - a.total),
+      pagamentos: agrupar((p) => pago(p) ? p.pagamento || 'em aberto' : 'em aberto').sort((a, b) => b.total - a.total),
       tipos: agrupar((p) => p.tipo).sort((a, b) => b.total - a.total),
       periodos,
       produtos: [...produtos.values()].map((g) => ({ ...g, total: reais(g.total) })).sort((a, b) => b.qtd - a.qtd || b.total - a.total),
@@ -61,11 +64,11 @@
     const NOMES = { pix: 'Pix', cartao: 'Cartão', dinheiro: 'Dinheiro', entrega: 'Entrega', retirada: 'Retirada', mesa: 'Mesa' };
     const num = (v) => Number(v || 0).toFixed(2).replace('.', ',');
     const campo = (v) => { const s = String(v == null ? '' : v); return /[;"\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
-    const linhas = [['Pedido', 'Data', 'Hora', 'Tipo', 'Mesa', 'Cliente', 'Itens', 'Pagamento', 'Subtotal', 'Taxa de entrega', 'Acréscimo cartão', 'Total', 'Entregador', 'Situação']];
+    const linhas = [['Pedido', 'Data', 'Hora', 'Tipo', 'Mesa', 'Cliente', 'Itens', 'Forma de pagamento', 'Recebimento', 'Subtotal', 'Taxa de entrega', 'Acréscimo cartão', 'Total', 'Entregador', 'Situação']];
     for (const p of rel.pedidos) {
       linhas.push([p.id, p.data.split('-').reverse().join('/'), p.hora, NOMES[p.tipo] || p.tipo, p.mesa_nome || '', p.cliente_nome || '',
         (p.itens || []).map((i) => `${i.qtd}x ${i.nome}${i.detalhe ? ' (' + i.detalhe + ')' : ''}`).join(' | '),
-        NOMES[p.pagamento] || (p.pagamento ? p.pagamento : 'Em aberto'), num(p.subtotal), num(p.taxa_entrega), num(p.acrescimo_cartao), num(p.total), p.entregador_nome || '',
+        NOMES[p.pagamento] || (p.pagamento ? p.pagamento : 'Não escolhida'), p.status === 'cancelado' ? 'Cancelado' : estaPago(p) ? 'Pago' : 'A receber', num(p.subtotal), num(p.taxa_entrega), num(p.acrescimo_cartao), num(p.total), p.entregador_nome || '',
         p.status === 'cancelado' ? 'Cancelado' : 'Vendido']);
     }
     return '﻿' + linhas.map((l) => l.map(campo).join(';')).join('\r\n');
