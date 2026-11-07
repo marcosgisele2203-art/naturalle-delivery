@@ -3,6 +3,9 @@ App.views.pedidos = {
   montar(el) {
     const { esc, brl } = App;
     const destaque = new Set();
+    const formatoDia = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Campo_Grande', year: 'numeric', month: '2-digit', day: '2-digit' });
+    const mesmoDia = p => formatoDia.format(new Date(p.criado_em)) === formatoDia.format(new Date());
+    const emAndamento = p => ['novo', 'preparo', 'pronto', 'saiu'].includes(p.status);
     let filtro = 'todos';
     const COLUNAS = [
       { status: 'novo', nome: 'Aguardando confirmação', cor: '#A3134A' },
@@ -34,7 +37,8 @@ App.views.pedidos = {
         novos.forEach((m) => { destaque.add(m.id); setTimeout(() => destaque.delete(m.id), 60000); });
         if (novos.length) App.bip();
       }
-      const lista = App.pedidos.filter((p) => filtro === 'todos' || p.tipo === filtro);
+      const lista = App.pedidos.filter(p => emAndamento(p) || mesmoDia(p))
+        .filter((p) => filtro === 'todos' || p.tipo === filtro);
       const ativos = lista.filter((p) => ['novo', 'preparo', 'pronto', 'saiu'].includes(p.status));
       const entregues = lista.filter((p) => p.status === 'entregue');
       const total = entregues.reduce((s, p) => s + Number(p.total), 0);

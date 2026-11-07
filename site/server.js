@@ -756,7 +756,7 @@ rota('GET', '/api/equipe/pedidos', ['pedidos', 'garcom', 'caixa', 'cozinha', 'en
   const menu = await lerConfig('cardapio');
   const { rows } = await pool.query(
     `SELECT ${CAMPOS_PEDIDO} ${FROM_PEDIDO}
-      WHERE p.status IN ('novo', 'preparo', 'pronto', 'saiu') OR p.atualizado_em > now() - interval '14 hours'
+      WHERE p.status IN ('novo', 'preparo', 'pronto', 'saiu') OR (p.criado_em AT TIME ZONE '${FUSO}')::date = (now() AT TIME ZONE '${FUSO}')::date
       ORDER BY p.criado_em ASC LIMIT 400`);
   return { pedidos: marcarCozinha(rows, menu || {}), agora: new Date().toISOString() };
 });
