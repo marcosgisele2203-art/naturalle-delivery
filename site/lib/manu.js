@@ -214,7 +214,7 @@ function criar(s) {
     const codigos = (ctx.dados.pedidos || []).map((p) => p.codigo);
     const { rows } = await s.pool.query(
       `SELECT id, status, total, tipo, pagamento, pix_status FROM pedidos
-        WHERE criado_em > now() - interval '1 day' AND (($1::text IS NOT NULL AND right(cliente_telefone, 8) = right($1, 8)) OR codigo = ANY($2))
+        WHERE criado_em > now() - interval '1 day' AND (($1::text IS NOT NULL AND nm_telefone(cliente_telefone) = nm_telefone($1)) OR codigo = ANY($2))
         ORDER BY criado_em DESC LIMIT 5`, [tel, codigos]);
     if (!rows.length) return { pedidos: 'nenhum pedido hoje' };
     return { pedidos: rows.map((p) => `#${p.id}: ${ETAPA[p.status] || p.status}, ${p.tipo}, ${brl(p.total)}, ${p.pagamento || ''}${p.pagamento === 'pix' ? ' (pix ' + p.pix_status + ')' : ''}`) };
@@ -226,7 +226,7 @@ function criar(s) {
     const tel = s.telefoneBR(ctx.telefone);
     if (!tel) return { erro: 'só funciona pelo WhatsApp' };
     const { rows: ps } = await s.pool.query(
-      `SELECT id, cliente_nome, total, criado_em FROM pedidos WHERE right(cliente_telefone, 8) = right($1, 8) AND pagamento = 'pix'
+      `SELECT id, cliente_nome, total, criado_em FROM pedidos WHERE nm_telefone(cliente_telefone) = nm_telefone($1) AND pagamento = 'pix'
           AND pix_status IN ('aguardando', 'comprovante_recebido') ORDER BY criado_em DESC LIMIT 1`, [tel]);
     if (!ps[0]) return { resultado: 'não há pedido Pix aguardando pagamento deste número' };
     const p = ps[0], loja = await s.lerConfig('loja');

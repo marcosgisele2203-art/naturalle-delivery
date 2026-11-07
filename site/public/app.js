@@ -38,6 +38,19 @@
     quadro: [],
     acompanhamento: {},
   };
+  // Restaura a mesma tentativa após recarregar a página durante uma falha de rede.
+  const pendente = guardado(chave('envio-pendente'), null)?.corpo;
+  if (pendente && st.carrinho.length) {
+    st.obs = pendente.observacoes || '';
+    if (!tokenMesa) {
+      st.tipo = pendente.tipo;
+      st.pagamento = pendente.pagamento;
+      st.cliente = { ...st.cliente, ...pendente.cliente, endereco: pendente.endereco || '' };
+      st.local = pendente.localizacao || null;
+      st.troco = pendente.troco_para || '';
+      st.precisaTroco = pendente.troco_para ? 'sim' : st.pagamento === 'dinheiro' ? 'nao' : '';
+    } else st.cliente.nome = pendente.nome || '';
+  }
   let montador;
 
   async function api(url, corpo) {
@@ -45,6 +58,18 @@
     const d = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(d.erro || (r.status >= 500 ? 'O sistema está reiniciando ou demorou para responder. Espere um minutinho e tente de novo.' : 'Não foi possível concluir. Tente de novo.'));
     return d;
+  }
+
+  async function enviarPedido(url, corpo) {
+    const assinatura = JSON.stringify({ url, corpo });
+    let tentativa = guardado(chave('envio-pendente'), null);
+    if (!tentativa || tentativa.assinatura !== assinatura) {
+      const bytes = new Uint8Array(16);
+      crypto.getRandomValues(bytes);
+      tentativa = { assinatura, corpo, id: Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('') };
+      guardar(chave('envio-pendente'), tentativa);
+    }
+    return api(url, { ...corpo, idempotencia: tentativa.id });
   }
 
   const total = () => window.Calc.somar(st.carrinho) + taxa() + acrescimoCartao();
@@ -308,6 +333,7 @@
   document.addEventListener('submit', async (e) => {
     if (e.target.id !== 'form-pedido') return;
     e.preventDefault();
+    if (st.enviando) return;
     lerForm();
     const c = st.cliente;
     st.erro = '';
@@ -324,9 +350,9 @@
     try {
       const itens = st.carrinho.map((i) => i.escolha);
       const d = tokenMesa
-        ? await api('/api/publico/mesa/' + tokenMesa + '/pedido', { nome: c.nome, observacoes: st.obs, itens })
-        : await api('/api/publico/pedido', {
-          tipo: st.tipo, cliente: { nome: c.nome, telefone: c.telefone }, endereco: c.endereco, localizacao: st.tipo === 'entrega' ? st.local : null, observacoes: st.obs,
+        ? await enviarPedido('/api/publico/mesa/' + tokenMesa + '/pedido', { nome: c.nome, observacoes: st.obs, itens })
+        : await enviarPedido('/api/publico/pedido', {
+          tipo: st.tipo, cliente: { nome: c.nome, telefone: c.telefone }, endereco: c.endereco, localizacao: st.tipo === 'entrega' ? (st.local || null) : null, observacoes: st.obs,
           pagamento: st.pagamento, troco_para: st.pagamento === 'dinheiro' && st.precisaTroco === 'sim' ? valorDigitado(st.troco) : null, itens,
         });
       st.enviado = { id: d.pedido_id, codigo: d.codigo, pix: st.pagamento === 'pix', chavePix: d.pix || null, total: d.total, status: d.status };
@@ -334,6 +360,7 @@
       guardar(chave('pedidos'), st.meus);
       st.carrinho = []; st.obs = ''; st.troco = ''; st.precisaTroco = '';
       guardar(chave('carrinho'), []);
+      guardar(chave('envio-pendente'), null);
       acompanhar();
     } catch (err) {
       st.erro = err.message;

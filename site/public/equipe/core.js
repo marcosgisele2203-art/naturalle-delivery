@@ -12,12 +12,26 @@
 
   // ---------------- utilidades
   App.api = async function (url, corpo, metodo) {
+    let chaveEnvio = null;
+    if (url === '/api/equipe/pedido' && corpo && (!metodo || metodo === 'POST')) {
+      chaveEnvio = 'nm-equipe-envio-' + (App.usuario?.id || 'equipe');
+      const assinatura = JSON.stringify(corpo);
+      let anterior;
+      try { anterior = JSON.parse(localStorage.getItem(chaveEnvio)); } catch { /* armazenamento indisponível */ }
+      if (!anterior || anterior.assinatura !== assinatura) {
+        const bytes = crypto.getRandomValues(new Uint8Array(16));
+        anterior = { assinatura, id: Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('') };
+        try { localStorage.setItem(chaveEnvio, JSON.stringify(anterior)); } catch { /* mantém tentativa atual */ }
+      }
+      corpo = { ...corpo, idempotencia: anterior.id };
+    }
     const r = await fetch(url, corpo !== undefined
       ? { method: metodo || 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) }
       : {});
     const d = await r.json().catch(() => ({}));
     if (r.status === 401 && !url.includes('/entrar')) { App.usuario = null; telaLogin(painelDaTela(App.atual)); throw new Error(d.erro || 'Faça login'); }
     if (!r.ok) throw new Error(d.erro || 'Erro ' + r.status);
+    if (chaveEnvio) { try { localStorage.removeItem(chaveEnvio); } catch { /* armazenamento indisponível */ } }
     return d;
   };
 

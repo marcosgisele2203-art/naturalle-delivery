@@ -18,6 +18,8 @@ const Horario = require('./public/shared/horario.js');
 const MP = require('./lib/mercadopago');
 const { pool, migrar, lerConfig, salvarConfig } = require('./lib/db');
 const auth = require('./lib/auth');
+const { normalizarTelefone } = require('./lib/telefone');
+const { requisicaoPedido } = require('./lib/requisicao-pedido');
 const { slug } = require('./lib/cardapio-inicial');
 
 const PORT = Number(process.env.PORT) || 3000;
@@ -69,10 +71,9 @@ const soDigitos = (v) => String(v || '').replace(/\D/g, '');
 const codigoAleatorio = (n = 9) => crypto.randomBytes(n).toString('base64url');
 
 function telefoneBR(v) {
-  let t = soDigitos(v);
-  if (!t) return '';
-  if (t.length < 10 || t.length > 13) throw new Erro(400, 'WhatsApp inválido. Use DDD + número.');
-  if (!t.startsWith('55')) t = '55' + t;
+  if (!soDigitos(v)) return '';
+  const t = normalizarTelefone(v);
+  if (!t) throw new Erro(400, 'WhatsApp inválido. Use DDD + número.');
   return t;
 }
 
@@ -114,12 +115,35 @@ function notificar(caminho, pedido) {
 
 const CAMPOS_PEDIDO = `p.id, p.codigo, p.criado_em, p.confirmado_em, p.pronto_em, p.origem, p.tipo, p.status,
   p.cliente_nome, p.cliente_telefone, p.endereco, p.localizacao, p.observacoes, p.itens, p.subtotal, p.taxa_entrega, p.acrescimo_cartao, p.total,
-  p.pagamento, p.troco_para, p.pix_status, p.pix_conferencia, p.pix_copia_cola, p.pix_expira, p.mp_pagamento_id, p.mesa_id, p.conta_id, m.nome AS mesa_nome, u.nome AS criado_por_nome,
+  p.pagamento, p.troco_para, p.pix_status, p.pix_conferencia, p.pix_qr, p.pix_copia_cola, p.pix_expira, p.mp_pagamento_id, p.mesa_id, p.conta_id, m.nome AS mesa_nome, u.nome AS criado_por_nome,
   p.entregador_id, e.nome AS entregador_nome, p.saiu_em, p.pago_em,
   CASE WHEN length(p.cliente_telefone) >= 10 THEN (SELECT count(*)::int FROM pedidos q
-    WHERE right(q.cliente_telefone, 8) = right(p.cliente_telefone, 8) AND q.id <= p.id AND q.status <> 'cancelado') END AS n_pedido_cliente`;
+    WHERE nm_telefone(q.cliente_telefone) = nm_telefone(p.cliente_telefone) AND q.id <= p.id AND q.status <> 'cancelado') END AS n_pedido_cliente`;
 const FROM_PEDIDO = `FROM pedidos p LEFT JOIN mesas m ON m.id = p.mesa_id LEFT JOIN usuarios u ON u.id = p.criado_por
   LEFT JOIN usuarios e ON e.id = p.entregador_id`;
+
+function lerRequisicao(corpo, escopo) {
+  try { return requisicaoPedido(corpo, escopo); }
+  catch (e) { throw new Erro(400, e.message); }
+}
+
+async function recuperarEnvio(corpo, escopo) {
+  const requisicao = lerRequisicao(corpo, escopo);
+  if (!requisicao) return null;
+  const { rows } = await pool.query('SELECT conteudo_hash, pedido_id FROM pedido_requisicoes WHERE chave = $1', [requisicao.chave]);
+  if (!rows[0]) return null;
+  if (rows[0].conteudo_hash !== requisicao.hash) throw new Erro(409, 'Este envio já foi usado para outro pedido. Atualize a página.');
+  return rows[0].pedido_id ? { ...(await buscarPedido(rows[0].pedido_id)), repetido: true } : null;
+}
+
+async function respostaPedidoSite(pedido, loja) {
+  const mp = pedido.repetido ? (pedido.pix_copia_cola && pedido.pix_status === 'aguardando'
+    ? { copia_cola: pedido.pix_copia_cola, qr_base64: pedido.pix_qr, expira: pedido.pix_expira } : null) : await prepararPixMP(pedido, loja);
+  if (!pedido.repetido) notificar('/pedido', pedido);
+  return { ok: true, pedido_id: pedido.id, codigo: pedido.codigo, total: Number(pedido.total),
+    ...(mp ? { pix: { copia_cola: mp.copia_cola, qr: mp.qr_base64, expira: mp.expira, nome: loja.pix_nome || '' } }
+      : pedido.pagamento === 'pix' && pedido.pix_status === 'aguardando' && loja.pix_chave ? { pix: { chave: loja.pix_chave, nome: loja.pix_nome || '' } } : {}) };
+}
 
 async function calcularItens(escolhas) {
   if (!Array.isArray(escolhas) || !escolhas.length) throw new Erro(400, 'O pedido está vazio.');
@@ -137,6 +161,15 @@ async function gravarPedido(d) {
   const cli = await pool.connect();
   try {
     await cli.query('BEGIN');
+    if (d.requisicao) {
+      await cli.query('INSERT INTO pedido_requisicoes (chave, conteudo_hash) VALUES ($1, $2) ON CONFLICT DO NOTHING', [d.requisicao.chave, d.requisicao.hash]);
+      const { rows: tentativas } = await cli.query('SELECT conteudo_hash, pedido_id FROM pedido_requisicoes WHERE chave = $1 FOR UPDATE', [d.requisicao.chave]);
+      if (tentativas[0].conteudo_hash !== d.requisicao.hash) throw new Erro(409, 'Este envio já foi usado para outro pedido. Atualize a página.');
+      if (tentativas[0].pedido_id) {
+        await cli.query('COMMIT');
+        return buscarPedido(tentativas[0].pedido_id).then(pedido => ({ ...pedido, repetido: true }));
+      }
+    }
     let contaId = null;
     if (d.mesa_id) {
       await cli.query(
@@ -156,10 +189,11 @@ async function gravarPedido(d) {
         d.cliente_nome || '', d.cliente_telefone || '', d.endereco || '', d.observacoes || '', JSON.stringify(d.itens),
         subtotal, d.taxa_entrega || 0, total, d.pagamento || null, d.troco_para || null,
         d.pagamento === 'pix' ? 'aguardando' : null, acrescimo, d.localizacao ? JSON.stringify(d.localizacao) : null]);
+    if (d.requisicao) await cli.query('UPDATE pedido_requisicoes SET pedido_id = $2 WHERE chave = $1', [d.requisicao.chave, rows[0].id]);
     // cadastro automático do cliente pelo WhatsApp (nome e endereço mais recentes)
     if (String(d.cliente_telefone || '').length >= 10) {
       await cli.query(
-        `INSERT INTO clientes (chave, telefone, nome, endereco) VALUES (right($1, 8), $1, $2, $3)
+        `INSERT INTO clientes (chave, telefone, nome, endereco) VALUES (nm_telefone($1), nm_telefone($1), $2, $3)
          ON CONFLICT (chave) DO UPDATE SET telefone = EXCLUDED.telefone,
            nome = CASE WHEN EXCLUDED.nome <> '' THEN EXCLUDED.nome ELSE clientes.nome END,
            endereco = CASE WHEN EXCLUDED.endereco <> '' THEN EXCLUDED.endereco ELSE clientes.endereco END,
@@ -469,7 +503,7 @@ setInterval(() => {
 // mensagem que chegou no WhatsApp (o n8n repassa da Evolution e manda de volta o que vier em "mensagens")
 rota('POST', '/api/manu/whatsapp', null, async ({ req, b }) => {
   if (!N8N_TOKEN || b.token !== N8N_TOKEN) throw new Erro(401, 'Token inválido');
-  const telefone = soDigitos(b.telefone).slice(0, 15);
+  const telefone = telefoneBR(b.telefone);
   if (telefone.length < 10) throw new Erro(400, 'Telefone inválido');
   const robo = pareceRobo(telefone);
   if (robo) {
@@ -528,6 +562,8 @@ rota('GET', '/api/publico/mesa/:token', null, async ({ p }) => {
 rota('POST', '/api/publico/pedido', null, async ({ req, b }) => {
   limitar('pedido:' + ipDe(req), 8, 10 * 60_000);
   const loja = await lerConfig('loja');
+  const anterior = await recuperarEnvio(b, 'site');
+  if (anterior) return respostaPedidoSite(anterior, loja);
   const agora = estadoLoja(loja);
   if (!agora.aberta) throw new Erro(403, 'A loja está fechada para pedidos pelo site agora.' + (/^Abre/.test(agora.texto) ? ' ' + agora.texto + '.' : ''));
   const tipo = b.tipo === 'retirada' ? 'retirada' : 'entrega';
@@ -544,14 +580,10 @@ rota('POST', '/api/publico/pedido', null, async ({ req, b }) => {
   const itens = await calcularItens(b.itens);
   const taxa = tipo === 'entrega' ? Number(loja.taxa_entrega) || 0 : 0;
   const pag = lerPagamento(b, Calc.somar(itens) + taxa, true);
-  const pedido = await gravarPedido({ origem: 'site', tipo, status: 'novo', cliente_nome: nome, cliente_telefone: tel,
+  const pedido = await gravarPedido({ requisicao: lerRequisicao(b, 'site'), origem: 'site', tipo, status: 'novo', cliente_nome: nome, cliente_telefone: tel,
     endereco: tipo === 'entrega' ? endereco : '', localizacao: local,
     observacoes: texto(b.observacoes, 300), itens, taxa_entrega: taxa, taxa_cartao: loja.taxa_cartao, ...pag });
-  const mp = await prepararPixMP(pedido, loja);
-  notificar('/pedido', pedido);
-  return { ok: true, pedido_id: pedido.id, codigo: pedido.codigo, total: Number(pedido.total),
-    ...(mp ? { pix: { copia_cola: mp.copia_cola, qr: mp.qr_base64, expira: mp.expira, nome: loja.pix_nome || '' } }
-      : pedido.pagamento === 'pix' && loja.pix_chave ? { pix: { chave: loja.pix_chave, nome: loja.pix_nome || '' } } : {}) };
+  return respostaPedidoSite(pedido, loja);
 });
 
 rota('POST', '/api/publico/mesa/:token/pedido', null, async ({ req, p, b }) => {
@@ -559,8 +591,10 @@ rota('POST', '/api/publico/mesa/:token/pedido', null, async ({ req, p, b }) => {
   const { rows } = await pool.query('SELECT id, nome FROM mesas WHERE token = $1 AND ativa', [p.token]);
   if (!rows[0]) throw new Erro(404, 'Mesa não encontrada. Peça ajuda ao garçom.');
   const loja = await lerConfig('loja');
+  const anterior = await recuperarEnvio(b, 'mesa-' + p.token);
+  if (anterior) return { ok: true, pedido_id: anterior.id, codigo: anterior.codigo, status: anterior.status };
   const itens = await calcularItens(b.itens);
-  const pedido = await gravarPedido({ origem: 'mesa', tipo: 'mesa', mesa_id: rows[0].id,
+  const pedido = await gravarPedido({ requisicao: lerRequisicao(b, 'mesa-' + p.token), origem: 'mesa', tipo: 'mesa', mesa_id: rows[0].id,
     status: loja.mesa_auto_confirmar ? 'preparo' : 'novo', cliente_nome: texto(b.nome, 60),
     observacoes: texto(b.observacoes, 300), itens });
   return { ok: true, pedido_id: pedido.id, codigo: pedido.codigo, status: pedido.status };
@@ -652,7 +686,7 @@ async function enviarWhatsApp(numero, textoMsg) {
 async function usuarioPorLoginOuFone(v) {
   const s = texto(v, 40).toLowerCase(), dig = soDigitos(s);
   const { rows } = await pool.query(
-    `SELECT id, nome, telefone FROM usuarios WHERE ativo AND (login = $1 OR ($2 <> '' AND length($2) >= 8 AND right(telefone, 8) = right($2, 8)))
+    `SELECT id, nome, telefone FROM usuarios WHERE ativo AND (login = $1 OR ($2 <> '' AND nm_telefone(telefone) = nm_telefone($2)))
      ORDER BY id LIMIT 1`, [s, dig]);
   return rows[0] || null;
 }
@@ -731,6 +765,8 @@ rota('POST', '/api/equipe/pedido', ['garcom', 'caixa', 'pedidos'], async ({ u, b
   const tipo = ['entrega', 'retirada', 'mesa'].includes(b.tipo) ? b.tipo : null;
   if (!tipo) throw new Erro(400, 'Escolha mesa, retirada ou entrega.');
   if (tipo !== 'mesa' && !auth.pode(u, 'caixa', 'pedidos')) throw new Erro(403, 'Seu usuário só lança pedidos de mesa.');
+  const anterior = await recuperarEnvio(b, 'equipe-' + u.id);
+  if (anterior) return { ok: true, pedido: anterior };
   let mesaId = null;
   if (tipo === 'mesa') {
     const { rows } = await pool.query('SELECT id FROM mesas WHERE id = $1 AND ativa', [Number(b.mesa_id)]);
@@ -745,10 +781,10 @@ rota('POST', '/api/equipe/pedido', ['garcom', 'caixa', 'pedidos'], async ({ u, b
   const loja = await lerConfig('loja');
   const taxa = tipo === 'entrega' ? Number(b.taxa_entrega ?? loja.taxa_entrega) || 0 : 0;
   const pag = tipo === 'mesa' ? {} : lerPagamento(b, Calc.somar(itens) + taxa, tipo === 'entrega');
-  const pedido = await gravarPedido({ origem: tipo === 'mesa' ? 'garcom' : 'balcao', tipo, status: 'preparo', mesa_id: mesaId,
+  const pedido = await gravarPedido({ requisicao: lerRequisicao(b, 'equipe-' + u.id), origem: tipo === 'mesa' ? 'garcom' : 'balcao', tipo, status: 'preparo', mesa_id: mesaId,
     criado_por: u.id, cliente_nome: nome, cliente_telefone: telefoneBR(b.cliente_telefone), endereco: tipo === 'entrega' ? endereco : '',
     observacoes: texto(b.observacoes, 300), itens, taxa_entrega: taxa, taxa_cartao: loja.taxa_cartao, ...pag });
-  notificar('/pedido', pedido);
+  if (!pedido.repetido) notificar('/pedido', pedido);
   return { ok: true, pedido };
 });
 
@@ -960,9 +996,9 @@ const SQL_CLIENTES = `
          COALESCE(sum(p.total) FILTER (WHERE p.status <> 'cancelado'), 0) AS gasto,
          max(p.criado_em) AS ultimo_pedido,
          (SELECT i->>'nome' FROM pedidos q, jsonb_array_elements(q.itens) i
-           WHERE right(q.cliente_telefone, 8) = c.chave AND q.status <> 'cancelado'
+           WHERE nm_telefone(q.cliente_telefone) = c.chave AND q.status <> 'cancelado'
            GROUP BY 1 ORDER BY sum((i->>'qtd')::int) DESC LIMIT 1) AS preferido
-    FROM clientes c LEFT JOIN pedidos p ON right(p.cliente_telefone, 8) = c.chave`;
+    FROM clientes c LEFT JOIN pedidos p ON nm_telefone(p.cliente_telefone) = c.chave`;
 
 rota('GET', '/api/admin/clientes', ['admin'], async ({ q }) => {
   const busca = texto(q.get('busca'), 60);
@@ -975,19 +1011,20 @@ rota('GET', '/api/admin/clientes', ['admin'], async ({ q }) => {
 
 // LGPD: apaga o cadastro, tira os dados pessoais dos pedidos e a conversa com a Manu
 rota('POST', '/api/admin/clientes/:chave/apagar', ['admin'], async ({ p }) => {
-  const chave = soDigitos(p.chave).slice(-8);
-  if (chave.length !== 8) throw new Erro(400, 'Cliente inválido');
+  const chave = normalizarTelefone(p.chave);
+  if (!chave) throw new Erro(400, 'Cliente inválido');
   await pool.query(`UPDATE pedidos SET cliente_nome = 'Cliente apagado', cliente_telefone = '', endereco = ''
-                     WHERE right(cliente_telefone, 8) = $1`, [chave]);
-  await pool.query(`DELETE FROM manu_conversas WHERE canal = 'whatsapp' AND right(chave, 8) = $1`, [chave]);
+                     WHERE nm_telefone(cliente_telefone) = $1`, [chave]);
+  await pool.query(`DELETE FROM manu_conversas WHERE canal = 'whatsapp' AND nm_telefone(chave) = $1`, [chave]);
+  await pool.query('DELETE FROM clientes_antes_telefone_completo WHERE nm_telefone(telefone) = $1', [chave]);
   const { rowCount } = await pool.query('DELETE FROM clientes WHERE chave = $1', [chave]);
   if (!rowCount) throw new Erro(404, 'Cliente não encontrado');
   return { ok: true };
 });
 
 async function clienteDoTelefone(telefone) {
-  const chave = soDigitos(telefone).slice(-8);
-  if (chave.length !== 8) return null;
+  const chave = normalizarTelefone(telefone);
+  if (!chave) return null;
   const { rows } = await pool.query(`${SQL_CLIENTES} WHERE c.chave = $1 GROUP BY c.chave`, [chave]);
   return rows[0] || null;
 }

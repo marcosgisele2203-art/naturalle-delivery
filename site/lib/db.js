@@ -164,16 +164,7 @@ async function migrar() {
     [JSON.stringify(cardapioInicial), JSON.stringify(LOJA_PADRAO)]);
   // avisos iniciais do quadro da Manu (só se o quadro nunca foi salvo)
   await pool.query(`INSERT INTO config (chave, valor) VALUES ('quadro', $1) ON CONFLICT (chave) DO NOTHING`, [JSON.stringify(QUADRO_INICIAL)]);
-  // pedidos antigos viram clientes (só os que ainda não estão cadastrados)
-  await pool.query(`
-    INSERT INTO clientes (chave, telefone, nome, endereco, criado_em, atualizado_em)
-    SELECT DISTINCT ON (right(cliente_telefone, 8)) right(cliente_telefone, 8), cliente_telefone, cliente_nome,
-           COALESCE((SELECT q.endereco FROM pedidos q WHERE right(q.cliente_telefone, 8) = right(p.cliente_telefone, 8) AND q.endereco <> ''
-                     ORDER BY q.criado_em DESC LIMIT 1), ''),
-           (SELECT min(q.criado_em) FROM pedidos q WHERE right(q.cliente_telefone, 8) = right(p.cliente_telefone, 8)), criado_em
-      FROM pedidos p WHERE length(cliente_telefone) >= 10
-     ORDER BY right(cliente_telefone, 8), criado_em DESC
-    ON CONFLICT (chave) DO NOTHING`);
+  await prepararIdentidadeClientes();
   await ajustesDoCardapio();
   await combosNoAcai();
   await trocarCartazMac();
@@ -181,6 +172,54 @@ async function migrar() {
   await cozinhaSoLanches();
   await incluirMarmitexPanquecas();
   await incluirNovosLanches();
+}
+
+// Reconstrói as identidades usando os telefones completos. Conserva uma cópia do cadastro antigo.
+async function prepararIdentidadeClientes() {
+  await pool.query(`CREATE OR REPLACE FUNCTION nm_telefone(valor text) RETURNS text
+LANGUAGE sql IMMUTABLE AS $$
+  WITH dig AS (SELECT regexp_replace(COALESCE(valor, ''), '[^0-9]', '', 'g') AS t),
+  nacional AS (SELECT CASE WHEN length(t) IN (12,13) AND left(t,2) = '55' THEN substr(t,3) ELSE t END AS t FROM dig)
+  SELECT CASE WHEN length(t) NOT IN (10,11) THEN NULL
+    WHEN length(t) = 10 AND substr(t,3,1) IN ('6','7','8','9') THEN '55' || left(t,2) || '9' || substr(t,3)
+    ELSE '55' || t END FROM nacional
+$$;
+CREATE INDEX IF NOT EXISTS pedidos_telefone_completo_idx ON pedidos (nm_telefone(cliente_telefone));
+CREATE TABLE IF NOT EXISTS pedido_requisicoes (
+  chave text PRIMARY KEY,
+  conteudo_hash text NOT NULL,
+  pedido_id integer REFERENCES pedidos(id),
+  criado_em timestamptz NOT NULL DEFAULT now()
+);
+`);
+  const cli = await pool.connect();
+  try {
+    await cli.query('BEGIN');
+    await cli.query("SELECT pg_advisory_xact_lock(68271341)");
+    const { rows } = await cli.query("SELECT valor FROM config WHERE chave = 'ajuste_clientes_telefone_completo_v1'");
+    if (!rows[0]?.valor) {
+      await cli.query('CREATE TABLE IF NOT EXISTS clientes_antes_telefone_completo (LIKE clientes INCLUDING ALL)');
+      await cli.query('INSERT INTO clientes_antes_telefone_completo SELECT * FROM clientes ON CONFLICT DO NOTHING');
+      await cli.query('DELETE FROM clientes');
+      await cli.query(`
+        INSERT INTO clientes (chave, telefone, nome, endereco, criado_em, atualizado_em)
+        SELECT DISTINCT ON (nm_telefone(p.cliente_telefone))
+          nm_telefone(p.cliente_telefone), nm_telefone(p.cliente_telefone), p.cliente_nome,
+          COALESCE((SELECT q.endereco FROM pedidos q WHERE nm_telefone(q.cliente_telefone) = nm_telefone(p.cliente_telefone)
+                    AND q.endereco <> '' ORDER BY q.criado_em DESC, q.id DESC LIMIT 1), ''),
+          min(p.criado_em) OVER (PARTITION BY nm_telefone(p.cliente_telefone)), p.criado_em
+        FROM pedidos p WHERE nm_telefone(p.cliente_telefone) IS NOT NULL
+        ORDER BY nm_telefone(p.cliente_telefone), p.criado_em DESC, p.id DESC`);
+      await cli.query(`
+        INSERT INTO clientes (chave, telefone, nome, endereco, criado_em, atualizado_em)
+        SELECT DISTINCT ON (nm_telefone(telefone)) nm_telefone(telefone), nm_telefone(telefone), nome, endereco, criado_em, atualizado_em
+        FROM clientes_antes_telefone_completo WHERE nm_telefone(telefone) IS NOT NULL
+        ORDER BY nm_telefone(telefone), atualizado_em DESC ON CONFLICT DO NOTHING`);
+      await cli.query("INSERT INTO config (chave, valor) VALUES ('ajuste_clientes_telefone_completo_v1', 'true'::jsonb) ON CONFLICT DO NOTHING");
+    }
+    await cli.query('COMMIT');
+  } catch (e) { await cli.query('ROLLBACK'); throw e; }
+  finally { cli.release(); }
 }
 
 // Migração única e transacional: preserva preços, produtos e alterações futuras do admin.

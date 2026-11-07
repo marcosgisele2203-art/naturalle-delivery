@@ -184,3 +184,22 @@ cd site
 npm install
 DATABASE_URL=postgres://... npm start
 ```
+
+## Atualização: cadastro por telefone e proteção contra reenvio
+
+Após implantar, a migração separa clientes por telefone completo (país, DDD e número),
+recuperando os cadastros a partir dos pedidos. A tabela `clientes_antes_telefone_completo`
+conserva uma cópia do cadastro anterior. Pedidos e itens do cardápio são preservados.
+Celulares antigos do WhatsApp sem o nono dígito são normalizados dentro do mesmo DDD.
+
+O site, o pedido por QR de mesa e o painel da equipe passam um identificador de envio.
+Tentativas simultâneas ou repetidas com esse identificador retornam o pedido já criado.
+No site, a tentativa pendente é conservada no navegador para suportar falhas de rede e
+recarregamento. Clientes com código antigo ainda funcionam, mas devem atualizar a página
+para obter essa proteção. Pedidos feitos pela conversa da Manu não usam esse mecanismo de envio.
+
+Se estiver usando o fluxo separado **03-comprovante-pix.json** no n8n, reimporte a versão
+atualizada depois de implantar o app: ela compara telefones completos em vez dos últimos
+8 dígitos. Alterar o arquivo no GitHub não atualiza um fluxo já instalado no n8n.
+
+Verificação das regras sem banco: `cd site && node --test test/reliability.test.js`.
