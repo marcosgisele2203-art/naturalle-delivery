@@ -5,7 +5,8 @@
   "description": "App de pedidos e painel da Naturalle Mania",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node --test test/*.test.js"
   },
   "engines": {
     "node": ">=20"
