@@ -35,4 +35,10 @@ function mensagemEntregador(p, loja = {}) {
 
 const mensagemLocalizacao = (p) => `📍 O cliente do pedido *#${p.id}* (${p.cliente_nome || 'cliente'}) mandou a localização:\n${linkMapa(p)}`;
 
-module.exports = { linkMapa, mensagemEntregador, mensagemLocalizacao, cobrar, fone };
+// textos colocados no lugar do endereço quando o pedido veio só com o ponto do mapa:
+// não são endereço de verdade, então não vão para o cadastro do cliente nem valem num pedido sem as coordenadas
+const ENDERECO_WHATSAPP = 'Localização enviada pelo WhatsApp (ver mapa)';
+const ENDERECO_SITE = 'Local marcado no mapa (ver localização)';
+const ehSoMapa = (t) => { const e = String(t || '').trim(); return e.startsWith(ENDERECO_WHATSAPP) || e.startsWith(ENDERECO_SITE); };
+
+module.exports = { linkMapa, mensagemEntregador, mensagemLocalizacao, cobrar, fone, ENDERECO_WHATSAPP, ENDERECO_SITE, ehSoMapa };

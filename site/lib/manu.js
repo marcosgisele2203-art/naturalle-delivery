@@ -16,6 +16,7 @@ const ESQUECE_MS = 6 * 3600_000;   // conversa parada há 6 h recomeça do zero
 const MAX_VOLTAS = 6;              // chamadas de ferramenta por mensagem do cliente
 
 const Bairros = require('../public/shared/bairros.js');
+const { ENDERECO_WHATSAPP, ehSoMapa } = require('./entrega-whatsapp');
 const brl = (v) => 'R$ ' + Number(v).toFixed(2).replace('.', ',');
 const DIAS = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
 
@@ -193,7 +194,9 @@ function criar(s) {
     // primeiro o endereço (rua e número); só depois junta o bairro
     // localização mandada pelo WhatsApp nas últimas 6 horas: vai junto no pedido e vale como endereço
     const lw = ctx.dados && ctx.dados.localizacao, local = lw && Date.now() - lw.em < 6 * 3600_000 ? { lat: lw.lat, lng: lw.lng, precisao: lw.precisao || 0 } : null;
-    const enderecoDigitado = s.texto(a.endereco, 300) || (local && tipo === 'entrega' ? 'Localização enviada pelo WhatsApp (ver mapa)' : '');
+    // "Localização enviada pelo WhatsApp" sem as coordenadas não é endereço: pede o endereço ou uma localização nova
+    const escrito = s.texto(a.endereco, 300);
+    const enderecoDigitado = (ehSoMapa(escrito) && !local ? '' : escrito) || (local && tipo === 'entrega' ? ENDERECO_WHATSAPP : '');
     if (tipo === 'entrega' && !enderecoDigitado) throw new s.Erro(400, 'Falta o endereço de entrega (rua e número) ou a localização pelo WhatsApp.');
     const endereco = Bairros.noEndereco(loja, enderecoDigitado, s.texto(a.bairro, 60));
     const itens = await s.calcularItens(paraEscolhas(a.itens));
@@ -349,7 +352,7 @@ function criar(s) {
     if (!conv.mensagens.length && entrada.telefone && s.clienteDoTelefone) {
       const c = await s.clienteDoTelefone(entrada.telefone).catch(() => null);
       if (c && c.pedidos > 0) {
-        partes.push({ text: `(cliente cadastrado: nome ${c.nome || '?'}; ${c.pedidos} pedido(s) antes${c.endereco ? '; último endereço: ' + c.endereco : ''}${c.preferido ? '; costuma pedir: ' + c.preferido : ''}. Cumprimente pelo nome; na hora da entrega pergunte se é no mesmo endereço em vez de pedir de novo; não precisa perguntar o nome.)` });
+        partes.push({ text: `(cliente cadastrado: nome ${c.nome || '?'}; ${c.pedidos} pedido(s) antes${c.endereco && !ehSoMapa(c.endereco) ? '; último endereço: ' + c.endereco : ''}${c.preferido ? '; costuma pedir: ' + c.preferido : ''}. Cumprimente pelo nome; na hora da entrega pergunte se é no mesmo endereço em vez de pedir de novo; não precisa perguntar o nome.)` });
         if (!ctx.nome) ctx.nome = c.nome;
       }
     }

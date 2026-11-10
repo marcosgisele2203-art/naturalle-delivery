@@ -102,6 +102,15 @@ test('localização pelo WhatsApp vai para o pedido e o entregador recebe tudo n
   for (let i = 0; i < 40 && !nova; i++) { nova = enviadas.find((e) => e.number === '5567988887777' && /mandou a localização/.test(e.text)); if (!nova) await new Promise((ok) => setTimeout(ok, 50)); }
   assert(nova && /query=-20\.25,-56\.38/.test(nova.text), 'entregador recebeu a localização nova');
 
+  // pedido do site só com o ponto do mapa: o texto "Local marcado no mapa" não vira endereço do cliente
+  const fone2 = '6798' + String(Date.now()).slice(-7);
+  r = await fetch(U + '/api/publico/pedido', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': '10.1.3.' + Math.floor(Math.random() * 250) },
+    body: JSON.stringify({ tipo: 'entrega', cliente: { nome: 'Bia', telefone: fone2 }, endereco: '', localizacao: { lat: -20.3, lng: -56.4 }, pagamento: 'cartao', itens: [{ produto: prod.id, qtd: 1 }] }) });
+  assert.equal(r.status, 200);
+  const cli = (await api('GET', '/api/admin/clientes?busca=' + fone2)).d.clientes[0];
+  assert.equal(cli.nome, 'Bia');
+  assert.equal(cli.endereco, '', 'cadastro do cliente sem o texto do mapa');
+
   // localização sem pedido em andamento e sem a Manu IA: manda o link do cardápio
   resp = await zap({ telefone: '5567977776666', localizacao: { lat: -20.2, lng: -56.3 } });
   assert.match(resp.mensagens[0].texto, /Recebi sua localização! Para pedir, use o nosso cardápio/);

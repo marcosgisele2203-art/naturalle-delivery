@@ -227,7 +227,7 @@ async function gravarPedido(d) {
          ON CONFLICT (chave) DO UPDATE SET telefone = EXCLUDED.telefone,
            nome = CASE WHEN EXCLUDED.nome <> '' THEN EXCLUDED.nome ELSE clientes.nome END,
            endereco = CASE WHEN EXCLUDED.endereco <> '' THEN EXCLUDED.endereco ELSE clientes.endereco END,
-           atualizado_em = now()`, [d.cliente_telefone, d.cliente_nome || '', d.endereco || '']);
+           atualizado_em = now()`, [d.cliente_telefone, d.cliente_nome || '', Entrega.ehSoMapa(d.endereco) ? '' : d.endereco || '']);
     }
     await cli.query('COMMIT');
     return buscarPedido(rows[0].id);
@@ -624,7 +624,7 @@ rota('POST', '/api/publico/pedido', null, async ({ req, b }) => {
   if (!tel) throw new Erro(400, 'Informe seu WhatsApp com DDD.');
   // com o local marcado no mapa, o endereço escrito pode ficar em branco
   const local = tipo === 'entrega' ? lerLocalizacao(b.localizacao) : null;
-  const enderecoDigitado = texto(b.endereco, 300) || (local ? 'Local marcado no mapa (ver localização)' : '');
+  const enderecoDigitado = texto(b.endereco, 300) || (local ? Entrega.ENDERECO_SITE : '');
   if (tipo === 'entrega' && !enderecoDigitado) throw new Erro(400, 'Informe o endereço de entrega ou marque sua casa no mapa.');
   const bairro = texto(b.bairro, 60);
   if (tipo === 'entrega' && Bairros.lista(loja).length && !bairro) throw new Erro(400, 'Escolha o seu bairro.');

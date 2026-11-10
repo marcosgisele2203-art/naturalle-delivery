@@ -34,6 +34,7 @@ test('Manu não lança entrega só com o bairro, sem rua e número', async (t) =
     calcularItens: async () => [{ produto: 'acai', nome: 'Açaí', qtd: 1, preco: 10, preco_unit: 10 }],
     gravarPedido: async (d) => { gravados.push(d); return { id: 1, codigo: 'x', total: 15, pagamento: d.pagamento }; },
     lerPagamento: (b) => ({ pagamento: b.pagamento, troco_para: null }),
+    clienteDoTelefone: async (t) => (t === '5567911112222' ? { nome: 'Rita', pedidos: 3, endereco: 'Localização enviada pelo WhatsApp (ver mapa) — Centro' } : null),
     telefoneBR: (v) => String(v || '').replace(/\D/g, ''), notificar: () => {}, Erro, texto: (v, n) => String(v ?? '').trim().slice(0, n),
   });
   const conversa = (n) => manu.responder({ canal: 'whatsapp', chave: '5567999990000-' + n, telefone: '5567999990000', texto: 'manda' });
@@ -68,4 +69,15 @@ test('Manu não lança entrega só com o bairro, sem rua e número', async (t) =
   args = { ...args, endereco: '' };
   await manu.responder({ canal: 'whatsapp', chave: '5567999990000-3', telefone: '5567999990000', texto: 'mais um' });
   assert.equal(gravados.length, 3);
+
+  // o texto "Localização enviada pelo WhatsApp" sem as coordenadas não vale como endereço
+  args = { ...args, endereco: 'Localização enviada pelo WhatsApp (ver mapa)' };
+  await manu.responder({ canal: 'whatsapp', chave: '5567999990000-4', telefone: '5567999990000', texto: 'no mesmo lugar de antes' });
+  assert.equal(gravados.length, 3, 'não lança pedido sem destino');
+  assert.match(recebidas.at(-1).contents.at(-1).parts[0].functionResponse.response.erro, /Falta o endereço/);
+  // e a Manu não oferece esse texto como "último endereço" do cliente
+  await manu.responder({ canal: 'whatsapp', chave: '5567911112222', telefone: '5567911112222', texto: 'oi' });
+  const apresentacao = recebidas.filter((r) => r.contents.length === 1).at(-1).contents[0].parts.map((p) => p.text || '').join(' ');
+  assert.match(apresentacao, /cliente cadastrado: nome Rita/);
+  assert.doesNotMatch(apresentacao, /último endereço/);
 });
