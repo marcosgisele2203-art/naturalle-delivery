@@ -41,9 +41,14 @@ test('Manu: no começo da conversa do WhatsApp, boas-vindas e a escolha entre ca
   await manu.responder({ canal: 'whatsapp', chave: '5567999990000', telefone: '5567999990000', texto: 'quero pedir com você', urlSite: URL });
   assert.doesNotMatch(ultimaPergunta(), /boas-vindas/);
 
+  // no meio da conversa, se o cliente pedir o cardápio, a Manu tem o link para mandar
+  await manu.responder({ canal: 'whatsapp', chave: '5567999990000', telefone: '5567999990000', texto: 'quero ver o cardápio', urlSite: URL });
+  assert.match(ultimaPergunta(), /Se o cliente pedir para ver o cardápio, mande este link/);
+  assert.ok(ultimaPergunta().includes(URL));
+
   // chat dentro do cardápio do site: o cliente já está no cardápio, então não pergunta
   await manu.responder({ canal: 'site', chave: 'sessao-de-teste-123456', texto: 'oi' });
-  assert.doesNotMatch(ultimaPergunta(), /boas-vindas/);
+  assert.doesNotMatch(ultimaPergunta(), /boas-vindas|Link do cardápio/);
 
   // a regra de emojis libera a mensagem de boas-vindas
   assert.match(JSON.stringify(recebidas[0]), /só a mensagem de boas-vindas pode ter até três/);

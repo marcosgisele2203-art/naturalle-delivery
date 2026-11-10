@@ -341,6 +341,9 @@ function criar(s) {
     + `ou fazer o pedido aqui mesmo com você${url ? `, e mande o link do cardápio nessa mesma mensagem: ${url}` : ''}. `
     + 'Se o cliente já disse o que quer pedir, cumprimente do mesmo jeito e já comece a atender o pedido, sem fazer essa pergunta.)';
 
+  const linkCardapio = (url) => `(Link do cardápio com fotos e preços: ${url}. Se o cliente pedir para ver o cardápio, mande este link; `
+    + 'pode mandar junto um resumo curto do que tem e dizer que, se preferir, é só pedir por aqui com você.)';
+
   // entrada = { canal: 'whatsapp'|'site', chave, telefone?, nome?, texto?, midia?: { tipo: 'imagem'|'audio', mime, base64 }, urlSite? }
   async function responder(entrada) {
     const ctx = { canal: entrada.canal, telefone: entrada.telefone || null, nome: entrada.nome || '', avisos: [], pedido: null };
@@ -355,6 +358,8 @@ function criar(s) {
     if (entrada.nome && !conv.mensagens.length) partes.push({ text: `(nome no WhatsApp: ${entrada.nome})` });
     // começo da conversa no WhatsApp: boas-vindas alegres e a escolha entre o cardápio e pedir com a Manu
     if (entrada.canal === 'whatsapp' && !conv.mensagens.length) partes.push({ text: boasVindas(entrada.urlSite) });
+    // no resto da conversa: se o cliente quiser ver o cardápio, a Manu manda o link (e não só uma lista)
+    else if (entrada.canal === 'whatsapp' && entrada.urlSite) partes.push({ text: linkCardapio(entrada.urlSite) });
     // cliente que já pediu antes: a Manu já sabe o nome e o último endereço
     if (!conv.mensagens.length && entrada.telefone && s.clienteDoTelefone) {
       const c = await s.clienteDoTelefone(entrada.telefone).catch(() => null);
