@@ -57,7 +57,18 @@ function json(res, status, body, headers = {}) {
 //  - nas rotas que as telas consultam toda hora, leva um "carimbo" (ETag). Se nada mudou desde a última
 //    consulta, responde 304 sem corpo e o navegador reaproveita o que já tem.
 const COM_CARIMBO = new Set(['/api/equipe/pedidos', '/api/equipe/cardapio', '/api/publico/cardapio']);
-const aceitaGzip = (req) => /\bgzip\b/.test(String(req.headers['accept-encoding'] || ''));
+// gzip só se o navegador aceitar de verdade: "gzip;q=0" é recusa; "*" vale quando gzip não aparece sozinho
+function aceitaGzip(req) {
+  const qualidade = {};
+  for (const parte of String(req.headers['accept-encoding'] || '').toLowerCase().split(',')) {
+    const [nome, ...params] = parte.trim().split(';');
+    if (!nome) continue;
+    const q = params.map((x) => /^\s*q\s*=\s*([\d.]+)\s*$/.exec(x)).find(Boolean);
+    qualidade[nome.trim()] = q ? Number(q[1]) : 1;
+  }
+  const q = 'gzip' in qualidade ? qualidade.gzip : qualidade['*'];
+  return Number.isFinite(q) && q > 0;
+}
 function enviarJSON(req, res, pathname, body) {
   const texto = JSON.stringify(body);
   const headers = { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', Vary: 'Accept-Encoding' };

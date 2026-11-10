@@ -51,4 +51,16 @@ test('app leve: respostas comprimidas e "nada mudou" (304) no painel e nos arqui
   assert.equal(js.status, 200);
   assert.equal(js.headers['content-encoding'], 'gzip');
   assert.equal((await cru(U + '/app.js', { 'If-None-Match': js.headers.etag })).status, 304);
+  // quem recusa gzip (q=0) recebe sem compressão; "*" e q>0 aceitam
+  const enc = async (ae) => (await cru(U + '/app.js', { 'Accept-Encoding': ae })).headers['content-encoding'] || 'nenhuma';
+  assert.equal(await enc('identity, gzip;q=0'), 'nenhuma');
+  assert.equal(await enc('gzip; q=0.0'), 'nenhuma');
+  assert.equal(await enc('*;q=0'), 'nenhuma');
+  assert.equal(await enc('identity'), 'nenhuma');
+  assert.equal(await enc('gzip;q=0.5'), 'gzip');
+  assert.equal(await enc('*'), 'gzip');
+  assert.equal(await enc('br, gzip, deflate'), 'gzip');
+  const recusa = await cru(U + '/api/equipe/pedidos', { Cookie: H.Cookie, 'Accept-Encoding': 'identity, gzip;q=0' });
+  assert.equal(recusa.headers['content-encoding'], undefined, 'a API também respeita a recusa');
+  assert(JSON.parse(recusa.corpo).pedidos.length > 0);
 });
