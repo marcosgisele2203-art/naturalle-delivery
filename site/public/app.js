@@ -93,7 +93,7 @@
     $('#frase').textContent = l.frase || '';
     document.title = l.nome + (tokenMesa ? ' · ' + st.mesa.nome : ' · Peça online');
     const selos = [];
-    if (tokenMesa) selos.push(`<span class="selo amarelo">${esc(st.mesa.nome)}</span>`, '<span class="selo">Peça daqui mesmo, sem esperar</span>');
+    if (tokenMesa) selos.push(`<span class="selo amarelo">${esc(st.mesa.nome)}</span>`, ...(l.aberta ? ['<span class="selo">Peça daqui mesmo, sem esperar</span>'] : []));
     else {
       if (l.horario) selos.push(`<span class="selo amarelo">${esc(l.horario)}</span>`);
       selos.push('<span class="selo">Pix · Cartão · Dinheiro</span>');
@@ -101,7 +101,7 @@
     }
     $('#selos').innerHTML = selos.join('');
     const aviso = $('#aviso-topo');
-    if (!tokenMesa && !l.aberta) { aviso.hidden = false; aviso.textContent = 'Estamos fechados para pedidos pelo site agora' + (l.horario && l.horario !== 'Fechado agora' ? ' (' + l.horario.toLowerCase() + ')' : '') + '. Você pode olhar o cardápio à vontade.'; }
+    if (!l.aberta) { aviso.hidden = false; aviso.textContent = (tokenMesa ? 'Estamos fechados agora' : 'Estamos fechados para pedidos pelo site agora') + (l.horario && l.horario !== 'Fechado agora' ? ' (' + l.horario.toLowerCase() + ')' : '') + '. Você pode olhar o cardápio à vontade.' + (tokenMesa ? ' Se precisar, chame o garçom.' : ''); }
     $('#rodape').innerHTML = (l.endereco_completo ? `<p>📍 ${esc(l.endereco_completo)}${l.referencia ? ' (' + esc(l.referencia) + ')' : ''}</p>` : '')
       + (l.instagram ? `<p>Instagram <a href="https://instagram.com/${esc(l.instagram)}" target="_blank" rel="noopener">@${esc(l.instagram)}</a></p>` : '')
       + (l.whatsapp ? `<p>${esc(l.nome)} · Fale com a gente no WhatsApp <a href="https://wa.me/${esc(l.whatsapp)}">${formatarFone(l.whatsapp)}</a></p>` : '')
@@ -149,7 +149,7 @@
         aria-label="${esc(titulo)}${pede ? ': toque para pedir' : ': ver a foto'}"><img src="${esc(src)}" alt="">${pede ? '<span>Toque para pedir</span>' : ''}</button>`;
     };
     const slides = [];
-    if (!tokenMesa && !st.loja.aberta) {
+    if (!st.loja.aberta) {
       slides.push(`<span class="giz-titulo">Fechados agora</span><span class="giz-texto">${esc(st.loja.horario || 'Volte mais tarde!')}</span>`);
     } else {
       // só o que a loja cadastrou na aba "Quadro da Manu" (promoções e novidades)
@@ -248,7 +248,7 @@
         ${taxa() ? `<div class="linha-total"><span>Taxa de entrega</span><span>${brl(taxa())}</span></div>` : ''}
         ${acrescimoCartao() ? `<div class="linha-total"><span>Acréscimo da maquininha</span><span>${brl(acrescimoCartao())}</span></div>` : ''}`;
     }
-    const fechado = !tokenMesa && !l.aberta;
+    const fechado = !l.aberta;
     $('#carrinho-corpo').innerHTML = `${st.carrinho.length ? `<div class="manu-card"><img src="${MANU('celular')}" alt="" width="84" height="105">
         <div><h2>Quase lá!</h2><p>Confira os itens e envie seu pedido.</p></div></div>` : ''}
       <div>${itens}</div>
