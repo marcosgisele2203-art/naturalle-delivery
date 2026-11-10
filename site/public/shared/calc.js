@@ -84,7 +84,14 @@
   function revalidar(menu, itens, weekday) {
     const ok = [], fora = [];
     for (const i of Array.isArray(itens) ? itens : []) {
-      try { ok.push({ escolha: i.escolha, ...calcular(menu, i.escolha, weekday) }); } catch { fora.push(String((i && i.nome) || 'item')); }
+      try {
+        // escolha num grupo de opções que a loja apagou: o item mudou, então não volta sozinho
+        const p = (menu.produtos || []).find((x) => x.id === (i.escolha && i.escolha.produto));
+        const grupos = new Set(((p && p.grupos) || []).map((g) => g.id));
+        const sel = (i.escolha && i.escolha.opcoes) || {};
+        if (Object.keys(sel).some((g) => Array.isArray(sel[g]) && sel[g].length && !grupos.has(g))) throw new Error('opção removida');
+        ok.push({ escolha: i.escolha, ...calcular(menu, i.escolha, weekday) });
+      } catch { fora.push(String((i && i.nome) || 'item')); }
     }
     return { ok, fora };
   }

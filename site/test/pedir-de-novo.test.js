@@ -30,4 +30,11 @@ test('pedir de novo: itens do último pedido voltam com o preço de hoje; o que 
   // preço mudou depois do pedido: vale o de hoje
   const caro = { ...menu, produtos: menu.produtos.map((p) => (p.id === 'mac-1' ? { ...p, preco: 12 } : p)) };
   assert.equal(Calc.revalidar(caro, guardados, 1).ok[1].preco, 12);
+  // a loja apagou o grupo "Frutas" do açaí: o açaí com morango não volta como açaí puro
+  const semFrutas = { ...menu, produtos: menu.produtos.map((p) => (p.id === 'acai-500' ? { ...p, grupos: [] } : p)) };
+  const r2 = Calc.revalidar(semFrutas, guardados.slice(0, 2), 1);
+  assert.deepEqual(r2.ok.map((i) => i.produto), ['mac-1']);
+  assert.deepEqual(r2.fora, ['Açaí 500 ml'], 'item com escolha num grupo que não existe mais fica de fora');
+  // escolha vazia num grupo que sumiu não atrapalha
+  assert.equal(Calc.revalidar(semFrutas, [{ nome: 'Açaí', escolha: { produto: 'acai-500', qtd: 1, opcoes: { frutas: [] } } }], 1).ok.length, 1);
 });

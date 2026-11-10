@@ -645,7 +645,7 @@
       return;
     }
     // itens guardados de outro dia podem ter mudado de preço ou acabado
-    st.carrinho = st.carrinho.filter((i) => { try { Object.assign(i, window.Calc.calcular(st.cardapio, i.escolha, st.dia)); return true; } catch { return false; } });
+    st.carrinho = window.Calc.revalidar(st.cardapio, st.carrinho, st.dia).ok;
     renderTopo();
     renderDestaques();
     montador = window.Montador.criar({
