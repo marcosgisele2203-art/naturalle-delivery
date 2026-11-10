@@ -141,6 +141,14 @@ Se o n8n cair, os pedidos continuam funcionando normalmente; só as mensagens de
 loja), depois de 6 mensagens em 30 segundos ela para de responder àquele número por 30 minutos e o WhatsApp da loja
 recebe um aviso.
 
+### Link do cardápio no WhatsApp e app no celular
+- Ao mandar o link do cardápio no WhatsApp (conversa, grupo ou Status), aparece a **imagem da Manu com o nome da loja**, o nome e a frase da loja
+  (editados em Administração › Loja). A foto é `site/public/img/compartilhar.jpg` (1200×630). Para trocar, use outra imagem do mesmo tamanho e com menos de 300 KB.
+- Para a foto sair, o site precisa do endereço com **https**. Se o link aparecer sem foto, preencha o **Endereço do site** (com https) em Administração › Loja.
+- O WhatsApp guarda a prévia de um link por um tempo. Depois de mudar foto ou frase, teste com o link terminando em `/?v=2`.
+- **Instalar no celular:** no Chrome do Android, abra o cardápio e vá em ⋮ › *Adicionar à tela inicial* (no iPhone: Compartilhar › *Adicionar à Tela de Início*).
+  Abre como um app, com o ícone da Manu. A área da equipe (`/equipe/`) também pode ser instalada, como "Naturalle Equipe".
+
 ## Dia a dia
 
 - **Porção de batata**: R$ 25 (cheddar ou catupiry, com bacon ou calabresa).

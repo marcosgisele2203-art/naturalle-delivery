@@ -427,7 +427,7 @@ App.views.admin = {
           <label class="campo">Frase do topo<input name="frase" value="${esc(l.frase || '')}"></label>
           <label class="campo">WhatsApp da loja<input name="whatsapp" value="${esc(l.whatsapp || '')}" inputmode="tel"></label>
           <label class="campo">Recado no quadro da Manu<input name="recado" maxlength="140" value="${esc(l.recado || '')}" placeholder="Ex.: Hoje tem açaí em dobro!"><small>Aparece quando não tem nenhum aviso na aba Quadro da Manu.</small></label>
-          <label class="campo">Endereço do site<input name="url_publica" value="${esc(l.url_publica || '')}" placeholder="https://pedidos.naturallemania.com.br"><small>Usado nos QR codes. Vazio = o endereço atual.</small></label>
+          <label class="campo">Endereço do site<input name="url_publica" value="${esc(l.url_publica || '')}" placeholder="https://pedidos.naturallemania.com.br"><small>Usado nos QR codes e na foto do link no WhatsApp. Vazio = o endereço atual.</small></label>
         </div>
         <h2 style="margin-top:8px">Cadastro da loja</h2>
         <p class="nota">Aparece no rodapé do cardápio, no cupom impresso e a Manu usa para informar o endereço de retirada.</p>
