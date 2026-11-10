@@ -21,6 +21,7 @@ const auth = require('./lib/auth');
 const { normalizarTelefone } = require('./lib/telefone');
 const { requisicaoPedido } = require('./lib/requisicao-pedido');
 const { slug } = require('./lib/cardapio-inicial');
+const { CAMPOS_PEDIDO, FROM_PEDIDO, pedidosDoPainel, taxaEntrega } = require('./lib/pedidos-equipe');
 
 const PORT = Number(process.env.PORT) || 3000;
 const N8N_URL = (process.env.N8N_URL || '').replace(/\/+$/, '');
@@ -112,15 +113,6 @@ function notificar(caminho, pedido) {
 }
 
 // ---------------------------------------------------------------- pedidos
-
-const CAMPOS_PEDIDO = `p.id, p.codigo, p.criado_em, p.confirmado_em, p.pronto_em, p.origem, p.tipo, p.status,
-  p.cliente_nome, p.cliente_telefone, p.endereco, p.localizacao, p.observacoes, p.itens, p.subtotal, p.taxa_entrega, p.acrescimo_cartao, p.total,
-  p.pagamento, p.troco_para, p.pix_status, p.pix_conferencia, p.pix_qr, p.pix_copia_cola, p.pix_expira, p.mp_pagamento_id, p.mesa_id, p.conta_id, p.criado_por, COALESCE(p.pago_em IS NOT NULL OR (p.pagamento = 'pix' AND p.pix_status = 'confirmado') OR conta.fechada_em IS NOT NULL, false) AS pagamento_confirmado, m.nome AS mesa_nome, u.nome AS criado_por_nome,
-  p.entregador_id, e.nome AS entregador_nome, p.saiu_em, p.pago_em,
-  CASE WHEN length(p.cliente_telefone) >= 10 THEN (SELECT count(*)::int FROM pedidos q
-    WHERE nm_telefone(q.cliente_telefone) = nm_telefone(p.cliente_telefone) AND q.id <= p.id AND q.status <> 'cancelado') END AS n_pedido_cliente`;
-const FROM_PEDIDO = `FROM pedidos p LEFT JOIN mesas m ON m.id = p.mesa_id LEFT JOIN usuarios u ON u.id = p.criado_por
-  LEFT JOIN usuarios e ON e.id = p.entregador_id LEFT JOIN contas conta ON conta.id = p.conta_id`;
 
 function lerRequisicao(corpo, escopo) {
   try { return requisicaoPedido(corpo, escopo); }
@@ -756,12 +748,7 @@ function marcarCozinha(pedidos, menu) {
 
 rota('GET', '/api/equipe/pedidos', ['pedidos', 'garcom', 'caixa', 'cozinha', 'entregador'], async () => {
   const menu = await lerConfig('cardapio');
-  const { rows } = await pool.query(
-    `SELECT ${CAMPOS_PEDIDO} ${FROM_PEDIDO}
-      WHERE p.status IN ('novo', 'preparo', 'pronto', 'saiu') OR (p.tipo = 'mesa' AND conta.fechada_em IS NULL)
-         OR (p.status = 'entregue' AND p.tipo <> 'mesa' AND p.pago_em IS NULL AND (p.pagamento IS DISTINCT FROM 'pix' OR p.pix_status IS DISTINCT FROM 'confirmado'))
-         OR (p.criado_em AT TIME ZONE '${FUSO}')::date = (now() AT TIME ZONE '${FUSO}')::date
-      ORDER BY p.criado_em ASC LIMIT 400`);
+  const rows = await pedidosDoPainel(pool);
   return { pedidos: marcarCozinha(rows, menu || {}), agora: new Date().toISOString() };
 });
 
@@ -783,7 +770,7 @@ rota('POST', '/api/equipe/pedido', ['garcom', 'caixa', 'pedidos'], async ({ u, b
   if (tipo === 'entrega' && !endereco) throw new Erro(400, 'Informe o endereço de entrega.');
   const itens = await calcularItens(b.itens);
   const loja = await lerConfig('loja');
-  const taxa = tipo === 'entrega' ? Number(b.taxa_entrega ?? loja.taxa_entrega) || 0 : 0;
+  const taxa = taxaEntrega(tipo, loja);
   const pag = tipo === 'mesa' ? {} : lerPagamento(b, Calc.somar(itens) + taxa, b.pagamento_recebido === true);
   const pedido = await gravarPedido({ pagamento_recebido: b.pagamento_recebido === true, requisicao: lerRequisicao(b, 'equipe-' + u.id), origem: tipo === 'mesa' ? 'garcom' : 'balcao', tipo, status: 'preparo', mesa_id: mesaId,
     criado_por: u.id, cliente_nome: nome, cliente_telefone: telefoneBR(b.cliente_telefone), endereco: tipo === 'entrega' ? endereco : '',
