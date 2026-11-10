@@ -10,17 +10,21 @@ const CAMPOS_PEDIDO = `p.id, p.codigo, p.criado_em, p.confirmado_em, p.pronto_em
 const FROM_PEDIDO = `FROM pedidos p LEFT JOIN mesas m ON m.id = p.mesa_id LEFT JOIN usuarios u ON u.id = p.criado_por
   LEFT JOIN usuarios e ON e.id = p.entregador_id LEFT JOIN contas conta ON conta.id = p.conta_id`;
 
-// Pedidos que o painel mostra: em andamento, mesas com conta aberta, entregues ainda sem receber e tudo de hoje.
-// Pega os 400 MAIS NOVOS e devolve do mais antigo para o mais novo: se acumularem pendências antigas,
-// os pedidos de hoje nunca ficam de fora da tela.
+// Pedidos que o painel mostra. Os em andamento (novo, preparo, pronto, saiu) e as mesas com conta aberta
+// entram SEMPRE: a cozinha e as entregas dependem deles. O limite de 400 vale só para o histórico
+// (entregues ainda sem receber e finalizados de hoje), pegando os mais novos. Tudo volta do mais antigo para o mais novo.
+const EM_ANDAMENTO = `(p.status IN ('novo', 'preparo', 'pronto', 'saiu') OR (p.tipo = 'mesa' AND conta.fechada_em IS NULL))`;
 async function pedidosDoPainel(pool) {
   const { rows } = await pool.query(
-    `SELECT * FROM (SELECT ${CAMPOS_PEDIDO} ${FROM_PEDIDO}
-      WHERE p.status IN ('novo', 'preparo', 'pronto', 'saiu') OR (p.tipo = 'mesa' AND conta.fechada_em IS NULL)
-         OR (p.status = 'entregue' AND p.tipo <> 'mesa' AND p.pago_em IS NULL AND (p.pagamento IS DISTINCT FROM 'pix' OR p.pix_status IS DISTINCT FROM 'confirmado'))
-         OR (p.criado_em AT TIME ZONE '${FUSO}')::date = (now() AT TIME ZONE '${FUSO}')::date
-      ORDER BY p.criado_em DESC, p.id DESC LIMIT 400) ultimos
-     ORDER BY criado_em ASC, id ASC`);
+    `SELECT * FROM (
+       (SELECT ${CAMPOS_PEDIDO} ${FROM_PEDIDO} WHERE ${EM_ANDAMENTO})
+       UNION ALL
+       (SELECT ${CAMPOS_PEDIDO} ${FROM_PEDIDO}
+         WHERE NOT ${EM_ANDAMENTO}
+           AND ((p.status = 'entregue' AND p.tipo <> 'mesa' AND p.pago_em IS NULL AND (p.pagamento IS DISTINCT FROM 'pix' OR p.pix_status IS DISTINCT FROM 'confirmado'))
+             OR (p.criado_em AT TIME ZONE '${FUSO}')::date = (now() AT TIME ZONE '${FUSO}')::date)
+         ORDER BY p.criado_em DESC, p.id DESC LIMIT 400)
+     ) painel ORDER BY criado_em ASC, id ASC`);
   return rows;
 }
 
