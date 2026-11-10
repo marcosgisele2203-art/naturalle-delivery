@@ -595,6 +595,9 @@ rota('POST', '/api/publico/mesa/:token/pedido', null, async ({ req, p, b }) => {
   const loja = await lerConfig('loja');
   const anterior = await recuperarEnvio(b, 'mesa-' + p.token);
   if (anterior) return { ok: true, pedido_id: anterior.id, codigo: anterior.codigo, status: anterior.status };
+  // loja fechada: a mesa também não recebe pedido (o garçom ainda pode lançar pela área da equipe)
+  const agora = estadoLoja(loja);
+  if (!agora.aberta) throw new Erro(403, 'Estamos fechados agora.' + (/^Abre/.test(agora.texto) ? ' ' + agora.texto + '.' : '') + ' Se precisar, chame o garçom.');
   const itens = await calcularItens(b.itens);
   const pedido = await gravarPedido({ requisicao: lerRequisicao(b, 'mesa-' + p.token), origem: 'mesa', tipo: 'mesa', mesa_id: rows[0].id,
     status: loja.mesa_auto_confirmar ? 'preparo' : 'novo', cliente_nome: texto(b.nome, 60),
