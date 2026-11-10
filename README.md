@@ -198,9 +198,8 @@ No site, a tentativa pendente é conservada no navegador para suportar falhas de
 recarregamento. Clientes com código antigo ainda funcionam, mas devem atualizar a página
 para obter essa proteção. Pedidos feitos pela conversa da Manu não usam esse mecanismo de envio.
 
-Se estiver usando o fluxo separado **03-comprovante-pix.json** no n8n, reimporte a versão
-atualizada depois de implantar o app: ela compara telefones completos em vez dos últimos
-8 dígitos. Alterar o arquivo no GitHub não atualiza um fluxo já instalado no n8n.
+Os fluxos separados antigos (`01-pedido-recebido`, `02-status-pedido` e `03-comprovante-pix`) foram removidos:
+o `naturalle-completo.json` faz tudo o que eles faziam. Se algum deles ainda estiver no n8n, desative-o e use só o completo.
 
 Verificação das regras sem banco: `cd site && node --test test/reliability.test.js`.
 
