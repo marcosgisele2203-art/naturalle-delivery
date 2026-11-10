@@ -426,6 +426,7 @@ App.views.admin = {
           <label class="campo">Nome<input name="nome" value="${esc(l.nome)}"></label>
           <label class="campo">Frase do topo<input name="frase" value="${esc(l.frase || '')}"></label>
           <label class="campo">WhatsApp da loja<input name="whatsapp" value="${esc(l.whatsapp || '')}" inputmode="tel"></label>
+          <label class="campo">WhatsApp do dono (avisos)<input name="whatsapp_avisos" value="${esc(l.whatsapp_avisos || '')}" inputmode="tel" placeholder="Ex.: 67 99999-8888"><small>Recebe a localização que o cliente manda pelo WhatsApp depois de fazer o pedido. Use um número diferente do WhatsApp da Manu.</small></label>
           <label class="campo">Recado no quadro da Manu<input name="recado" maxlength="140" value="${esc(l.recado || '')}" placeholder="Ex.: Hoje tem açaí em dobro!"><small>Aparece quando não tem nenhum aviso na aba Quadro da Manu.</small></label>
           <label class="campo">Endereço do site<input name="url_publica" value="${esc(l.url_publica || '')}" placeholder="https://pedidos.naturallemania.com.br"><small>Usado nos QR codes e na foto do link no WhatsApp. Vazio = o endereço atual.</small></label>
         </div>
@@ -596,7 +597,7 @@ App.views.admin = {
         else if (f.dataset.form === 'uma') await acaoMesa({ nome: f.nome.value });
         else if (f.dataset.form === 'loja') {
           const fd = new FormData(f);
-          const loja = Object.fromEntries(['nome', 'frase', 'whatsapp', 'url_publica', 'recado', 'razao_social', 'cnpj', 'responsavel', 'telefone', 'email',
+          const loja = Object.fromEntries(['nome', 'frase', 'whatsapp', 'whatsapp_avisos', 'url_publica', 'recado', 'razao_social', 'cnpj', 'responsavel', 'telefone', 'email',
             'instagram', 'endereco', 'bairro', 'cidade', 'uf', 'cep', 'referencia', 'pix_chave', 'pix_nome'].map((k) => [k, fd.get(k)]));
           for (const k of ['delivery', 'retirada', 'mesa_auto_confirmar', 'mp_ativo', 'pix_pago_vai_cozinha']) if (f[k]) loja[k] = f[k].checked;
           Object.assign(d, await App.api('/api/admin/loja', { loja }, 'PUT'));

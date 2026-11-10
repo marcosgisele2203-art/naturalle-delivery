@@ -44,6 +44,26 @@ test('mensagem do entregador: mapa, itens e quanto cobrar', () => {
   assert.match(Entrega.mensagemEntregador({ ...base, pagamento: 'cartao' }), /no cartão \(levar a maquininha\)/);
 });
 
+// roda o código do nó "Montar mensagens" do n8n (aviso de pedido novo para a loja e para o cliente)
+function montarN8n(pedido) {
+  const fluxo = require('../../n8n/naturalle-completo.json');
+  const codigo = fluxo.nodes.find((n) => n.name === 'Montar mensagens').parameters.jsCode;
+  const $input = { first: () => ({ json: { rota: 'pedido', body: { token: 'tok', pedido, loja: {} } } }) };
+  const $ = () => ({ first: () => ({ json: { token: 'tok', numero_loja: '5567900001111' } }) });
+  return new Function('$input', '$', codigo)($input, $).map((x) => x.json);
+}
+
+test('n8n: o aviso de pedido novo para a loja leva o link da localização', () => {
+  const base = { id: 9, origem: 'site', tipo: 'entrega', status: 'novo', cliente_nome: 'Ana', cliente_telefone: '5567999998888',
+    endereco: 'Rua A, 10', itens: [{ qtd: 1, nome: 'Açaí', preco: 15 }], total: 15, pagamento: 'cartao' };
+  let loja = montarN8n({ ...base, localizacao: { lat: -20.24, lng: -56.37 } }).find((m) => m.numero === '5567900001111');
+  assert.match(loja.texto, /Entrega: Rua A, 10\n📍 Localização: https:\/\/www\.google\.com\/maps\/search\/\?api=1&query=-20\.24,-56\.37\n/);
+  loja = montarN8n(base).find((m) => m.numero === '5567900001111');
+  assert.doesNotMatch(loja.texto, /📍/, 'sem GPS, sem link');
+  const cli = montarN8n({ ...base, localizacao: { lat: -20.24, lng: -56.37 } }).find((m) => m.numero === base.cliente_telefone);
+  assert.doesNotMatch(cli.texto, /📍/, 'a mensagem do cliente não muda');
+});
+
 // Sobe o servidor de verdade contra um banco DESCARTÁVEL: DATABASE_URL=postgres://.../banco_de_teste npm test
 test('localização pelo WhatsApp vai para o pedido e o entregador recebe tudo no WhatsApp', { skip: !process.env.DATABASE_URL && 'Defina DATABASE_URL de um banco de teste para rodar.' }, async (t) => {
   const enviadas = [];
@@ -64,7 +84,8 @@ test('localização pelo WhatsApp vai para o pedido e o entregador recebe tudo n
   const api = async (m, url, corpo) => { const x = await fetch(U + url, { method: m, headers: H, body: corpo ? JSON.stringify(corpo) : undefined }); return { status: x.status, d: await x.json() }; };
   const lojaAntes = (await api('GET', '/api/admin/tudo')).d.loja;
   aoFim.push(() => api('PUT', '/api/admin/loja', { loja: { ...lojaAntes, bairros: lojaAntes.bairros || [] } }));
-  await api('PUT', '/api/admin/loja', { loja: { aberta: true, horario_automatico: false, delivery: true, bairros: [] } });
+  const salva = await api('PUT', '/api/admin/loja', { loja: { aberta: true, horario_automatico: false, delivery: true, bairros: [], whatsapp_avisos: '67 99111-2222' } });
+  assert.equal(salva.d.loja.whatsapp_avisos, '5567991112222', 'celular do dono guardado com 55 e DDD');
   const login = 'entregador-' + Date.now();
   await api('POST', '/api/admin/usuarios', { nome: 'Zé Entregas', login, senha: 'senha-de-teste-1', permissoes: ['entregador'], telefone: '67988887777' });
   const ze = (await api('GET', '/api/admin/tudo')).d.usuarios.find((u) => u.login === login);
@@ -83,6 +104,12 @@ test('localização pelo WhatsApp vai para o pedido e o entregador recebe tudo n
   assert.match(resp.mensagens[0].texto, new RegExp(`Localização recebida! Já está no pedido \\*#${id}\\*`));
   let ped = (await api('GET', '/api/equipe/pedidos')).d.pedidos.find((p) => p.id === id);
   assert.deepEqual(ped.localizacao, { lat: -20.2401, lng: -56.3789, precisao: 10 });
+  // o celular do dono também recebe a localização, mesmo antes de o pedido sair
+  let dono;
+  for (let i = 0; i < 40 && !dono; i++) { dono = enviadas.find((e) => e.number === '5567991112222'); if (!dono) await new Promise((ok) => setTimeout(ok, 50)); }
+  assert(dono, 'dono recebeu o WhatsApp');
+  assert.match(dono.text, new RegExp(`pedido \\*#${id}\\* \\(Ana\\) mandou a localização`));
+  assert.match(dono.text, /query=-20\.2401,-56\.3789/);
 
   // saiu para entrega com o Zé: ele recebe o WhatsApp com o mapa e o troco
   for (const st of ['preparo', 'pronto']) assert.equal((await api('POST', `/api/equipe/pedido/${id}/status`, { status: st })).status, 200);
