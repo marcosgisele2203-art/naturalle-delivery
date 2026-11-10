@@ -25,7 +25,7 @@ Rodar tudo dentro de `site/`:
 
 ```bash
 npm install
-npm test                      # = node --test test/*.test.js
+npm test                      # = node --test --test-concurrency=1 test/*.test.js (um arquivo por vez)
 DATABASE_URL=postgres://... npm start   # porta 3000 (ou PORT)
 ```
 
