@@ -43,4 +43,13 @@ test('Manu não lança entrega só com o bairro, sem rua e número', async (t) =
   assert.equal(gravados.length, 1);
   assert.equal(gravados[0].endereco, 'Rua A, 10 — Centro');
   assert.equal(gravados[0].taxa_entrega, 5);
+
+  // cliente mandou a localização pelo WhatsApp antes de pedir: vale como endereço e vai junto no pedido
+  args = { itens: [{ produto: 'acai', qtd: 1 }], tipo: 'entrega', nome: 'Ana', pagamento: 'dinheiro', bairro: 'Centro' };
+  await manu.responder({ canal: 'whatsapp', chave: '5567999990000-3', telefone: '5567999990000', localizacao: { lat: -20.24, lng: -56.37, precisao: 8 } });
+  assert.equal(gravados.length, 2);
+  assert.deepEqual(gravados[1].localizacao, { lat: -20.24, lng: -56.37, precisao: 8 });
+  assert.equal(gravados[1].endereco, 'Localização enviada pelo WhatsApp (ver mapa) — Centro');
+  const pergunta = recebidas.at(-2).contents.at(-1).parts.map((x) => x.text || '').join(' ');
+  assert.match(pergunta, /mandou a localização/, 'a Manu fica sabendo da localização');
 });

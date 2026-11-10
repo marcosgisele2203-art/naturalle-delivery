@@ -22,6 +22,7 @@ const { pool, migrar, lerConfig, salvarConfig } = require('./lib/db');
 const auth = require('./lib/auth');
 const { normalizarTelefone } = require('./lib/telefone');
 const { requisicaoPedido } = require('./lib/requisicao-pedido');
+const Entrega = require('./lib/entrega-whatsapp');
 const { slug } = require('./lib/cardapio-inicial');
 const { CAMPOS_PEDIDO, FROM_PEDIDO, pedidosDoPainel, taxaEntrega } = require('./lib/pedidos-equipe');
 
@@ -546,9 +547,25 @@ rota('POST', '/api/manu/whatsapp', null, async ({ req, b }) => {
   const midia = b.base64 && ['imagem', 'audio'].includes(b.tipo)
     ? { tipo: b.tipo, mime: texto(b.mime, 80).split(';')[0].trim() || (b.tipo === 'audio' ? 'audio/ogg' : 'image/jpeg'), base64: String(b.base64).replace(/^data:[^,]*,/, '') }
     : null;
-  if (!midia && !texto(b.texto, 1)) return { mensagens: [] };
-  const entrada = { canal: 'whatsapp', chave: telefone, telefone, nome: texto(b.nome, 60), texto: b.texto, midia };
+  // localização mandada pelo WhatsApp (📎 › Localização): vai para o pedido de entrega em andamento desse cliente
+  const local = lerLocalizacao(b.localizacao);
+  if (local) {
+    const { rows } = await pool.query(
+      `UPDATE pedidos SET localizacao = $2, atualizado_em = now() WHERE id = (SELECT id FROM pedidos
+          WHERE tipo = 'entrega' AND status IN ('novo', 'preparo', 'pronto', 'saiu') AND nm_telefone(cliente_telefone) = nm_telefone($1)
+            AND criado_em > now() - interval '12 hours' ORDER BY criado_em DESC LIMIT 1) RETURNING id`, [telefone, JSON.stringify(local)]);
+    if (rows[0]) {
+      const pedido = await buscarPedido(rows[0].id);
+      if (pedido.status === 'saiu') avisarEntregador(pedido, 'localizacao');
+      return { mensagens: [{ numero: telefone, texto: `📍 Localização recebida! Já está no pedido *#${pedido.id}* para o entregador. Obrigado!` }] };
+    }
+  }
+  if (!midia && !local && !texto(b.texto, 1)) return { mensagens: [] };
+  const entrada = { canal: 'whatsapp', chave: telefone, telefone, nome: texto(b.nome, 60), texto: b.texto, midia, localizacao: local };
   const loja = await lerConfig('loja');
+  if (local && !manu.ativa()) {
+    return { mensagens: [{ numero: telefone, texto: `📍 Recebi sua localização! Para pedir, use o nosso cardápio: ${urlBase(req, loja)}\nLá você também pode marcar sua casa no mapa.` }] };
+  }
   let r;
   try {
     r = manu.ativa() ? await comPrazo(manu.responder(entrada)) : await manu.semIA(entrada, urlBase(req, loja));
@@ -857,8 +874,22 @@ rota('POST', '/api/equipe/pedido/:id/status', ['pedidos', 'garcom', 'caixa', 'co
   // pronto só interessa ao cliente quando ele vai buscar; na entrega ele recebe "saiu"
   const avisa = !(b.status === 'pronto' && atual.tipo === 'entrega') && !(chave === 'pronto>preparo');
   if (avisa) notificar('/status', pedido);
+  // saiu para entrega: o entregador recebe tudo no WhatsApp dele (endereço, mapa, itens e quanto cobrar)
+  if (b.status === 'saiu') avisarEntregador(pedido);
   return { ok: true, pedido };
 });
+
+// WhatsApp para o entregador (pela Evolution, as mesmas EVOLUTION_* do "esqueci a senha"); sem número cadastrado, não manda
+async function avisarEntregador(pedido, tipo = 'saida') {
+  if (!pedido || !pedido.entregador_id || !EVO.url || !EVO.instancia || !EVO.chave) return;
+  try {
+    const { rows } = await pool.query('SELECT telefone FROM usuarios WHERE id = $1 AND ativo', [pedido.entregador_id]);
+    const tel = normalizarTelefone(rows[0] && rows[0].telefone);
+    if (!tel) return;
+    const loja = await lerConfig('loja');
+    await enviarWhatsApp(tel, tipo === 'localizacao' ? Entrega.mensagemLocalizacao(pedido) : Entrega.mensagemEntregador(pedido, loja));
+  } catch (e) { console.error('whatsapp do entregador', pedido.id, e.message); }
+}
 
 // --- entregador
 
