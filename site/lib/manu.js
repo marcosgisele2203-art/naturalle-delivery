@@ -16,6 +16,7 @@ const ESQUECE_MS = 6 * 3600_000;   // conversa parada há 6 h recomeça do zero
 const MAX_VOLTAS = 6;              // chamadas de ferramenta por mensagem do cliente
 
 const Bairros = require('../public/shared/bairros.js');
+const { ENDERECO_WHATSAPP, ehSoMapa } = require('./entrega-whatsapp');
 const brl = (v) => 'R$ ' + Number(v).toFixed(2).replace('.', ',');
 const DIAS = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
 
@@ -191,15 +192,21 @@ function criar(s) {
     const tel = s.telefoneBR(ctx.telefone || a.telefone);
     if (!tel) throw new s.Erro(400, 'Falta o WhatsApp do cliente com DDD.');
     // primeiro o endereço (rua e número); só depois junta o bairro
-    const enderecoDigitado = s.texto(a.endereco, 300);
-    if (tipo === 'entrega' && !enderecoDigitado) throw new s.Erro(400, 'Falta o endereço de entrega (rua e número).');
+    // localização mandada pelo WhatsApp nas últimas 6 horas: vai junto no pedido e vale como endereço
+    const lw = ctx.dados && ctx.dados.localizacao, local = lw && Date.now() - lw.em < 6 * 3600_000 ? { lat: lw.lat, lng: lw.lng, precisao: lw.precisao || 0 } : null;
+    // "Localização enviada pelo WhatsApp" sem as coordenadas não é endereço: pede o endereço ou uma localização nova
+    const escrito = s.texto(a.endereco, 300);
+    const enderecoDigitado = (ehSoMapa(escrito) && !local ? '' : escrito) || (local && tipo === 'entrega' ? ENDERECO_WHATSAPP : '');
+    if (tipo === 'entrega' && !enderecoDigitado) throw new s.Erro(400, 'Falta o endereço de entrega (rua e número) ou a localização pelo WhatsApp.');
     const endereco = Bairros.noEndereco(loja, enderecoDigitado, s.texto(a.bairro, 60));
     const itens = await s.calcularItens(paraEscolhas(a.itens));
     const taxa = Bairros.taxa(loja, tipo, a.bairro);
     const pag = s.lerPagamento({ pagamento: a.pagamento, troco_para: a.troco_para }, s.Calc.somar(itens) + taxa, true);
     const pedido = await s.gravarPedido({ origem: ctx.canal === 'whatsapp' ? 'whatsapp' : 'manu', tipo, status: 'novo',
-      cliente_nome: nome, cliente_telefone: tel, endereco: tipo === 'entrega' ? endereco : '',
+      cliente_nome: nome, cliente_telefone: tel, endereco: tipo === 'entrega' ? endereco : '', localizacao: tipo === 'entrega' ? local : null,
       observacoes: s.texto(a.observacoes, 300), itens, taxa_entrega: taxa, taxa_cartao: loja.taxa_cartao, ...pag });
+    // a localização vale para UM pedido: depois de usada, o próximo pedido precisa de localização nova ou do endereço
+    if (local && ctx.dados) delete ctx.dados.localizacao;
     const mp = pedido.pagamento === 'pix' && s.prepararPixMP ? await s.prepararPixMP(pedido, loja) : null;
     s.notificar('/pedido', pedido);
     ctx.pedido = { id: pedido.id, codigo: pedido.codigo };
@@ -336,14 +343,16 @@ function criar(s) {
     ctx.dados = conv.dados || {};
     const partes = [];
     if (entrada.midia && entrada.midia.base64) partes.push({ inlineData: { mimeType: entrada.midia.mime, data: entrada.midia.base64 } });
+    if (entrada.localizacao) ctx.dados.localizacao = { ...entrada.localizacao, em: Date.now() };
     const textoCliente = s.texto(entrada.texto, 2000);
-    partes.push({ text: textoCliente || (entrada.midia ? (entrada.midia.tipo === 'audio' ? '(o cliente mandou um áudio)' : '(o cliente mandou uma foto)') : '(mensagem vazia)') });
+    partes.push({ text: textoCliente || (entrada.midia ? (entrada.midia.tipo === 'audio' ? '(o cliente mandou um áudio)' : '(o cliente mandou uma foto)')
+      : entrada.localizacao ? '(o cliente mandou a localização dele pelo WhatsApp. Ela já está guardada e vai junto no pedido de entrega, então não precisa pedir rua e número; se quiser, peça só uma referência)' : '(mensagem vazia)') });
     if (entrada.nome && !conv.mensagens.length) partes.push({ text: `(nome no WhatsApp: ${entrada.nome})` });
     // cliente que já pediu antes: a Manu já sabe o nome e o último endereço
     if (!conv.mensagens.length && entrada.telefone && s.clienteDoTelefone) {
       const c = await s.clienteDoTelefone(entrada.telefone).catch(() => null);
       if (c && c.pedidos > 0) {
-        partes.push({ text: `(cliente cadastrado: nome ${c.nome || '?'}; ${c.pedidos} pedido(s) antes${c.endereco ? '; último endereço: ' + c.endereco : ''}${c.preferido ? '; costuma pedir: ' + c.preferido : ''}. Cumprimente pelo nome; na hora da entrega pergunte se é no mesmo endereço em vez de pedir de novo; não precisa perguntar o nome.)` });
+        partes.push({ text: `(cliente cadastrado: nome ${c.nome || '?'}; ${c.pedidos} pedido(s) antes${c.endereco && !ehSoMapa(c.endereco) ? '; último endereço: ' + c.endereco : ''}${c.preferido ? '; costuma pedir: ' + c.preferido : ''}. Cumprimente pelo nome; na hora da entrega pergunte se é no mesmo endereço em vez de pedir de novo; não precisa perguntar o nome.)` });
         if (!ctx.nome) ctx.nome = c.nome;
       }
     }
@@ -366,7 +375,7 @@ function criar(s) {
     if (!resposta) resposta = 'Desculpa, me enrolei aqui 😅 Pode repetir?';
 
     // guarda só o texto da conversa (sem fotos, áudios e consultas ao cardápio)
-    const lembranca = textoCliente || (entrada.midia ? (entrada.midia.tipo === 'audio' ? '[mandou um áudio]' : '[mandou uma foto]') : '');
+    const lembranca = textoCliente || (entrada.midia ? (entrada.midia.tipo === 'audio' ? '[mandou um áudio]' : '[mandou uma foto]') : entrada.localizacao ? '[mandou a localização]' : '');
     if (ctx.pedido) ctx.dados.pedidos = [...(ctx.dados.pedidos || []), ctx.pedido].slice(-5);
     await guardar(entrada.canal, entrada.chave, [...conv.mensagens,
       { role: 'user', parts: [{ text: lembranca }] },

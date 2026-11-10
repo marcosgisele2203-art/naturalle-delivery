@@ -58,7 +58,7 @@ DATABASE_URL=postgres://postgres:SENHA@naturalle_postgres:5432/naturalle
 N8N_URL=https://SEU-N8N/webhook
 N8N_TOKEN=uma-senha-forte-qualquer
 GEMINI_API_KEY=chave-do-google-ai-studio   (opcional: liga a Manu IA)
-EVOLUTION_URL=https://sua-evolution          (opcional: recuperar senha pelo WhatsApp)
+EVOLUTION_URL=https://sua-evolution          (opcional: recuperar senha e avisar o entregador pelo WhatsApp)
 EVOLUTION_INSTANCE=nome-da-instancia
 EVOLUTION_APIKEY=apikey-da-evolution
 MP_ACCESS_TOKEN=APP_USR-...                  (opcional: Pix automático pelo Mercado Pago)
@@ -157,6 +157,16 @@ Quem já pediu pelo site vê, ao voltar ao cardápio, o cartão **"Pedir de novo
 - O WhatsApp guarda a prévia de um link por um tempo. Depois de mudar foto ou frase, teste com o link terminando em `/?v=2`.
 - **Instalar no celular:** no Chrome do Android, abra o cardápio e vá em ⋮ › *Adicionar à tela inicial* (no iPhone: Compartilhar › *Adicionar à Tela de Início*).
   Abre como um app, com o ícone da Manu. A área da equipe (`/equipe/`) também pode ser instalada, como "Naturalle Equipe".
+
+### Localização pelo WhatsApp e entregador no WhatsApp
+- **Cliente:** na conversa com a loja, toca em 📎 › *Localização* e manda. Se ele tem um pedido de entrega em andamento (últimas 12 h),
+  a localização vai direto para o pedido ("📍 Localização recebida! Já está no pedido #12"). Se ainda não pediu, a Manu IA guarda por 6 h
+  e usa no pedido, que então nem precisa de rua e número. Sem a Manu, o cliente recebe o link do cardápio.
+- **Painel:** o pedido mostra "📍 Ver no mapa" com o ponto exato.
+- **Entregador:** quando o pedido **sai para entrega**, o entregador escolhido recebe no WhatsApp dele: cliente e telefone, endereço,
+  **link do mapa**, itens e quanto cobrar (troco, maquininha ou "já está pago"). Se o cliente mandar a localização depois, ele recebe a atualização.
+- Precisa de: `EVOLUTION_URL`, `EVOLUTION_INSTANCE` e `EVOLUTION_APIKEY` no serviço **pedidos**; o **WhatsApp de cada entregador** em
+  Administração › Funcionários; e o fluxo `n8n/naturalle-completo.json` **reimportado** no n8n (versão que entende a localização).
 
 ## Dia a dia
 
