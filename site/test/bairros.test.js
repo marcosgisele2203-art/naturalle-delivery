@@ -29,7 +29,9 @@ test('taxa por bairro: regra compartilhada entre site, equipe e Manu', () => {
 test('taxa por bairro no site e no pedido da equipe (servidor)', { skip: !process.env.DATABASE_URL && 'Defina DATABASE_URL de um banco de teste para rodar.' }, async (t) => {
   const porta = 3700 + Math.floor(Math.random() * 300), U = 'http://127.0.0.1:' + porta;
   const srv = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], { env: { ...process.env, PORT: String(porta), MP_ACCESS_TOKEN: '', N8N_URL: '' }, stdio: 'ignore' });
-  t.after(() => srv.kill());
+  // limpeza no fim: primeiro devolve o que o teste mudou, depois desliga o servidor
+  const aoFim = [];
+  t.after(async () => { for (const f of aoFim) await f().catch(() => {}); srv.kill(); });
   for (let i = 0; i < 60; i++) { try { if ((await fetch(U + '/saude')).ok) break; } catch {} await new Promise((r) => setTimeout(r, 250)); }
   const H = { 'Content-Type': 'application/json' };
   const ADMIN = { nome: 'Admin de teste', login: 'admin-teste', senha: 'senha-de-teste-1' };
@@ -38,6 +40,9 @@ test('taxa por bairro no site e no pedido da equipe (servidor)', { skip: !proces
   if (!r.ok) { t.skip('Banco de teste já tem outros usuários; use um banco vazio.'); return; }
   H.Cookie = r.headers.get('set-cookie').split(';')[0];
   const put = (loja) => fetch(U + '/api/admin/loja', { method: 'PUT', headers: H, body: JSON.stringify({ loja }) });
+  // devolve a loja como estava no fim (os testes dividem o mesmo banco; o npm test roda um arquivo por vez)
+  const lojaAntes = (await (await fetch(U + '/api/admin/tudo', { headers: H })).json()).loja;
+  aoFim.push(() => put({ ...lojaAntes, bairros: lojaAntes.bairros || [] }));
   assert.equal((await put({ bairros: [{ nome: 'Longe', taxa: -1 }] })).status, 400, 'taxa negativa é recusada');
   assert.equal((await put({ aberta: true, horario_automatico: false, delivery: true, taxa_entrega: 6, bairros: [{ nome: 'Centro', taxa: 5 }, { nome: 'Vila Nova', taxa: 9 }] })).status, 200);
   const pub = await (await fetch(U + '/api/publico/cardapio')).json();
