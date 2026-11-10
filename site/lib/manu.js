@@ -190,8 +190,10 @@ function criar(s) {
     if (!nome) throw new s.Erro(400, 'Falta o nome do cliente.');
     const tel = s.telefoneBR(ctx.telefone || a.telefone);
     if (!tel) throw new s.Erro(400, 'Falta o WhatsApp do cliente com DDD.');
-    const endereco = Bairros.noEndereco(loja, s.texto(a.endereco, 300), s.texto(a.bairro, 60));
-    if (tipo === 'entrega' && !endereco) throw new s.Erro(400, 'Falta o endereço de entrega.');
+    // primeiro o endereço (rua e número); só depois junta o bairro
+    const enderecoDigitado = s.texto(a.endereco, 300);
+    if (tipo === 'entrega' && !enderecoDigitado) throw new s.Erro(400, 'Falta o endereço de entrega (rua e número).');
+    const endereco = Bairros.noEndereco(loja, enderecoDigitado, s.texto(a.bairro, 60));
     const itens = await s.calcularItens(paraEscolhas(a.itens));
     const taxa = Bairros.taxa(loja, tipo, a.bairro);
     const pag = s.lerPagamento({ pagamento: a.pagamento, troco_para: a.troco_para }, s.Calc.somar(itens) + taxa, true);

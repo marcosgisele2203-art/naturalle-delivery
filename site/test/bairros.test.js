@@ -16,6 +16,11 @@ test('taxa por bairro: regra compartilhada entre site, equipe e Manu', () => {
   assert.equal(Bairros.noEndereco(loja, 'Rua A, 10', 'São José'), 'Rua A, 10 — São José');
   assert.equal(Bairros.noEndereco(loja, 'Rua A, 10, Sao Jose', 'São José'), 'Rua A, 10, Sao Jose', 'não repete o bairro');
   assert.equal(Bairros.noEndereco(loja, 'Rua A, 10', 'Outro bairro'), 'Rua A, 10');
+  const sol = { taxa_entrega: 6, bairros: [{ nome: 'Sol', taxa: 4 }, { nome: 'Centro', taxa: 5 }] };
+  assert.equal(Bairros.noEndereco(sol, 'Rua Soldado Pedro, 10', 'Sol'), 'Rua Soldado Pedro, 10 — Sol', 'nome do bairro dentro da rua não conta');
+  assert.equal(Bairros.noEndereco(sol, 'Rua do Centro Velho, 5', 'Centro'), 'Rua do Centro Velho, 5 — Centro');
+  assert.equal(Bairros.noEndereco(sol, 'Rua A, 10, Bairro Centro', 'Centro'), 'Rua A, 10, Bairro Centro', '"Bairro Centro" já é o bairro');
+  assert.equal(Bairros.noEndereco(sol, 'Rua A, 10 - Centro', 'Centro'), 'Rua A, 10 - Centro');
   assert.throws(() => Bairros.validar([{ nome: 'Longe', taxa: -2 }]));
   assert.throws(() => Bairros.validar([{ nome: 'Longe', taxa: 'abc' }]));
 });

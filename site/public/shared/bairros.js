@@ -51,7 +51,10 @@
   function noEndereco(loja, endereco, bairro) {
     const b = achar(loja, bairro);
     const e = String(endereco || '').trim();
-    if (!b || chave(e).includes(chave(b.nome))) return e;
+    // só não repete se o bairro já é uma PARTE do endereço (entre vírgulas ou traços), como "Rua A, 10, Centro";
+    // o nome dentro da rua ("Rua Soldado Pedro" com o bairro "Sol") não conta
+    const partes = e.split(/[,;\u2013\u2014]|\s-\s/).map((p) => chave(p).replace(/^(bairro|b\.)\s*/, ''));
+    if (!b || partes.includes(chave(b.nome))) return e;
     return e ? e + ' — ' + b.nome : b.nome;
   }
 
