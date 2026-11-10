@@ -15,6 +15,7 @@ const HISTORICO = 24;              // mensagens guardadas por conversa
 const ESQUECE_MS = 6 * 3600_000;   // conversa parada há 6 h recomeça do zero
 const MAX_VOLTAS = 6;              // chamadas de ferramenta por mensagem do cliente
 
+const Bairros = require('../public/shared/bairros.js');
 const brl = (v) => 'R$ ' + Number(v).toFixed(2).replace('.', ',');
 const DIAS = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
 
@@ -29,7 +30,7 @@ Como atender:
 - Ajude o cliente a escolher. Em produto com opções obrigatórias (tamanho, queijo, sabor...), pergunte a escolha. Ofereça os adicionais uma vez, sem insistir.
 - Para montar o pedido, use os ids exatos de produto, grupo e opção que aparecem no cardápio (entre colchetes).
 - Antes de fechar, use calcular_pedido e mostre ao cliente o resumo com itens, taxa de entrega, acréscimo do cartão (se houver) e total.
-- Pergunte o que faltar: entrega ou retirada no balcão; endereço completo (se for entrega); forma de pagamento (Pix, cartão ou dinheiro); se for dinheiro, se precisa de troco e com quanto vai pagar; e o nome.
+- Pergunte o que faltar: entrega ou retirada no balcão; endereço completo e o bairro (se for entrega; quando houver lista de bairros no cardápio, use o nome exato do bairro da lista em "bairro", ou "Outro bairro" se não estiver nela); forma de pagamento (Pix, cartão ou dinheiro); se for dinheiro, se precisa de troco e com quanto vai pagar; e o nome.
 - Só use fazer_pedido depois que o cliente confirmar o resumo ("pode mandar", "confirmo", "sim"...). Depois de lançar, diga o número do pedido. Se for Pix, avise que a chave Pix chega em seguida por mensagem e que ele pode mandar a foto do comprovante aqui.
 - Se a loja estiver fechada, avise quando abre e não lance pedido.
 - Se o cliente mandar foto ou PDF de um comprovante de pagamento Pix, leia com atenção e use registrar_comprovante_pix preenchendo o que estiver escrito nele (valor, nome e chave de quem recebeu, data e hora, ID da transação/E2E, se é agendamento). Não invente nada que não esteja legível. Diga ao cliente que recebeu e que a equipe confere o pagamento no banco; NUNCA diga que o pagamento está confirmado. Se a ferramenta apontar divergência, explique com educação o que não bateu (ex.: valor diferente) e peça para conferir, sem acusar de golpe.
@@ -50,6 +51,7 @@ const FERRAMENTAS = [{
         properties: {
           itens: { type: 'ARRAY', items: { $ref: 'item' } },
           tipo: { type: 'STRING', enum: ['entrega', 'retirada'] },
+          bairro: { type: 'STRING', description: 'Bairro da entrega, exatamente como na lista de bairros (ou "Outro bairro")' },
           pagamento: { type: 'STRING', enum: ['pix', 'cartao', 'dinheiro'] },
         },
         required: ['itens'],
@@ -65,6 +67,7 @@ const FERRAMENTAS = [{
           tipo: { type: 'STRING', enum: ['entrega', 'retirada'] },
           nome: { type: 'STRING', description: 'Nome do cliente' },
           endereco: { type: 'STRING', description: 'Rua, número, bairro e referência (só para entrega)' },
+          bairro: { type: 'STRING', description: 'Bairro da entrega, exatamente como na lista de bairros (ou "Outro bairro")' },
           pagamento: { type: 'STRING', enum: ['pix', 'cartao', 'dinheiro'] },
           troco_para: { type: 'NUMBER', description: 'Só para dinheiro com troco: valor com que o cliente vai pagar' },
           telefone: { type: 'STRING', description: 'WhatsApp com DDD (só no chat do site)' },
@@ -136,7 +139,9 @@ function criar(s) {
     const [menu, loja, quadro] = await Promise.all([s.lerConfig('cardapio'), s.lerConfig('loja'), s.lerConfig('quadro')]);
     const dia = s.diaDaSemana(), agora = s.estadoLoja(loja);
     const l = [`Hoje é ${DIAS[dia]}. Loja ${agora.aberta ? 'ABERTA' : 'FECHADA'} para pedidos (${agora.texto || loja.horario || ''}).`,
-      `Entrega: ${loja.delivery ? brl(loja.taxa_entrega || 0) : 'não fazemos hoje'}. Retirada no balcão: ${loja.retirada ? 'sim' : 'não'}.`,
+      `Entrega: ${!loja.delivery ? 'não fazemos hoje' : Bairros.lista(loja).length
+        ? 'taxa por bairro: ' + Bairros.lista(loja).map((b) => `${b.nome} ${brl(b.taxa)}`).join('; ') + `; ${Bairros.OUTRO} ${brl(loja.taxa_entrega || 0)}`
+        : brl(loja.taxa_entrega || 0)}. Retirada no balcão: ${loja.retirada ? 'sim' : 'não'}.`,
       `Cartão tem acréscimo de ${brl(loja.taxa_cartao || 0)} (maquininha). Pix: a chave vai por mensagem automática depois do pedido.`,
       ...(loja.endereco ? [`Endereço da loja (para retirada): ${[loja.endereco, loja.bairro, [loja.cidade, loja.uf].filter(Boolean).join('/')].filter(Boolean).join(', ')}${loja.referencia ? ' (' + loja.referencia + ')' : ''}.`] : []),
       ...(loja.instagram ? [`Instagram: @${loja.instagram}.`] : []), ''];
@@ -166,7 +171,7 @@ function criar(s) {
     const loja = await s.lerConfig('loja');
     const itens = await s.calcularItens(paraEscolhas(a.itens));
     const subtotal = s.Calc.somar(itens);
-    const taxa = a.tipo === 'entrega' ? Number(loja.taxa_entrega) || 0 : 0;
+    const taxa = Bairros.taxa(loja, a.tipo, a.bairro);
     const cartao = a.pagamento === 'cartao' ? Number(loja.taxa_cartao) || 0 : 0;
     return {
       itens: itens.map((i) => `${i.qtd}x ${i.nome}${i.detalhe ? ' (' + i.detalhe + ')' : ''}${i.obs ? ' obs: ' + i.obs : ''} = ${brl(i.preco)}`),
@@ -185,10 +190,12 @@ function criar(s) {
     if (!nome) throw new s.Erro(400, 'Falta o nome do cliente.');
     const tel = s.telefoneBR(ctx.telefone || a.telefone);
     if (!tel) throw new s.Erro(400, 'Falta o WhatsApp do cliente com DDD.');
-    const endereco = s.texto(a.endereco, 300);
-    if (tipo === 'entrega' && !endereco) throw new s.Erro(400, 'Falta o endereço de entrega.');
+    // primeiro o endereço (rua e número); só depois junta o bairro
+    const enderecoDigitado = s.texto(a.endereco, 300);
+    if (tipo === 'entrega' && !enderecoDigitado) throw new s.Erro(400, 'Falta o endereço de entrega (rua e número).');
+    const endereco = Bairros.noEndereco(loja, enderecoDigitado, s.texto(a.bairro, 60));
     const itens = await s.calcularItens(paraEscolhas(a.itens));
-    const taxa = tipo === 'entrega' ? Number(loja.taxa_entrega) || 0 : 0;
+    const taxa = Bairros.taxa(loja, tipo, a.bairro);
     const pag = s.lerPagamento({ pagamento: a.pagamento, troco_para: a.troco_para }, s.Calc.somar(itens) + taxa, true);
     const pedido = await s.gravarPedido({ origem: ctx.canal === 'whatsapp' ? 'whatsapp' : 'manu', tipo, status: 'novo',
       cliente_nome: nome, cliente_telefone: tel, endereco: tipo === 'entrega' ? endereco : '',

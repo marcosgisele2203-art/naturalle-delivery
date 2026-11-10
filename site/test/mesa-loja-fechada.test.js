@@ -5,9 +5,11 @@ const path = require('node:path');
 
 // Sobe o servidor de verdade contra um banco DESCARTÁVEL: DATABASE_URL=postgres://.../banco_de_teste npm test
 test('mesa (QR) não recebe pedido com a loja fechada', { skip: !process.env.DATABASE_URL && 'Defina DATABASE_URL de um banco de teste para rodar.' }, async (t) => {
-  const porta = 3100 + Math.floor(Math.random() * 800), U = 'http://127.0.0.1:' + porta;
+  const porta = 3100 + Math.floor(Math.random() * 300), U = 'http://127.0.0.1:' + porta;
   const srv = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], { env: { ...process.env, PORT: String(porta), MP_ACCESS_TOKEN: '', N8N_URL: '' }, stdio: 'ignore' });
-  t.after(() => srv.kill());
+  // limpeza no fim: primeiro devolve o que o teste mudou, depois desliga o servidor
+  const aoFim = [];
+  t.after(async () => { for (const f of aoFim) await f().catch(() => {}); srv.kill(); });
   for (let i = 0; i < 60; i++) { try { if ((await fetch(U + '/saude')).ok) break; } catch {} await new Promise((r) => setTimeout(r, 250)); }
   const H = { 'Content-Type': 'application/json' };
   const api = async (metodo, url, corpo) => { const r = await fetch(U + url, { method: metodo, headers: H, body: corpo ? JSON.stringify(corpo) : undefined }); return { status: r.status, d: await r.json(), r }; };
@@ -16,6 +18,9 @@ test('mesa (QR) não recebe pedido com a loja fechada', { skip: !process.env.DAT
   if (r.status === 403) r = await fetch(U + '/api/equipe/entrar', { method: 'POST', headers: H, body: JSON.stringify(ADMIN) });
   if (!r.ok) { t.skip('Banco de teste já tem outros usuários; use um banco vazio.'); return; }
   H.Cookie = r.headers.get('set-cookie').split(';')[0];
+  // devolve a loja como estava no fim
+  const lojaAntes = (await api('GET', '/api/admin/tudo')).d.loja;
+  aoFim.push(() => api('PUT', '/api/admin/loja', { loja: lojaAntes }));
   await api('POST', '/api/admin/mesas', { nome: 'Mesa Teste' });
   const mesa = (await api('GET', '/api/admin/tudo')).d.mesas.find((m) => m.nome === 'Mesa Teste');
   const menu = (await api('GET', '/api/equipe/cardapio')).d.cardapio;

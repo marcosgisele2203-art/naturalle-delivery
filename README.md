@@ -72,6 +72,9 @@ mesmo App, mesma porta). Nele, a página inicial já abre o painel da equipe; o 
 ### 3. Primeiro acesso
 Abra `https://seudominio/equipe`. Na primeira vez ele pede para **criar o administrador**. Depois, em Administração:
 1. **Horário e taxas**: marque *Abrir e fechar sozinho pelo horário* e preencha o horário de cada dia; confira a taxa de entrega e o acréscimo do cartão.
+   - **Taxa por bairro (opcional)**: no campo *Taxa por bairro*, escreva um bairro por linha com o valor no fim (ex.: `Centro = 5`, `Vila Nova = 9,50`).
+     Com bairros cadastrados, o cliente escolhe o bairro no cardápio e paga a taxa dele; "Outro bairro" paga a *Taxa de entrega* padrão.
+     O bairro vai junto do endereço no painel, na impressão e para o entregador. A Manu IA também pergunta o bairro. Em branco = taxa única, como antes.
    **Loja**: confira nome, WhatsApp e o **endereço do site** (vai nos QR codes).
 2. **Mesas e QR code**: crie as mesas (ex.: da 1 até a 10) e clique em **Imprimir QR codes**.
 3. **Funcionários**: clique em *+ Cadastrar funcionário*, preencha nome, WhatsApp, login e senha e escolha a função (Administrador, Atendente / caixa, Cozinheiro, Garçom, Entregador).

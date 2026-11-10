@@ -16,6 +16,7 @@ const QRCode = require('qrcode');
 const Calc = require('./public/shared/calc.js');
 const Relatorio = require('./public/shared/relatorio.js');
 const Horario = require('./public/shared/horario.js');
+const Bairros = require('./public/shared/bairros.js');
 const MP = require('./lib/mercadopago');
 const { pool, migrar, lerConfig, salvarConfig } = require('./lib/db');
 const auth = require('./lib/auth');
@@ -336,6 +337,8 @@ function validarLoja(entrada, atual) {
   if (!Number.isFinite(taxa) || taxa < 0 || taxa > 1000) throw new Erro(400, 'Taxa de entrega inválida');
   const cartao = valor(b.taxa_cartao);
   if (!Number.isFinite(cartao) || cartao < 0 || cartao > 100) throw new Erro(400, 'Acréscimo do cartão inválido');
+  let bairros;
+  try { bairros = Bairros.validar(b.bairros); } catch (e) { throw new Erro(400, e.message); }
   const horarios = Horario.lista((Array.isArray(b.horarios) ? b.horarios : []).map((d) => ({
     aberto: d && d.aberto !== false, abre: texto(d && d.abre, 5), fecha: texto(d && d.fecha, 5),
   })));
@@ -350,6 +353,7 @@ function validarLoja(entrada, atual) {
     delivery: bool(b.delivery, atual.delivery),
     retirada: bool(b.retirada, atual.retirada),
     taxa_entrega: taxa,
+    bairros,
     taxa_cartao: cartao,
     mesa_auto_confirmar: bool(b.mesa_auto_confirmar, atual.mesa_auto_confirmar),
     url_publica: texto(b.url_publica, 200).replace(/\/+$/, ''),
@@ -395,7 +399,7 @@ const quadroDeHoje = (lista, dia) => (lista || []).filter((a) => a.ativo && (!a.
 
 const lojaPublica = (l, e = estadoLoja(l)) => ({ manu: manu.ativa(), endereco_completo: enderecoLoja(l), cidade: l.cidade || 'Miranda', uf: l.uf || 'MS', referencia: l.referencia || '',
   instagram: l.instagram || '', pix_chave: l.pix_chave || '', pix_nome: l.pix_nome || '', telefone: l.telefone || '', email: l.email || '', razao_social: l.razao_social || '', cnpj: l.cnpj || '', nome: l.nome, frase: l.frase, horario: e.texto, whatsapp: l.whatsapp, aberta: e.aberta,
-  pix_auto: usaMP(l), delivery: l.delivery, retirada: l.retirada, taxa_entrega: l.taxa_entrega, taxa_cartao: Number(l.taxa_cartao) || 0, recado: l.recado || '' });
+  pix_auto: usaMP(l), delivery: l.delivery, retirada: l.retirada, taxa_entrega: l.taxa_entrega, bairros: Bairros.lista(l), taxa_cartao: Number(l.taxa_cartao) || 0, recado: l.recado || '' });
 
 function urlBase(req, loja) {
   if (loja.url_publica) return loja.url_publica;
@@ -603,10 +607,13 @@ rota('POST', '/api/publico/pedido', null, async ({ req, b }) => {
   if (!tel) throw new Erro(400, 'Informe seu WhatsApp com DDD.');
   // com o local marcado no mapa, o endereço escrito pode ficar em branco
   const local = tipo === 'entrega' ? lerLocalizacao(b.localizacao) : null;
-  const endereco = texto(b.endereco, 300) || (local ? 'Local marcado no mapa (ver localização)' : '');
-  if (tipo === 'entrega' && !endereco) throw new Erro(400, 'Informe o endereço de entrega ou marque sua casa no mapa.');
+  const enderecoDigitado = texto(b.endereco, 300) || (local ? 'Local marcado no mapa (ver localização)' : '');
+  if (tipo === 'entrega' && !enderecoDigitado) throw new Erro(400, 'Informe o endereço de entrega ou marque sua casa no mapa.');
+  const bairro = texto(b.bairro, 60);
+  if (tipo === 'entrega' && Bairros.lista(loja).length && !bairro) throw new Erro(400, 'Escolha o seu bairro.');
+  const endereco = Bairros.noEndereco(loja, enderecoDigitado, bairro);
   const itens = await calcularItens(b.itens);
-  const taxa = tipo === 'entrega' ? Number(loja.taxa_entrega) || 0 : 0;
+  const taxa = Bairros.taxa(loja, tipo, bairro);
   const pag = lerPagamento(b, Calc.somar(itens) + taxa, true);
   const pedido = await gravarPedido({ requisicao: lerRequisicao(b, 'site'), origem: 'site', tipo, status: 'novo', cliente_nome: nome, cliente_telefone: tel,
     endereco: tipo === 'entrega' ? endereco : '', localizacao: local,
@@ -807,10 +814,10 @@ rota('POST', '/api/equipe/pedido', ['garcom', 'caixa', 'pedidos'], async ({ u, b
   if (tipo === 'entrega' && !endereco) throw new Erro(400, 'Informe o endereço de entrega.');
   const itens = await calcularItens(b.itens);
   const loja = await lerConfig('loja');
-  const taxa = taxaEntrega(tipo, loja);
+  const taxa = taxaEntrega(tipo, loja, b.bairro);
   const pag = tipo === 'mesa' ? {} : lerPagamento(b, Calc.somar(itens) + taxa, b.pagamento_recebido === true);
   const pedido = await gravarPedido({ pagamento_recebido: b.pagamento_recebido === true, requisicao: lerRequisicao(b, 'equipe-' + u.id), origem: tipo === 'mesa' ? 'garcom' : 'balcao', tipo, status: 'preparo', mesa_id: mesaId,
-    criado_por: u.id, cliente_nome: nome, cliente_telefone: telefoneBR(b.cliente_telefone), endereco: tipo === 'entrega' ? endereco : '',
+    criado_por: u.id, cliente_nome: nome, cliente_telefone: telefoneBR(b.cliente_telefone), endereco: tipo === 'entrega' ? Bairros.noEndereco(loja, endereco, texto(b.bairro, 60)) : '',
     observacoes: texto(b.observacoes, 300), itens, taxa_entrega: taxa, taxa_cartao: loja.taxa_cartao, ...pag });
   if (!pedido.repetido) notificar('/pedido', pedido);
   return { ok: true, pedido };

@@ -4,11 +4,12 @@ App.novoPedido = function (el, opts) {
   const { esc, brl } = App;
   const st = {
     itens: [], tipo: opts.mesa || opts.somenteMesa ? 'mesa' : 'retirada', mesa_id: opts.mesa ? opts.mesa.id : '',
-    nome: '', telefone: '', endereco: '', obs: '', pagamento: '', recebido: false, troco: '', enviando: false, erro: '', mesas: [],
+    nome: '', telefone: '', endereco: '', bairro: '', obs: '', pagamento: '', recebido: false, troco: '', enviando: false, erro: '', mesas: [],
   };
   let montador;
 
-  const taxa = () => (st.tipo === 'entrega' ? Number(App.loja.taxa_entrega) || 0 : 0);
+  const taxa = () => window.Bairros.taxa(App.loja, st.tipo, st.bairro);
+  const bairros = () => window.Bairros.lista(App.loja);
   const acrescimoCartao = () => (st.tipo !== 'mesa' && st.pagamento === 'cartao' ? Number(App.loja.taxa_cartao) || 0 : 0);
   const total = () => window.Calc.somar(st.itens) + taxa() + acrescimoCartao();
   const pagoCom = () => Number(String(st.troco || '').replace(/[^\d,.]/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.'));
@@ -30,13 +31,15 @@ App.novoPedido = function (el, opts) {
       <div>${st.itens.length ? window.Montador.linhas(st.itens, true) : '<p class="nota">Toque nos itens do cardápio para adicionar.</p>'}</div>
       <label class="campo">${st.tipo === 'mesa' ? 'Nome do cliente (opcional)' : 'Nome do cliente'}<input name="nome" value="${esc(st.nome)}" autocomplete="off"></label>
       ${st.tipo !== 'mesa' ? `<label class="campo">WhatsApp (opcional)<input name="telefone" type="tel" inputmode="tel" value="${esc(st.telefone)}" placeholder="Se preencher, o cliente recebe as mensagens"></label>` : ''}
+      ${st.tipo === 'entrega' && bairros().length ? `<label class="campo">Bairro<select name="bairro"><option value="">${esc(window.Bairros.OUTRO)} · ${brl(Number(App.loja.taxa_entrega) || 0)}</option>${bairros().map((b) =>
+        `<option value="${esc(b.nome)}"${st.bairro === b.nome ? ' selected' : ''}>${esc(b.nome)} · ${brl(Number(b.taxa) || 0)}</option>`).join('')}</select></label>` : ''}
       ${st.tipo === 'entrega' ? `<label class="campo">Endereço<input name="endereco" value="${esc(st.endereco)}"></label>` : ''}
       <label class="campo">Observações<input name="obs" value="${esc(st.obs)}" autocomplete="off"></label>
       ${st.tipo === 'mesa' ? '<p class="nota">Este pedido entra na conta da mesa. O pagamento será recebido pelo caixa na saída.</p>' : `<p class="nota">${st.recebido ? 'Recebimento confirmado pelo caixa.' : st.tipo === 'retirada' ? 'Pagamento pendente: receber ao pedir ou retirar.' : 'Pagamento pendente: receber antes ou na entrega.'}</p>${App.pode('caixa') ? `<div class="chips"><button type="button" class="chip" data-quando="depois" aria-pressed="${!st.recebido}">Paga depois</button><button type="button" class="chip" data-quando="agora" aria-pressed="${st.recebido}">Já recebi o pagamento</button></div>` : ''}`}
       ${st.tipo !== 'mesa' ? `<div class="campo"><span>Forma de pagamento${st.recebido ? '' : ' (pode escolher depois)'}</span><div class="chips">${[['pix', 'Pix'], ['cartao', 'Cartão'], ['dinheiro', 'Dinheiro']].map(([v, n]) =>
         `<button type="button" class="chip" aria-pressed="${st.pagamento === v}" data-pag="${v}">${n}</button>`).join('')}</div></div>` : ''}
       ${st.pagamento === 'dinheiro' && st.tipo !== 'mesa' ? `<label class="campo">Cliente paga com<input name="troco" inputmode="decimal" value="${esc(st.troco)}" placeholder="Ex.: 50,00"><small data-troco>${textoTroco()}</small></label>` : ''}
-      ${taxa() ? `<div class="linha-total" style="font-size:14px;font-weight:600"><span>Taxa de entrega</span><span>${brl(taxa())}</span></div>` : ''}
+      ${taxa() ? `<div class="linha-total" style="font-size:14px;font-weight:600"><span>Taxa de entrega${st.bairro ? ' · ' + esc(st.bairro) : ''}</span><span>${brl(taxa())}</span></div>` : ''}
       ${acrescimoCartao() ? `<div class="linha-total" style="font-size:14px;font-weight:600"><span>Acréscimo da maquininha</span><span>${brl(acrescimoCartao())}</span></div>` : ''}
       <div class="linha-total"><span>Total</span><span>${brl(total())}</span></div>
       ${st.erro ? `<p class="erro" role="alert">${esc(st.erro)}</p>` : ''}
@@ -53,6 +56,8 @@ App.novoPedido = function (el, opts) {
 
   el.innerHTML = `<div class="novo"><div class="cartao"><div id="novo-cardapio"><p class="nota">Carregando cardápio…</p></div></div><div class="novo-carrinho" id="novo-carrinho"></div></div>`;
 
+  // trocou o bairro: a taxa e o total mudam na hora
+  el.addEventListener('change', (e) => { if (e.target.name === 'bairro' && e.target.closest('#novo-carrinho')) { lerCampos(); renderCarrinho(); } });
   el.addEventListener('input', (e) => {
     if (!e.target.closest('#novo-carrinho')) return;
     lerCampos();
@@ -80,11 +85,11 @@ App.novoPedido = function (el, opts) {
         st.enviando = true; renderCarrinho();
         try {
           const d = await App.api('/api/equipe/pedido', {
-            tipo: st.tipo, mesa_id: st.mesa_id, cliente_nome: st.nome, cliente_telefone: st.telefone, endereco: st.endereco,
+            tipo: st.tipo, mesa_id: st.mesa_id, cliente_nome: st.nome, cliente_telefone: st.telefone, endereco: st.endereco, bairro: st.tipo === 'entrega' ? st.bairro : '',
             observacoes: st.obs, pagamento_recebido: st.tipo !== 'mesa' && st.recebido, pagamento: st.pagamento || null, troco_para: st.pagamento === 'dinheiro' && st.troco ? pagoCom() : null, itens: st.itens.map((i) => i.escolha),
           });
           App.toast('Pedido #' + d.pedido.id + ' enviado para a cozinha');
-          Object.assign(st, { itens: [], nome: '', telefone: '', endereco: '', obs: '', pagamento: '', recebido: false, troco: '' });
+          Object.assign(st, { itens: [], nome: '', telefone: '', endereco: '', bairro: '', obs: '', pagamento: '', recebido: false, troco: '' });
           App.atualizarPedidos();
           if (opts.aoEnviar) { st.enviando = false; return opts.aoEnviar(d.pedido); }
         } catch (err) { st.erro = err.message; }

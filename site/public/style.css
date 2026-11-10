@@ -78,7 +78,7 @@ a:hover { color: var(--rosa-escuro); }
 .icone { width: 44px; height: 44px; border-radius: 22px; border: 1px solid var(--linha); background: #fff; display: flex; align-items: center; justify-content: center; }
 #carrinho-corpo { display: flex; flex-direction: column; gap: 12px; }
 .campo { display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600; color: var(--tinta-2); }
-.campo input, .campo textarea { min-height: 46px; border: 1px solid var(--linha); border-radius: 10px; padding: 10px 12px; font-size: 16px; font-weight: 400; background: #fff; }
+.campo input, .campo textarea, .campo select { min-height: 46px; border: 1px solid var(--linha); border-radius: 10px; padding: 10px 12px; font-size: 16px; font-weight: 400; background: #fff; }
 .campo textarea { min-height: 70px; resize: vertical; }
 .pagamentos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
 .pagamentos .chip { min-height: 46px; }
