@@ -348,6 +348,8 @@ function validarLoja(entrada, atual) {
     frase: texto(b.frase, 160),
     horario: texto(b.horario, 80),
     whatsapp: soDigitos(b.whatsapp).slice(0, 13),
+    // celular do dono: recebe os avisos da loja (por exemplo, a localização que o cliente manda depois do pedido)
+    whatsapp_avisos: normalizarTelefone(b.whatsapp_avisos),
     aberta: bool(b.aberta, atual.aberta),
     horario_automatico: bool(b.horario_automatico, !!atual.horario_automatico),
     horarios,
@@ -557,6 +559,7 @@ rota('POST', '/api/manu/whatsapp', null, async ({ req, b }) => {
     if (rows[0]) {
       const pedido = await buscarPedido(rows[0].id);
       if (pedido.status === 'saiu') avisarEntregador(pedido, 'localizacao');
+      avisarDono(pedido, telefone);
       return { mensagens: [{ numero: telefone, texto: `📍 Localização recebida! Já está no pedido *#${pedido.id}* para o entregador. Obrigado!` }] };
     }
   }
@@ -889,6 +892,16 @@ async function avisarEntregador(pedido, tipo = 'saida') {
     const loja = await lerConfig('loja');
     await enviarWhatsApp(tel, tipo === 'localizacao' ? Entrega.mensagemLocalizacao(pedido) : Entrega.mensagemEntregador(pedido, loja));
   } catch (e) { console.error('whatsapp do entregador', pedido.id, e.message); }
+}
+
+// WhatsApp para o celular do dono (Administração › Loja › "WhatsApp do dono"): a localização que o cliente mandou depois do pedido
+async function avisarDono(pedido, telefoneCliente) {
+  if (!EVO.url || !EVO.instancia || !EVO.chave) return;
+  try {
+    const dono = normalizarTelefone((await lerConfig('loja')).whatsapp_avisos);
+    if (!dono || dono === normalizarTelefone(telefoneCliente)) return;
+    await enviarWhatsApp(dono, Entrega.mensagemLocalizacao(pedido));
+  } catch (e) { console.error('whatsapp do dono', pedido.id, e.message); }
 }
 
 // --- entregador
