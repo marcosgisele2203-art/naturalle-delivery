@@ -571,7 +571,7 @@ rota('POST', '/api/manu/whatsapp', null, async ({ req, b }) => {
   }
   let r;
   try {
-    r = manu.ativa() ? await comPrazo(manu.responder(entrada)) : await manu.semIA(entrada, urlBase(req, loja));
+    r = manu.ativa() ? await comPrazo(manu.responder({ ...entrada, urlSite: urlBase(req, loja) })) : await manu.semIA(entrada, urlBase(req, loja));
   } catch (e) {
     console.error('manu', e.message);
     r = { resposta: 'Ops, tive um probleminha aqui 😅 Tenta de novo daqui a pouco ou faça o pedido pelo cardápio: ' + urlBase(req, loja), avisos: [] };
