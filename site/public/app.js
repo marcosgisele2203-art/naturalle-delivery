@@ -146,7 +146,7 @@
     const cartaz = (src, titulo, produto) => {
       const pede = produto && disponivel(produto);
       return `<button type="button" class="giz-cartaz" data-acao="${pede ? 'destaque' : 'ampliar'}" data-v="${esc(pede ? produto : src)}"
-        aria-label="${esc(titulo)}${pede ? ': toque para pedir' : ': ver a foto'}"><img src="${esc(src)}" alt="">${pede ? '<span>Toque para pedir</span>' : ''}</button>`;
+        aria-label="${esc(titulo)}${pede ? ': toque para pedir' : ': ver a foto'}"><img src="${esc(src)}" alt="" loading="lazy" decoding="async">${pede ? '<span>Toque para pedir</span>' : ''}</button>`;
     };
     const slides = [];
     if (!st.loja.aberta) {
