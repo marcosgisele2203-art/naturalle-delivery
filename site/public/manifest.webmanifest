@@ -1,0 +1,15 @@
+{
+  "name": "Naturalle Mania · Peça online",
+  "short_name": "Naturalle",
+  "description": "Açaí, Mac de 10, sucos e mais. Peça pelo site e acompanhe pelo WhatsApp.",
+  "lang": "pt-BR",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#12301B",
+  "theme_color": "#12301B",
+  "icons": [
+    { "src": "/img/icone-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/img/icone-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

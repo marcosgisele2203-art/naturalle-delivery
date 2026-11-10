@@ -1180,7 +1180,7 @@ rota('GET', '/api/admin/mesas/qr', ['admin'], async ({ req }) => {
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
   '.json': 'application/json', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
-  '.webp': 'image/webp', '.svg': 'image/svg+xml', '.ico': 'image/x-icon',
+  '.webp': 'image/webp', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.webmanifest': 'application/manifest+json; charset=utf-8',
 };
 
 function servirArquivo(req, res, pathname) {
@@ -1192,6 +1192,7 @@ function servirArquivo(req, res, pathname) {
   if (rel === '/painel' || rel.startsWith('/painel/')) { res.writeHead(301, { Location: '/equipe/' }); return res.end(); }
   if (/^\/m\/[\w-]+$/.test(rel)) rel = '/index.html';
   if (rel.endsWith('/')) rel += 'index.html';
+  if (rel === '/index.html') return servirCardapio(req, res);
   const arquivo = path.normalize(path.join(PUBLIC, rel));
   if (!arquivo.startsWith(PUBLIC + path.sep)) { res.writeHead(403); return res.end(); }
   fs.stat(arquivo, (err, st) => {
@@ -1199,7 +1200,7 @@ function servirArquivo(req, res, pathname) {
     const ext = path.extname(arquivo).toLowerCase();
     // carimbo pelo tamanho e data do arquivo: depois de implantar uma versão nova, ele muda sozinho
     const etag = 'W/"' + st.size.toString(36) + '-' + Math.floor(st.mtimeMs).toString(36) + '"';
-    const texto = ['.html', '.js', '.css', '.json', '.svg'].includes(ext);
+    const texto = ['.html', '.js', '.css', '.json', '.svg', '.webmanifest'].includes(ext);
     const headers = {
       'Content-Type': MIME[ext] || 'application/octet-stream',
       'Cache-Control': ['.jpg', '.png', '.webp'].includes(ext) ? 'public, max-age=86400' : 'no-cache',
@@ -1216,6 +1217,28 @@ function servirArquivo(req, res, pathname) {
     leitura.on('error', () => res.destroy());
     (gzip ? leitura.pipe(zlib.createGzip()) : leitura).pipe(res);
   });
+}
+
+// Cardápio (/ e /m/<mesa>): o WhatsApp e as redes sociais leem o título, a frase e a foto (og:*) do HTML,
+// e a foto precisa do endereço completo. O servidor preenche {{...}} com os dados da loja a cada pedido.
+const escHtml = (t) => String(t == null ? '' : t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+async function servirCardapio(req, res) {
+  try {
+    const [modelo, loja] = await Promise.all([fs.promises.readFile(path.join(PUBLIC, 'index.html'), 'utf8'), lerConfig('loja')]);
+    const base = urlBase(req, loja);
+    const nome = loja.nome || 'Naturalle Mania';
+    const descricao = [loja.frase, 'Açaí, Mac de 10, sucos e mais. Peça pelo site e acompanhe pelo WhatsApp.'].filter(Boolean).join(' ');
+    const html = modelo.replace(/\{\{(BASE|NOME|DESCRICAO)\}\}/g, (_, k) => escHtml({ BASE: base, NOME: nome, DESCRICAO: descricao }[k]));
+    const etag = 'W/"' + crypto.createHash('sha1').update(html).digest('base64url') + '"';
+    const headers = { 'Content-Type': MIME['.html'], 'Cache-Control': 'no-cache', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin', ETag: etag, Vary: 'Accept-Encoding' };
+    if (req.headers['if-none-match'] === etag) { res.writeHead(304, headers); return res.end(); }
+    const gzip = aceitaGzip(req);
+    res.writeHead(200, gzip ? { ...headers, 'Content-Encoding': 'gzip' } : headers);
+    res.end(req.method === 'HEAD' ? undefined : gzip ? zlib.gzipSync(html) : html);
+  } catch (e) {
+    console.error('cardápio', e.message);
+    if (!res.headersSent) { res.writeHead(500); res.end(); }
+  }
 }
 
 // ---------------------------------------------------------------- servidor
