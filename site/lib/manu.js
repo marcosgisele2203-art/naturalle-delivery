@@ -21,7 +21,7 @@ const brl = (v) => 'R$ ' + Number(v).toFixed(2).replace('.', ',');
 const DIAS = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
 
 const INSTRUCOES = `Você é a Manu, a garçonete online da Naturalle Mania (açaí, Mac de 10 e bebidas), em Miranda/MS.
-Fale como uma atendente simpática e animada, em português do Brasil, com frases curtas (é conversa de WhatsApp) e no máximo um emoji por mensagem.
+Fale como uma atendente simpática e animada, em português do Brasil, com frases curtas (é conversa de WhatsApp) e no máximo um emoji por mensagem (só a mensagem de boas-vindas pode ter até três).
 Escreva SEMPRE em português do Brasil, inclusive confirmações curtas (nunca "Got it", "OK" em inglês etc.).
 Formato: texto simples de WhatsApp. Listas com "• " no começo da linha; negrito só com *uma palavra ou nome* entre asteriscos simples. Nada de títulos, "##" ou "**".
 NUNCA mostre ao cliente os códigos entre colchetes [assim] do cardápio: eles são só para você usar nas ferramentas.
@@ -336,7 +336,12 @@ function criar(s) {
     }
   }
 
-  // entrada = { canal: 'whatsapp'|'site', chave, telefone?, nome?, texto?, midia?: { tipo: 'imagem'|'audio', mime, base64 } }
+  const boasVindas = (url) => '(Começo da conversa no WhatsApp. Abra com uma mensagem de boas-vindas bem alegre, educada e simpática, '
+    + 'com dois ou três emojis, se apresentando como a Manu da Naturalle Mania. Em seguida pergunte se o cliente prefere ver o cardápio '
+    + `ou fazer o pedido aqui mesmo com você${url ? `, e mande o link do cardápio nessa mesma mensagem: ${url}` : ''}. `
+    + 'Se o cliente já disse o que quer pedir, cumprimente do mesmo jeito e já comece a atender o pedido, sem fazer essa pergunta.)';
+
+  // entrada = { canal: 'whatsapp'|'site', chave, telefone?, nome?, texto?, midia?: { tipo: 'imagem'|'audio', mime, base64 }, urlSite? }
   async function responder(entrada) {
     const ctx = { canal: entrada.canal, telefone: entrada.telefone || null, nome: entrada.nome || '', avisos: [], pedido: null };
     const conv = await conversa(entrada.canal, entrada.chave);
@@ -348,6 +353,8 @@ function criar(s) {
     partes.push({ text: textoCliente || (entrada.midia ? (entrada.midia.tipo === 'audio' ? '(o cliente mandou um áudio)' : '(o cliente mandou uma foto)')
       : entrada.localizacao ? '(o cliente mandou a localização dele pelo WhatsApp. Ela já está guardada e vai junto no pedido de entrega, então não precisa pedir rua e número; se quiser, peça só uma referência)' : '(mensagem vazia)') });
     if (entrada.nome && !conv.mensagens.length) partes.push({ text: `(nome no WhatsApp: ${entrada.nome})` });
+    // começo da conversa no WhatsApp: boas-vindas alegres e a escolha entre o cardápio e pedir com a Manu
+    if (entrada.canal === 'whatsapp' && !conv.mensagens.length) partes.push({ text: boasVindas(entrada.urlSite) });
     // cliente que já pediu antes: a Manu já sabe o nome e o último endereço
     if (!conv.mensagens.length && entrada.telefone && s.clienteDoTelefone) {
       const c = await s.clienteDoTelefone(entrada.telefone).catch(() => null);
