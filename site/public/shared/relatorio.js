@@ -63,7 +63,13 @@
   function csv(rel) {
     const NOMES = { pix: 'Pix', cartao: 'Cartão', dinheiro: 'Dinheiro', entrega: 'Entrega', retirada: 'Retirada', mesa: 'Mesa' };
     const num = (v) => Number(v || 0).toFixed(2).replace('.', ',');
-    const campo = (v) => { const s = String(v == null ? '' : v); return /[;"\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+    // texto que começa com = + - @ (ou tab) vira fórmula no Excel: um apóstrofo na frente faz ele mostrar como texto.
+    // Números (como -5,00) continuam números.
+    const campo = (v) => {
+      let s = String(v == null ? '' : v);
+      if (/^[=+\-@\t\r]/.test(s) && !/^-?\d+(,\d+)?$/.test(s)) s = "'" + s;
+      return /[;"\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    };
     const linhas = [['Pedido', 'Data', 'Hora', 'Tipo', 'Mesa', 'Cliente', 'Itens', 'Forma de pagamento', 'Recebimento', 'Subtotal', 'Taxa de entrega', 'Acréscimo cartão', 'Total', 'Entregador', 'Situação']];
     for (const p of rel.pedidos) {
       linhas.push([p.id, p.data.split('-').reverse().join('/'), p.hora, NOMES[p.tipo] || p.tipo, p.mesa_nome || '', p.cliente_nome || '',
