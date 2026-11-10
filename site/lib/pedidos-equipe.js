@@ -28,7 +28,7 @@ async function pedidosDoPainel(pool) {
   return rows;
 }
 
-// Taxa de entrega dos pedidos lançados pela equipe: sempre a da loja (nunca um valor vindo do navegador).
-const taxaEntrega = (tipo, loja) => (tipo === 'entrega' ? Math.max(0, Number(loja && loja.taxa_entrega) || 0) : 0);
+// Taxa de entrega dos pedidos lançados pela equipe: sempre a da loja ou do bairro cadastrado (nunca um valor vindo do navegador).
+const taxaEntrega = (tipo, loja, bairro) => require('../public/shared/bairros.js').taxa(loja, tipo, bairro);
 
 module.exports = { CAMPOS_PEDIDO, FROM_PEDIDO, pedidosDoPainel, taxaEntrega };

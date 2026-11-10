@@ -481,9 +481,11 @@ App.views.admin = {
         <label class="check"><input type="checkbox" name="aberta"${l.aberta ? ' checked' : ''}> Recebendo pedidos pelo site ${auto ? '(desmarque para fechar na hora, mesmo dentro do horário)' : '(desmarque para fechar)'}</label>
         <h2 style="margin-top:8px">Taxas</h2>
         <div class="grade-form">
-          <label class="campo">Taxa de entrega (R$)<input name="taxa_entrega" type="number" step="0.5" min="0" value="${Number(l.taxa_entrega) || 0}"><small>Somada em todo pedido de entrega.</small></label>
+          <label class="campo">Taxa de entrega (R$)<input name="taxa_entrega" type="number" step="0.5" min="0" value="${Number(l.taxa_entrega) || 0}"><small>Somada em todo pedido de entrega. Com bairros cadastrados abaixo, vale para "Outro bairro".</small></label>
           <label class="campo">Acréscimo do cartão (R$)<input name="taxa_cartao" type="number" step="0.5" min="0" value="${l.taxa_cartao ?? 1}"><small>Taxa da maquininha, somada quando o cliente paga no cartão. Use 0 para não cobrar.</small></label>
         </div>
+        <label class="campo">Taxa por bairro (opcional)<textarea name="bairros" rows="6" placeholder="Um bairro por linha, com o valor no fim. Exemplo:&#10;Centro = 5&#10;Vila Nova = 8&#10;Jardim Bela Vista = 10">${esc((l.bairros || []).map((b) => b.nome + ' = ' + (Number(b.taxa)||0).toFixed(2).replace('.', ',')).join('\n'))}</textarea>
+          <small>Deixe em branco para usar uma taxa só. Com bairros, o cliente escolhe o bairro no cardápio e paga a taxa dele.</small></label>
         <button class="btn verde grande">Salvar horário e taxas</button>
       </form>`;
     }
@@ -605,6 +607,13 @@ App.views.admin = {
             aberta: f.aberta.checked, horario_automatico: f.horario_automatico.checked,
             horarios: DIAS.map((_, i) => ({ aberto: f['aberto' + i].checked, abre: fd.get('abre' + i), fecha: fd.get('fecha' + i) })),
             taxa_entrega: fd.get('taxa_entrega'), taxa_cartao: fd.get('taxa_cartao'),
+            // "Centro = 5,00" → { nome: 'Centro', taxa: '5.00' }; o número é o último da linha
+            bairros: String(fd.get('bairros') || '').split('\n').map((linha) => {
+              const m = /^(.*?)[\s=:;–—-]*R?\$?\s*(\d+(?:[.,]\d{1,2})?)\s*$/.exec(linha.trim());
+              if (!linha.trim()) return null;
+              if (!m || !m[1].trim()) throw new Error('Bairro sem valor: "' + linha.trim() + '". Use o formato Nome = 5');
+              return { nome: m[1].trim(), taxa: m[2].replace(',', '.') };
+            }).filter(Boolean),
           };
           if (f.horario) loja.horario = fd.get('horario');
           Object.assign(d, await App.api('/api/admin/loja', { loja }, 'PUT'));

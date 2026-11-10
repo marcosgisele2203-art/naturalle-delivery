@@ -75,7 +75,8 @@
   const total = () => window.Calc.somar(st.carrinho) + taxa() + acrescimoCartao();
   // acréscimo da maquininha quando o pagamento é no cartão
   const acrescimoCartao = () => (!tokenMesa && st.pagamento === 'cartao' ? Number(st.loja.taxa_cartao) || 0 : 0);
-  const taxa = () => (!tokenMesa && st.tipo === 'entrega' ? Number(st.loja.taxa_entrega) || 0 : 0);
+  const taxa = () => (tokenMesa ? 0 : window.Bairros.taxa(st.loja, st.tipo, st.cliente.bairro));
+  const temBairros = () => !tokenMesa && window.Bairros.lista(st.loja).length > 0;
 
   function adicionar(escolha, calc) {
     st.carrinho.push({ escolha, ...calc });
@@ -97,7 +98,8 @@
     else {
       if (l.horario) selos.push(`<span class="selo amarelo">${esc(l.horario)}</span>`);
       selos.push('<span class="selo">Pix · Cartão · Dinheiro</span>');
-      if (l.delivery && Number(l.taxa_entrega)) selos.push(`<span class="selo">Entrega ${brl(l.taxa_entrega)}</span>`);
+      const taxas = window.Bairros.lista(l).length ? [...window.Bairros.lista(l).map((b) => Number(b.taxa) || 0), Number(l.taxa_entrega) || 0] : [Number(l.taxa_entrega) || 0];
+      if (l.delivery && Math.max(...taxas)) selos.push(`<span class="selo">Entrega ${Math.min(...taxas) < Math.max(...taxas) ? 'a partir de ' + brl(Math.min(...taxas)) : brl(taxas[0])}</span>`);
     }
     $('#selos').innerHTML = selos.join('');
     const aviso = $('#aviso-topo');
@@ -233,6 +235,9 @@
           `<button type="button" class="chip" aria-pressed="${st.tipo === v}" data-acao="tipo" data-v="${v}">${n}</button>`).join('')}</div></div>` : ''}
         <label class="campo">Seu nome<input name="nome" autocomplete="name" required value="${esc(c.nome)}"></label>
         <label class="campo">WhatsApp com DDD<input name="telefone" type="tel" inputmode="tel" autocomplete="tel" placeholder="(67) 99999-9999" required value="${esc(c.telefone)}"></label>
+        ${st.tipo === 'entrega' && temBairros() ? `<label class="campo">Bairro<select name="bairro" required>
+            <option value="">Escolha o seu bairro</option>${[...window.Bairros.lista(l), { nome: window.Bairros.OUTRO, taxa: l.taxa_entrega }].map((b) =>
+              `<option value="${esc(b.nome)}"${c.bairro === b.nome ? ' selected' : ''}>${esc(b.nome)} · entrega ${brl(Number(b.taxa) || 0)}</option>`).join('')}</select></label>` : ''}
         ${st.tipo === 'entrega' ? `<label class="campo">Endereço de entrega<input name="endereco" autocomplete="street-address" placeholder="Rua, número, bairro, referência" required value="${esc(c.endereco)}"></label>
           <div class="campo local">${st.local
             ? `<span class="local-ok">📍 Local marcado no mapa</span><button type="button" class="link" data-acao="local">ver / ajustar</button><button type="button" class="link" data-acao="local-tirar">tirar</button>`
@@ -245,7 +250,7 @@
             `<button type="button" class="chip" aria-pressed="${st.precisaTroco === v}" data-acao="troco" data-v="${v}">${n}</button>`).join('')}</div></div>
           ${st.precisaTroco === 'sim' ? `<label class="campo">Vai pagar com quanto?<input name="troco" inputmode="decimal" placeholder="Ex.: 50,00" value="${esc(st.troco)}">
             <small class="troco-calc" data-troco>${textoTroco()}</small></label>` : ''}` : ''}
-        ${taxa() ? `<div class="linha-total"><span>Taxa de entrega</span><span>${brl(taxa())}</span></div>` : ''}
+        ${taxa() ? `<div class="linha-total"><span>Taxa de entrega${temBairros() && st.cliente.bairro ? ' · ' + esc(st.cliente.bairro) : ''}</span><span>${brl(taxa())}</span></div>` : ''}
         ${acrescimoCartao() ? `<div class="linha-total"><span>Acréscimo da maquininha</span><span>${brl(acrescimoCartao())}</span></div>` : ''}`;
     }
     const fechado = !l.aberta;
@@ -271,6 +276,7 @@
     st.cliente = { ...st.cliente, nome: d.get('nome') ?? st.cliente.nome };
     if (d.has('telefone')) st.cliente.telefone = d.get('telefone');
     if (d.has('endereco')) st.cliente.endereco = d.get('endereco');
+    if (d.has('bairro')) st.cliente.bairro = d.get('bairro');
     st.obs = d.get('obs') || '';
     if (d.has('troco')) st.troco = d.get('troco') || '';
     guardar('nm-cliente', st.cliente);
@@ -322,6 +328,8 @@
     e.preventDefault();
   });
   $('#carrinho').addEventListener('click', (e) => { if (e.target.id === 'carrinho') fechar(); });
+  // trocou o bairro: atualiza a taxa e o total na hora
+  $('#carrinho').addEventListener('change', (e) => { if (e.target.name === 'bairro') { lerForm(); st.erro = ''; renderCarrinho(); } });
   $('#carrinho').addEventListener('input', (e) => {
     if (e.target.name !== 'troco') return;
     st.troco = e.target.value;
@@ -341,6 +349,7 @@
       const tel = String(c.telefone || '').replace(/\D/g, '');
       if (!String(c.nome).trim()) st.erro = 'Informe seu nome.';
       else if (tel.length < 10 || tel.length > 13) st.erro = 'Informe seu WhatsApp com DDD.';
+      else if (st.tipo === 'entrega' && temBairros() && !window.Bairros.achar(st.loja, c.bairro) && c.bairro !== window.Bairros.OUTRO) st.erro = 'Escolha o seu bairro.';
       else if (st.tipo === 'entrega' && !String(c.endereco).trim() && !st.local) st.erro = 'Informe o endereço de entrega ou marque sua casa no mapa.';
       else if (st.pagamento === 'dinheiro' && !st.precisaTroco) st.erro = st.tipo === 'entrega' ? 'Diga se o entregador precisa levar troco.' : 'Diga se vai precisar de troco.';
       else if (st.pagamento === 'dinheiro' && st.precisaTroco === 'sim' && !(valorDigitado(st.troco) > total())) st.erro = 'Diga com quanto vai pagar: precisa ser mais que o total (' + brl(total()) + ').';
@@ -352,7 +361,7 @@
       const d = tokenMesa
         ? await enviarPedido('/api/publico/mesa/' + tokenMesa + '/pedido', { nome: c.nome, observacoes: st.obs, itens })
         : await enviarPedido('/api/publico/pedido', {
-          tipo: st.tipo, cliente: { nome: c.nome, telefone: c.telefone }, endereco: c.endereco, localizacao: st.tipo === 'entrega' ? (st.local || null) : null, observacoes: st.obs,
+          tipo: st.tipo, cliente: { nome: c.nome, telefone: c.telefone }, endereco: c.endereco, bairro: st.tipo === 'entrega' && temBairros() ? c.bairro || '' : '', localizacao: st.tipo === 'entrega' ? (st.local || null) : null, observacoes: st.obs,
           pagamento: st.pagamento, troco_para: st.pagamento === 'dinheiro' && st.precisaTroco === 'sim' ? valorDigitado(st.troco) : null, itens,
         });
       st.enviado = { id: d.pedido_id, codigo: d.codigo, pix: st.pagamento === 'pix', chavePix: d.pix || null, total: d.total, status: d.status };
