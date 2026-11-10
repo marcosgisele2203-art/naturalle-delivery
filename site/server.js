@@ -11,6 +11,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const zlib = require('zlib');
 const QRCode = require('qrcode');
 const Calc = require('./public/shared/calc.js');
 const Relatorio = require('./public/shared/relatorio.js');
@@ -49,6 +50,39 @@ const estadoLoja = (loja) => Horario.estado(loja, agoraNaLoja());
 function json(res, status, body, headers = {}) {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...headers });
   res.end(JSON.stringify(body));
+}
+
+// Resposta de sucesso da API, mais leve:
+//  - comprimida (gzip) quando o navegador aceita: a lista de pedidos cai de ~150 KB para ~15 KB;
+//  - nas rotas que as telas consultam toda hora, leva um "carimbo" (ETag). Se nada mudou desde a última
+//    consulta, responde 304 sem corpo e o navegador reaproveita o que já tem.
+const COM_CARIMBO = new Set(['/api/equipe/pedidos', '/api/equipe/cardapio', '/api/publico/cardapio']);
+// gzip só se o navegador aceitar de verdade: "gzip;q=0" é recusa; "*" vale quando gzip não aparece sozinho
+function aceitaGzip(req) {
+  const qualidade = {};
+  for (const parte of String(req.headers['accept-encoding'] || '').toLowerCase().split(',')) {
+    const [nome, ...params] = parte.trim().split(';');
+    if (!nome) continue;
+    const q = params.map((x) => /^\s*q\s*=\s*([\d.]+)\s*$/.exec(x)).find(Boolean);
+    qualidade[nome.trim()] = q ? Number(q[1]) : 1;
+  }
+  const q = 'gzip' in qualidade ? qualidade.gzip : qualidade['*'];
+  return Number.isFinite(q) && q > 0;
+}
+function enviarJSON(req, res, pathname, body) {
+  const texto = JSON.stringify(body);
+  const headers = { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', Vary: 'Accept-Encoding' };
+  if (req.method === 'GET' && COM_CARIMBO.has(pathname)) {
+    headers.ETag = '"' + crypto.createHash('sha1').update(texto).digest('base64url') + '"';
+    headers['Cache-Control'] = 'private, no-cache';
+    if (req.headers['if-none-match'] === headers.ETag) { res.writeHead(304, headers); return res.end(); }
+  }
+  if (texto.length > 1024 && aceitaGzip(req)) {
+    res.writeHead(200, { ...headers, 'Content-Encoding': 'gzip' });
+    return res.end(zlib.gzipSync(texto));
+  }
+  res.writeHead(200, headers);
+  res.end(texto);
 }
 
 function lerCorpo(req, limite = 200_000) {
@@ -752,7 +786,7 @@ function marcarCozinha(pedidos, menu) {
 rota('GET', '/api/equipe/pedidos', ['pedidos', 'garcom', 'caixa', 'cozinha', 'entregador'], async () => {
   const menu = await lerConfig('cardapio');
   const rows = await pedidosDoPainel(pool);
-  return { pedidos: marcarCozinha(rows, menu || {}), agora: new Date().toISOString() };
+  return { pedidos: marcarCozinha(rows, menu || {}) };
 });
 
 rota('POST', '/api/equipe/pedido', ['garcom', 'caixa', 'pedidos'], async ({ u, b }) => {
@@ -1156,14 +1190,24 @@ function servirArquivo(req, res, pathname) {
   fs.stat(arquivo, (err, st) => {
     if (err || !st.isFile()) { res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end('Não encontrado'); }
     const ext = path.extname(arquivo).toLowerCase();
-    res.writeHead(200, {
+    // carimbo pelo tamanho e data do arquivo: depois de implantar uma versão nova, ele muda sozinho
+    const etag = 'W/"' + st.size.toString(36) + '-' + Math.floor(st.mtimeMs).toString(36) + '"';
+    const texto = ['.html', '.js', '.css', '.json', '.svg'].includes(ext);
+    const headers = {
       'Content-Type': MIME[ext] || 'application/octet-stream',
       'Cache-Control': ['.jpg', '.png', '.webp'].includes(ext) ? 'public, max-age=86400' : 'no-cache',
       'X-Content-Type-Options': 'nosniff',
       'Referrer-Policy': 'same-origin',
-    });
+      ETag: etag, 'Last-Modified': st.mtime.toUTCString(),
+      ...(texto ? { Vary: 'Accept-Encoding' } : {}),
+    };
+    if (req.headers['if-none-match'] === etag) { res.writeHead(304, headers); return res.end(); }
+    const gzip = texto && st.size > 1024 && aceitaGzip(req);
+    res.writeHead(200, gzip ? { ...headers, 'Content-Encoding': 'gzip' } : headers);
     if (req.method === 'HEAD') return res.end();
-    fs.createReadStream(arquivo).pipe(res);
+    const leitura = fs.createReadStream(arquivo);
+    leitura.on('error', () => res.destroy());
+    (gzip ? leitura.pipe(zlib.createGzip()) : leitura).pipe(res);
   });
 }
 
@@ -1209,7 +1253,7 @@ const server = http.createServer(async (req, res) => {
     }
     const b = req.method === 'GET' ? {} : await lerCorpo(req, pathname === '/api/admin/fotos' ? 2_500_000 : pathname === '/api/manu/whatsapp' ? 16_000_000 : 200_000);
     const out = await achada.fn({ req, res, u, p: params, b, q: url.searchParams });
-    if (!res.headersSent) json(res, 200, out);
+    if (!res.headersSent) enviarJSON(req, res, pathname, out);
   } catch (e) {
     if (e instanceof Erro) return json(res, e.status, { erro: e.message });
     console.error(new Date().toISOString(), req.method, pathname, e);
