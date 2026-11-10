@@ -181,7 +181,29 @@
     document.querySelectorAll('#giz .giz-pontos button').forEach((b, i) => { if (i === slideAtual) b.setAttribute('aria-current', 'true'); else b.removeAttribute('aria-current'); });
   }
 
+  // ---------------- pedir de novo: o último pedido feito pelo site fica guardado só neste celular
+  const ULTIMO = 'nm-ultimo-pedido';
+  // itens do último pedido que ainda existem hoje, com o preço de hoje
+  function ultimoDeHoje() {
+    const u = guardado(ULTIMO, null);
+    if (tokenMesa || !u || !Array.isArray(u.itens) || !st.cardapio) return null;
+    const r = window.Calc.revalidar(st.cardapio, u.itens, st.dia);
+    return r.ok.length ? r : null;
+  }
+  function renderDeNovo() {
+    const el = $('#de-novo');
+    if (!el) return;
+    const u = !st.carrinho.length && !st.enviado ? ultimoDeHoje() : null;
+    if (!u) { el.innerHTML = ''; return; }
+    const lista = u.ok.map((i) => `${i.qtd}× ${esc(i.nome)}${i.detalhe ? ` <small>(${esc(i.detalhe)})</small>` : ''}`).join('<br>');
+    el.innerHTML = `<section class="manu-card de-novo" aria-label="Pedir de novo"><img src="${MANU('celular')}" alt="" width="84" height="105">
+      <div><h2>Pedir de novo?</h2><p>${lista}</p>${u.fora.length ? `<p class="nota">Hoje não temos: ${esc(u.fora.join(', '))}.</p>` : ''}
+        <div class="de-novo-acoes"><button type="button" class="botao verde" data-acao="de-novo">Colocar no carrinho · ${brl(window.Calc.somar(u.ok))}</button>
+        <button type="button" class="link" data-acao="de-novo-esquecer">Não mostrar</button></div></div></section>`;
+  }
+
   function renderBarra() {
+    renderDeNovo();
     const n = st.carrinho.reduce((s, i) => s + i.qtd, 0);
     const manu = st.loja && st.loja.manu && !tokenMesa
       ? `<button class="botao-manu${n ? ' so-icone' : ''}" data-acao="manu" aria-label="Pedir com a Manu"><img src="${MANU('acenando')}" alt="" width="44" height="44">${n ? '' : '<span>Pedir com a Manu</span>'}</button>` : '';
@@ -295,6 +317,17 @@
     switch (b.dataset.acao) {
       case 'abrir': abrir(); break;
       case 'fechar': fechar(); break;
+      case 'de-novo': {
+        const u = ultimoDeHoje();
+        if (!u) { renderDeNovo(); break; }
+        st.carrinho.push(...u.ok); st.enviado = null;
+        guardar(chave('carrinho'), st.carrinho);
+        renderBarra();
+        avisar(u.fora.length ? 'Itens no carrinho. Hoje não temos: ' + u.fora.join(', ') : 'Seu último pedido está no carrinho');
+        abrir();
+        break;
+      }
+      case 'de-novo-esquecer': guardar(ULTIMO, null); renderDeNovo(); break;
       case 'pagamento': lerForm(); st.pagamento = b.dataset.v; renderCarrinho(); break;
       case 'local': lerForm(); marcarLocal(); break;
       case 'local-tirar': lerForm(); st.local = null; renderCarrinho(); break;
@@ -367,6 +400,7 @@
       st.enviado = { id: d.pedido_id, codigo: d.codigo, pix: st.pagamento === 'pix', chavePix: d.pix || null, total: d.total, status: d.status };
       st.meus = [{ codigo: d.codigo, id: d.pedido_id }, ...st.meus].slice(0, 10);
       guardar(chave('pedidos'), st.meus);
+      if (!tokenMesa) guardar(ULTIMO, { em: Date.now(), itens: st.carrinho.map((i) => ({ escolha: i.escolha, nome: i.nome, detalhe: i.detalhe, qtd: i.qtd })) });
       st.carrinho = []; st.obs = ''; st.troco = ''; st.precisaTroco = '';
       guardar(chave('carrinho'), []);
       guardar(chave('envio-pendente'), null);
@@ -611,7 +645,7 @@
       return;
     }
     // itens guardados de outro dia podem ter mudado de preço ou acabado
-    st.carrinho = st.carrinho.filter((i) => { try { Object.assign(i, window.Calc.calcular(st.cardapio, i.escolha, st.dia)); return true; } catch { return false; } });
+    st.carrinho = window.Calc.revalidar(st.cardapio, st.carrinho, st.dia).ok;
     renderTopo();
     renderDestaques();
     montador = window.Montador.criar({

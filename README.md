@@ -144,6 +144,12 @@ Se o n8n cair, os pedidos continuam funcionando normalmente; só as mensagens de
 loja), depois de 6 mensagens em 30 segundos ela para de responder àquele número por 30 minutos e o WhatsApp da loja
 recebe um aviso.
 
+### Pedir de novo
+Quem já pediu pelo site vê, ao voltar ao cardápio, o cartão **"Pedir de novo?"** com o último pedido. Um toque coloca tudo no carrinho, **com o preço de hoje**.
+- O que acabou, não é vendido no dia ou mudou de opção fica de fora, com o aviso "Hoje não temos: …".
+- O último pedido fica guardado **só no celular do cliente** (nada novo no servidor). O cliente pode tocar em *Não mostrar*.
+- Não aparece no pedido pela mesa (QR).
+
 ### Link do cardápio no WhatsApp e app no celular
 - Ao mandar o link do cardápio no WhatsApp (conversa, grupo ou Status), aparece a **imagem da Manu com o nome da loja**, o nome e a frase da loja
   (editados em Administração › Loja). A foto é `site/public/img/compartilhar.jpg` (1200×630). Para trocar, use outra imagem do mesmo tamanho e com menos de 300 KB.

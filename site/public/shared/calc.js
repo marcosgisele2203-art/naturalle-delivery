@@ -79,9 +79,26 @@
     return reais(itens.reduce((s, i) => s + centavos(i.preco), 0));
   }
 
+  // Confere de novo itens guardados (carrinho de outro dia, "pedir de novo"): os que ainda existem voltam com o
+  // preço de hoje; os que acabaram, mudaram de opção ou não são vendidos hoje vão para "fora", pelo nome.
+  function revalidar(menu, itens, weekday) {
+    const ok = [], fora = [];
+    for (const i of Array.isArray(itens) ? itens : []) {
+      try {
+        // escolha num grupo de opções que a loja apagou: o item mudou, então não volta sozinho
+        const p = (menu.produtos || []).find((x) => x.id === (i.escolha && i.escolha.produto));
+        const grupos = new Set(((p && p.grupos) || []).map((g) => g.id));
+        const sel = (i.escolha && i.escolha.opcoes) || {};
+        if (Object.keys(sel).some((g) => Array.isArray(sel[g]) && sel[g].length && !grupos.has(g))) throw new Error('opção removida');
+        ok.push({ escolha: i.escolha, ...calcular(menu, i.escolha, weekday) });
+      } catch { fora.push(String((i && i.nome) || 'item')); }
+    }
+    return { ok, fora };
+  }
+
   const brl = (v) => 'R$ ' + Number(v || 0).toFixed(2).replace('.', ',');
 
-  const Calc = { calcular, precoMinimo, somar, brl, disponivelHoje, diasTexto, temCozinha, DIAS };
+  const Calc = { calcular, revalidar, precoMinimo, somar, brl, disponivelHoje, diasTexto, temCozinha, DIAS };
   if (typeof module !== 'undefined' && module.exports) module.exports = Calc;
   else root.Calc = Calc;
 })(this);

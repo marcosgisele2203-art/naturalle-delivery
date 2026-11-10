@@ -181,3 +181,10 @@ a:hover { color: var(--rosa-escuro); }
 .pix-espera { font-size: 13px; opacity: .75; }
 .pix-pago { border-style: solid; background: #eef9ee; }
 .manu-msg .pix-codigo + .botao { margin-top: 6px; width: 100%; justify-content: center; }
+
+/* pedir de novo (último pedido guardado no celular do cliente) */
+.de-novo { margin: 0 0 14px; align-items: flex-start; }
+.de-novo h2 { margin: 2px 0 4px; font-size: 18px; }
+.de-novo p { margin: 0 0 6px; line-height: 1.45; }
+.de-novo small { color: var(--cinza); }
+.de-novo-acoes { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-top: 6px; }
