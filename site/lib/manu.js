@@ -202,6 +202,8 @@ function criar(s) {
     const pedido = await s.gravarPedido({ origem: ctx.canal === 'whatsapp' ? 'whatsapp' : 'manu', tipo, status: 'novo',
       cliente_nome: nome, cliente_telefone: tel, endereco: tipo === 'entrega' ? endereco : '', localizacao: tipo === 'entrega' ? local : null,
       observacoes: s.texto(a.observacoes, 300), itens, taxa_entrega: taxa, taxa_cartao: loja.taxa_cartao, ...pag });
+    // a localização vale para UM pedido: depois de usada, o próximo pedido precisa de localização nova ou do endereço
+    if (local && ctx.dados) delete ctx.dados.localizacao;
     const mp = pedido.pagamento === 'pix' && s.prepararPixMP ? await s.prepararPixMP(pedido, loja) : null;
     s.notificar('/pedido', pedido);
     ctx.pedido = { id: pedido.id, codigo: pedido.codigo };
