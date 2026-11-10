@@ -5,7 +5,7 @@ const path = require('node:path');
 
 // Sobe o servidor de verdade contra um banco DESCARTÁVEL: DATABASE_URL=postgres://.../banco_de_teste npm test
 test('mesa (QR) não recebe pedido com a loja fechada', { skip: !process.env.DATABASE_URL && 'Defina DATABASE_URL de um banco de teste para rodar.' }, async (t) => {
-  const porta = 3100 + Math.floor(Math.random() * 800), U = 'http://127.0.0.1:' + porta;
+  const porta = 3100 + Math.floor(Math.random() * 300), U = 'http://127.0.0.1:' + porta;
   const srv = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], { env: { ...process.env, PORT: String(porta), MP_ACCESS_TOKEN: '', N8N_URL: '' }, stdio: 'ignore' });
   t.after(() => srv.kill());
   for (let i = 0; i < 60; i++) { try { if ((await fetch(U + '/saude')).ok) break; } catch {} await new Promise((r) => setTimeout(r, 250)); }

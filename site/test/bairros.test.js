@@ -22,7 +22,7 @@ test('taxa por bairro: regra compartilhada entre site, equipe e Manu', () => {
 
 // Sobe o servidor de verdade contra um banco DESCARTÁVEL: DATABASE_URL=postgres://.../banco_de_teste npm test
 test('taxa por bairro no site e no pedido da equipe (servidor)', { skip: !process.env.DATABASE_URL && 'Defina DATABASE_URL de um banco de teste para rodar.' }, async (t) => {
-  const porta = 3100 + Math.floor(Math.random() * 800), U = 'http://127.0.0.1:' + porta;
+  const porta = 3700 + Math.floor(Math.random() * 300), U = 'http://127.0.0.1:' + porta;
   const srv = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], { env: { ...process.env, PORT: String(porta), MP_ACCESS_TOKEN: '', N8N_URL: '' }, stdio: 'ignore' });
   t.after(() => srv.kill());
   for (let i = 0; i < 60; i++) { try { if ((await fetch(U + '/saude')).ok) break; } catch {} await new Promise((r) => setTimeout(r, 250)); }
@@ -53,4 +53,15 @@ test('taxa por bairro no site e no pedido da equipe (servidor)', { skip: !proces
   const eq = (await r.json()).pedido;
   assert.equal(Number(eq.taxa_entrega), 5);
   assert.equal(eq.endereco, 'Rua B, 5 — Centro');
+});
+
+test('taxa por bairro: leitura do campo da Administração', () => {
+  assert.deepEqual(Bairros.lerTexto('Centro = 5\n\n  Vila Nova: R$ 9,50 \nJardim 2 8\nSão José - 7\nCentro=4.5\nBela Vista – 6'), [
+    { nome: 'Centro', taxa: 5 }, { nome: 'Vila Nova', taxa: 9.5 }, { nome: 'Jardim 2', taxa: 8 }, { nome: 'São José', taxa: 7 }, { nome: 'Centro', taxa: 4.5 }, { nome: 'Bela Vista', taxa: 6 }]);
+  assert.throws(() => Bairros.lerTexto('Centro = -5'), /negativa/, 'sinal de menos não vira separador');
+  assert.throws(() => Bairros.lerTexto('Centro: R$ -5'), /negativa/);
+  assert.throws(() => Bairros.lerTexto('Centro -5'), /negativa/);
+  assert.throws(() => Bairros.lerTexto('Centro'), /sem valor/);
+  assert.throws(() => Bairros.lerTexto('= 5'), /Falta o nome/);
+  assert.deepEqual(Bairros.lerTexto(''), []);
 });

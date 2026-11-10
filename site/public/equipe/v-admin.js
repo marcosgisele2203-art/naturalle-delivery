@@ -607,13 +607,7 @@ App.views.admin = {
             aberta: f.aberta.checked, horario_automatico: f.horario_automatico.checked,
             horarios: DIAS.map((_, i) => ({ aberto: f['aberto' + i].checked, abre: fd.get('abre' + i), fecha: fd.get('fecha' + i) })),
             taxa_entrega: fd.get('taxa_entrega'), taxa_cartao: fd.get('taxa_cartao'),
-            // "Centro = 5,00" → { nome: 'Centro', taxa: '5.00' }; o número é o último da linha
-            bairros: String(fd.get('bairros') || '').split('\n').map((linha) => {
-              const m = /^(.*?)[\s=:;–—-]*R?\$?\s*(\d+(?:[.,]\d{1,2})?)\s*$/.exec(linha.trim());
-              if (!linha.trim()) return null;
-              if (!m || !m[1].trim()) throw new Error('Bairro sem valor: "' + linha.trim() + '". Use o formato Nome = 5');
-              return { nome: m[1].trim(), taxa: m[2].replace(',', '.') };
-            }).filter(Boolean),
+            bairros: window.Bairros.lerTexto(fd.get('bairros')),
           };
           if (f.horario) loja.horario = fd.get('horario');
           Object.assign(d, await App.api('/api/admin/loja', { loja }, 'PUT'));

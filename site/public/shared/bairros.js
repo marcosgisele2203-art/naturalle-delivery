@@ -23,6 +23,19 @@
     return saida;
   }
 
+  // texto da Administração, um bairro por linha com o valor no fim: "Centro = 5", "Vila Nova: R$ 9,50", "Jardim 2 8".
+  // Um sinal de menos junto do número (ex.: "Centro = -5") é mantido, para a validação recusar.
+  function lerTexto(texto) {
+    return String(texto || '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean).map((linha) => {
+      const m = /^(.+?)\s*(?:[=:;]\s*|[\u2013\u2014-]\s+|\s+)(?:R\$\s*)?(-?\d+(?:[.,]\d{1,2})?)$/.exec(linha);
+      if (!m) throw new Error('Bairro sem valor: "' + linha + '". Use o formato Nome = 5');
+      if (!/[\p{L}\d]/u.test(m[1])) throw new Error('Falta o nome do bairro na linha "' + linha + '". Use o formato Nome = 5');
+      const taxa = Number(m[2].replace(',', '.'));
+      if (taxa < 0) throw new Error('Taxa negativa no bairro ' + m[1].trim() + '. Use 0 ou mais.');
+      return { nome: m[1].trim(), taxa };
+    });
+  }
+
   const lista = (loja) => (Array.isArray(loja && loja.bairros) ? loja.bairros : []);
   const padrao = (loja) => Math.max(0, Number(loja && loja.taxa_entrega) || 0);
   // o bairro cadastrado com esse nome (ignora acento e maiúsculas), ou null
@@ -42,7 +55,7 @@
     return e ? e + ' — ' + b.nome : b.nome;
   }
 
-  const Bairros = { OUTRO, validar, lista, taxa, achar, noEndereco };
+  const Bairros = { OUTRO, validar, lerTexto, lista, taxa, achar, noEndereco };
   if (typeof module !== 'undefined' && module.exports) module.exports = Bairros;
   else root.Bairros = Bairros;
 })(this);
