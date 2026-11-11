@@ -1,0 +1,38 @@
+# Roda os testes a cada Pull Request e a cada envio para a main.
+# Usa um Postgres descartável criado só para o teste (nunca o banco de produção).
+name: Testes
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: site
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          # banco descartável, só acessível de dentro do job: conexão local sem senha
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: naturalletest
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres@127.0.0.1:5432/naturalletest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - run: npm ci
+      - run: node --check server.js
+      - run: npm test
