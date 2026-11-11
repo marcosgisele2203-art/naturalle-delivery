@@ -3,7 +3,7 @@
 //
 //   MP_ACCESS_TOKEN   Access Token de PRODUÇÃO da aplicação no Mercado Pago (APP_USR-...)
 
-const TOKEN = process.env.MP_ACCESS_TOKEN || '';
+const TOKEN = (process.env.MP_ACCESS_TOKEN || '').trim(); // colado no Easypanel às vezes vem com espaço ou quebra de linha
 const BASE = process.env.MP_BASE || 'https://api.mercadopago.com'; // trocado só em teste
 const VALIDADE_MIN = 30;
 
